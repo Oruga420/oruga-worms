@@ -1,0 +1,16 @@
+﻿node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+.vercel/
+.omx/
+*.log
+__pycache__/
+*.pyc
