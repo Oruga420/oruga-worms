@@ -22,6 +22,12 @@ const down = (code: string): RawInputEvent => ({ kind: 'key', type: 'down', code
 const up = (code: string): RawInputEvent => ({ kind: 'key', type: 'up', code });
 
 describe('input: key reducer', () => {
+  it.each(['ArrowUp', 'KeyW', 'Enter'])('holds jetpack thrust with %s and releases it', (key) => {
+    const state = run([down(key)]);
+    expect(buildIntent(state, identity).thrust).toBe(true);
+    expect(buildIntent(endTick(state), identity).thrust).toBe(true);
+    expect(buildIntent(run([up(key)], state), identity).thrust).toBe(false);
+  });
   it('tracks held keys through their actions and ignores unbound keys', () => {
     const state = run([down('ArrowLeft'), down('KeyZ')]);
     expect(state.held.has('moveLeft')).toBe(true);

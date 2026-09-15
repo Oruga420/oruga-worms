@@ -32,6 +32,7 @@ export interface HudModel {
   readonly weapon: WeaponId;
   readonly fuseMs?: number | null;
   readonly dropEveryTurns?: number;
+  readonly jetpackFuelMs?: number | null;
   readonly banner: string | null;
   /** Whole movement steps left this turn, and the per turn total from the match config. */
   readonly steps: number;
@@ -43,7 +44,7 @@ export interface HudModel {
 }
 
 export function hudKey(model: HudModel): string {
-  const totals = model.state.teams.map((_, i) => teamTotalHp(model.state, i)).join(',');
+  const totals = model.state.teams.map((_, i) => teamTotalHp(model.state, i)).join(',') + `|fuel:${model.jetpackFuelMs == null ? '-' : Math.ceil(model.jetpackFuelMs / 100)}`;
   // The panel's cells change with ammo, which the totals do not track, so the key carries the
   // per cell enabled flags whenever it is open; a closed panel is a single character.
   const panel = model.panel === null ? '-' : model.panel.rows.flatMap((row) => row.cells.map((cell) => `${cell.id}:${cell.count}:${cell.enabled ? 1 : 0}`)).join(',');
@@ -101,6 +102,10 @@ export function drawHud(ctx: Ctx2D, viewport: Size, model: HudModel): void {
   const stepsTotal = model.stepsTotal;
   ctx.fillStyle = model.steps === 0 && state.phase === 'Active' ? '#ff5030' : '#ffd36a';
   ctx.fillText(`Steps ${model.steps}/${stepsTotal}`, 12, viewport.h - 58);
+  if (model.jetpackFuelMs != null) {
+    ctx.fillStyle = '#7fd1ff';
+    ctx.fillText(`JETPACK | fuel ${(model.jetpackFuelMs / 1000).toFixed(1)}s | Hold Up / W / Enter to lift; Left / Right to steer`, 12, viewport.h - 80, viewport.w - 24);
+  }
   if (activeIsHuman) {
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(12, viewport.h - 26, 200, 12);

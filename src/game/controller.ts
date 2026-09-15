@@ -189,12 +189,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const active = activeWormOf(state);
     const body = active === undefined ? undefined : findBody(world, active.id);
     const beforeX = body?.x;
+    const wasFlying = body?.motion === 'jetpacking' || body?.motion === 'parachuting';
     // Sampled once: the CPU walk queue is consumed by this call, a second one would skip a tick.
     const intents = currentIntents();
     const commandedWalk = active !== undefined && (intents.get(active.id)?.moveX ?? 0) !== 0;
     const simEvents = stepWorld(world, intents);
     // Bill only the phase the budget governs and only ticks the player actually asked to walk.
-    if (state.phase === 'Active' && commandedWalk && body !== undefined && beforeX !== undefined) {
+    if (state.phase === 'Active' && !wasFlying && commandedWalk && body !== undefined && beforeX !== undefined) {
       spentPx += Math.abs(body.x - beforeX);
     }
     applySimEvents(simEvents);

@@ -41,6 +41,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Aim | Up/Down or W/S |
 | Charge and fire | Hold and release Space |
 | Jump / backflip | Enter / Backspace |
+| Jetpack | Select it, press/release Space; hold Up, W, or Enter to lift; Left/Right to steer |
 | Open inventory | Tab or Shift+Q; click a weapon |
 | First nine weapon slots | F1–F9 |
 | Explosive fuse | 1–5, for weapons that allow those durations |

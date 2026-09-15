@@ -11,7 +11,7 @@ import type { CrateBody, MineBody, ProjectileBody, SheepBody, WormBody } from '.
 
 export function wormAtRest(worm: WormBody): boolean {
   if (!worm.alive || worm.motion === 'dead') return true;
-  return worm.onGround && worm.motion === 'idle' && worm.restTicks >= REST_TICKS;
+  return worm.onGround && (worm.motion === 'idle' || worm.motion === 'jetpacking') && worm.restTicks >= REST_TICKS;
 }
 
 export function projectileAtRest(p: ProjectileBody): boolean {
