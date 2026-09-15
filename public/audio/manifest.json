@@ -1,0 +1,4234 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-03T23:22:15.931Z",
+  "loudness": {
+    "sfx": -16,
+    "voice": -18,
+    "music": -20,
+    "truePeak": -1
+  },
+  "assets": [
+    {
+      "id": "exp_large",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_large.ogg",
+        "mp3": "audio/sfx/exp_large.mp3"
+      },
+      "durationMs": 2480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "large explosion: massive sub-bass detonation, rolling rumble, falling debris, long decay, cinematic",
+        "requestedSeconds": 2.5,
+        "attempts": 1,
+        "credits": 100,
+        "sha256": "177695b2486648e015573079e8732013a5396ac6a699fe3ae0d2b30d564d6368",
+        "promptInfluence": 0.3
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -10 LUFS, TP 2.51 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "exp_medium_1",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_medium_1.ogg",
+        "mp3": "audio/sfx/exp_medium_1.mp3"
+      },
+      "durationMs": 1145,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "medium explosion: deep boom, cracking mid impact, scattering dirt debris, one-shot (take 1 of 2, a distinct variation)",
+        "requestedSeconds": 1.5,
+        "attempts": 1,
+        "credits": 60,
+        "sha256": "8dfb3695eeedbc3b90be69a58cda736eee9cb28cb9d9fca5af50f60b2b847e9d",
+        "promptInfluence": 0.3
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -44.77 LUFS, TP -21.68 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "exp_medium_2",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_medium_2.ogg",
+        "mp3": "audio/sfx/exp_medium_2.mp3"
+      },
+      "durationMs": 1480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "medium explosion: deep boom, cracking mid impact, scattering dirt debris, one-shot (take 2 of 2, a distinct variation)",
+        "requestedSeconds": 1.5,
+        "attempts": 1,
+        "credits": 60,
+        "sha256": "f197043ea5d1f6e40331d4d0d9cf048fc86ed8c1793fc77021c225af4f09ac59",
+        "promptInfluence": 0.3
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -30.63 LUFS, TP -2.33 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "exp_small_1",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_small_1.ogg",
+        "mp3": "audio/sfx/exp_small_1.mp3"
+      },
+      "durationMs": 520,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small explosion: quick punchy bang, dusty crumbling debris tail, one-shot (take 1 of 2, a distinct variation)",
+        "requestedSeconds": 1,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "bd0e4b7e0ef02f682b68323c4f3733d88d833e805fb31d191198d13a47ab9815"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 16.6 dB from peak -19.6 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "exp_small_2",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_small_2.ogg",
+        "mp3": "audio/sfx/exp_small_2.mp3"
+      },
+      "durationMs": 1000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small explosion: quick punchy bang, dusty crumbling debris tail, one-shot (take 2 of 2, a distinct variation)",
+        "requestedSeconds": 1,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "5d317106ca6ae016222ad138645bee8bdba31e7638608ed007c76a24e3bff006"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -15.98 LUFS, TP 3.93 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "exp_water_splash",
+      "bus": "sfx",
+      "group": "explosions",
+      "files": {
+        "ogg": "audio/sfx/exp_water_splash.ogg",
+        "mp3": "audio/sfx/exp_water_splash.mp3"
+      },
+      "durationMs": 946,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "heavy object plunging into water: big splash, bubbly plop, dripping tail, one-shot",
+        "requestedSeconds": 1.2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "61fce635e7cab68dbb5089b033e2babe3120d7d9f198fc819b4fdc5d099b1c38"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "music_theme_loop",
+      "bus": "music",
+      "group": "music",
+      "files": {
+        "ogg": "audio/music/music_theme_loop.ogg",
+        "mp3": "audio/music/music_theme_loop.mp3"
+      },
+      "durationMs": 66038,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 64000,
+      "gainDb": -6,
+      "pitchVariance": 0,
+      "channels": 2,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/music",
+        "model": "music_v2",
+        "prompt": "upbeat quirky military march for a cartoon artillery game, toy brass, marching snare, tuba bassline, glockenspiel accents, 120 BPM, steady energy, loopable, no intro, no outro, no vocals",
+        "requestedSeconds": 66,
+        "attempts": 1,
+        "credits": 990,
+        "sha256": "89cb744ecae49351ba94856d9256d4a26d0fc027e83d494a48c7f8955e1b2441"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.91 LUFS, TP -1.04 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_confirm",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_confirm.ogg",
+        "mp3": "audio/ui/ui_confirm.mp3"
+      },
+      "durationMs": 600,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "menu confirm: short positive two-tone blip, clean, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "503614cacc5b6a7c0838cf26256681a3afbfb06d218c47386468520104a7c997"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_lose_fanfare",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_lose_fanfare.ogg",
+        "mp3": "audio/ui/ui_lose_fanfare.mp3"
+      },
+      "durationMs": 3000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "defeat stinger: sad descending trombone slide, comedic wah-wah, final low thud",
+        "requestedSeconds": 3,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "0e3e4374bd8076d861021c30702a46db491aadb985192a6aacc38f95ca08ced4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -10.4 LUFS, TP 2.91 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_panel_open",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_panel_open.ogg",
+        "mp3": "audio/ui/ui_panel_open.mp3"
+      },
+      "durationMs": 522,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -8,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "UI panel sliding open: soft mechanical slide, light click stop, clean, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "90af33ac700b975b4d69928c28707c318ea35fef6f90bb9cdb58c31dd044198f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 4.3 dB from peak -7.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_power_charge",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_power_charge.ogg",
+        "mp3": "audio/ui/ui_power_charge.mp3"
+      },
+      "durationMs": 2480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "power charge: smooth ascending synth pitch ramp, increasing tension, no release",
+        "requestedSeconds": 2.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "51e0b39949fa962d924836f16a10d0e1cc822afb46e3e1b62824efb3812975da"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -10.46 LUFS, TP -2.46 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_select_click",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_select_click.ogg",
+        "mp3": "audio/ui/ui_select_click.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -8,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "interface selection click: crisp short tactile button click, dry, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "b83a88ac758b0a6aaac5862e8ba7e88f15fb67a11d6554e1d48ce162b56fddbb"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 16.5 dB from peak -19.5 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "ui_win_fanfare",
+      "bus": "ui",
+      "group": "ui",
+      "files": {
+        "ogg": "audio/ui/ui_win_fanfare.ogg",
+        "mp3": "audio/ui/ui_win_fanfare.mp3"
+      },
+      "durationMs": 3000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "victory fanfare: triumphant brass and drum stinger, upbeat, ends cleanly",
+        "requestedSeconds": 3,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "e22d49a408eab98e10cf10b1b6e4eaad92104db965a7988b6e91a92347e6e2d9"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -9.83 LUFS, TP 2.6 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_bye_bye_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_bye_bye_1.ogg",
+        "mp3": "audio/voice/voice_drill_bye_bye_1.mp3"
+      },
+      "durationMs": 1276,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Going down swimming, sir!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 25,
+        "sha256": "0b745c4fdedbc0da1c2649bdda763ab21cdc7371fdc610eb4e1f9af35465f057"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.17 LUFS, TP -8.22 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_coward_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_coward_1.ogg",
+        "mp3": "audio/voice/voice_drill_coward_1.mp3"
+      },
+      "durationMs": 2256,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Skipping your turn? Drop and give me twenty!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 44,
+        "sha256": "5067c415b250205076688c23e2c526b0186e3f4dbf07aa8a3d26943d2bfab3a5"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -24.09 LUFS, TP -8.22 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_defeat_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_defeat_1.ogg",
+        "mp3": "audio/voice/voice_drill_defeat_1.mp3"
+      },
+      "durationMs": 1706,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "We got outgunned. This time.",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 28,
+        "sha256": "ec99812edca7a66f59ca3365c3390bc366ba2f640c59a86c079d816579ee2ece"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23.26 LUFS, TP -6.58 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_drown_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_drown_1.ogg",
+        "mp3": "audio/voice/voice_drill_drown_1.mp3"
+      },
+      "durationMs": 2137,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Man overboard! Nobody taught you to swim?",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 41,
+        "sha256": "975a440277aa07c36d0f28072d9f0479c78343be017e797262faacb1eeeee1a5"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.39 LUFS, TP -6.71 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_fall_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_fall_1.ogg",
+        "mp3": "audio/voice/voice_drill_fall_1.mp3"
+      },
+      "durationMs": 1042,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Brace for impact!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 17,
+        "sha256": "5d97185a7a8277c95525d513ceb960085902245ca36c2e6864071cd38612cca8"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.75 LUFS, TP -6.29 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_hurry_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_hurry_1.ogg",
+        "mp3": "audio/voice/voice_drill_hurry_1.mp3"
+      },
+      "durationMs": 1744,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Five seconds, grunt! Decide!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 28,
+        "sha256": "f47565be18c0c3724dc0563cd3097b2d670a8f6ebec687d02158e4a34577f447"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.44 LUFS, TP -5.12 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_hurt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_hurt_1.ogg",
+        "mp3": "audio/voice/voice_drill_hurt_1.mp3"
+      },
+      "durationMs": 1392,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Just a scratch, soldier!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "fea825cce42a6407b02e0f74b7f1b838e3e5f2fa68af93f5625e6c9b455ef962"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.24 LUFS, TP -8.24 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_hurt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_hurt_2.ogg",
+        "mp3": "audio/voice/voice_drill_hurt_2.mp3"
+      },
+      "durationMs": 1472,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Walk it off! WALK IT OFF!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 25,
+        "sha256": "004b65b82ff5fac52746f0557db511c9bc4b14243143e16343b8614f4b4b02cc"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23 LUFS, TP -9.43 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_hurt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_hurt_3.ogg",
+        "mp3": "audio/voice/voice_drill_hurt_3.mp3"
+      },
+      "durationMs": 1120,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "You call that a wound?",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 22,
+        "sha256": "5c93916d0c2000a5d2f09cc62003909de7806895ce77d449c5c30218aac3ac83"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.9 LUFS, TP -7.42 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_incoming_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_incoming_1.ogg",
+        "mp3": "audio/voice/voice_drill_incoming_1.mp3"
+      },
+      "durationMs": 1358,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Air raid! Hit the dirt!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 23,
+        "sha256": "6ea78f40b5695440c34419144c6f4c73b9e032afb392e898df822a5e8ff9fd1f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.49 LUFS, TP -7.57 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_near_miss_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_near_miss_1.ogg",
+        "mp3": "audio/voice/voice_drill_near_miss_1.mp3"
+      },
+      "durationMs": 1319,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Missed by a hair, private!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "c8cb92f0a9f5d33a0147d844ac415a2b826f123fe0f8739151b93776d0d00a72"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.46 LUFS, TP -7.37 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_oops_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_oops_1.ogg",
+        "mp3": "audio/voice/voice_drill_oops_1.mp3"
+      },
+      "durationMs": 1822,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Friendly fire! Report to the medic!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 35,
+        "sha256": "8db1a9e6bb9de2c24d1fbbdc6a139e3ceaf1acc428c6bba6ca1fa22fdce43dcd"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.72 LUFS, TP -8.42 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_perfect_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_perfect_1.ogg",
+        "mp3": "audio/voice/voice_drill_perfect_1.mp3"
+      },
+      "durationMs": 1707,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Target eliminated. Well done.",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 29,
+        "sha256": "b1718e4c5d751eedbf1f0fe13198db40e6ef85364b562d77ee20a0c92abc2aa4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23.15 LUFS, TP -8.51 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_taunt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_taunt_1.ogg",
+        "mp3": "audio/voice/voice_drill_taunt_1.mp3"
+      },
+      "durationMs": 1668,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Direct hit! That's how we do it!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 32,
+        "sha256": "e3a4c2ae6d85dcc1524ad906ecdd9d0b7a6609e1c9b45c678199d9c7fa615545"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.91 LUFS, TP -6.99 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_taunt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_taunt_2.ogg",
+        "mp3": "audio/voice/voice_drill_taunt_2.mp3"
+      },
+      "durationMs": 1472,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Textbook! Write that down!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "34222e4e9a0e06abd6ff30b18733602d83c1c11c79bf0d8da54c3dd0f8a8a2aa"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.78 LUFS, TP -6.38 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_taunt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_taunt_3.ogg",
+        "mp3": "audio/voice/voice_drill_taunt_3.mp3"
+      },
+      "durationMs": 1627,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Somebody's crying. Not me.",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "8610de4110b7eb1c651f8521d289b7dd941bba33ce4ce609badfe9fe368aa179"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23.51 LUFS, TP -8.16 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_turn_start_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_turn_start_1.ogg",
+        "mp3": "audio/voice/voice_drill_turn_start_1.mp3"
+      },
+      "durationMs": 1553,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Move it, maggot! You're up!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 27,
+        "sha256": "9e71dd0c67f6921badc8f42b86d66c3cc31cea3d4674f7376aca1dd9bd6556ec"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.02 LUFS, TP -8.32 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_turn_start_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_turn_start_2.ogg",
+        "mp3": "audio/voice/voice_drill_turn_start_2.mp3"
+      },
+      "durationMs": 1749,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Eyes front. Your turn, private.",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 31,
+        "sha256": "5ca2dc5c6287ddd0680cf683cea4d6ed922b12565fc9f691aa16e5b858709086"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.95 LUFS, TP -5.95 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_turn_start_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_turn_start_3.ogg",
+        "mp3": "audio/voice/voice_drill_turn_start_3.mp3"
+      },
+      "durationMs": 1240,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Lock and load, ladies!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 22,
+        "sha256": "0d68668b895b78b4abcf67cbf8dfe6a28f01b58dcc15ab4231c2242340cd0a6b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -20.54 LUFS, TP -7.37 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_drill_victory_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_drill_victory_1.ogg",
+        "mp3": "audio/voice/voice_drill_victory_1.mp3"
+      },
+      "durationMs": 2298,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Mission accomplished! Outstanding, platoon!",
+        "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+        "attempts": 1,
+        "credits": 43,
+        "sha256": "1fadcaba35013ed501eceeee851d789c67f4de0c55bbb4dd974ba9859e21835a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23.53 LUFS, TP -5.75 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_bye_bye_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_bye_bye_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_bye_bye_1.mp3"
+      },
+      "durationMs": 1058,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Tell my mum I love her!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 23,
+        "sha256": "1cb769a02478e1991b68a1548e970de2a3e09d863bed28af1e58bbebaf6531d2"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -15.77 LUFS, TP -2.24 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_coward_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_coward_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_coward_1.mp3"
+      },
+      "durationMs": 1125,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Chicken! Bawk bawk bawk!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "9fa966ab16459c18c45c8615df9cd7c4b916a73253bd27c91636d5efba380ba9"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -16.4 LUFS, TP -1.26 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_defeat_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_defeat_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_defeat_1.mp3"
+      },
+      "durationMs": 1732,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "We'll get you next time. Probably.",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 34,
+        "sha256": "9b3c06ee782266151db45bc268dcc5c92642b66cf9880bad62a8d14541b91639"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.78 LUFS, TP -2.49 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_drown_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_drown_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_drown_1.mp3"
+      },
+      "durationMs": 1126,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "I can't swim, I'm a WORM!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 25,
+        "sha256": "9d57582bbe11865564739851720e3108fdb42ef085ec42b89e00e815d7173c5a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -16.25 LUFS, TP -2.42 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_fall_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_fall_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_fall_1.mp3"
+      },
+      "durationMs": 1055,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Whoa whoa whoa, wrong way!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "09be6b99c2b1d1c141df9358e8d2fc85f0cf256606be6e3cd5e2e78a66d2f4b7"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -17.09 LUFS, TP -2.1 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_hurry_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_hurry_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_hurry_1.mp3"
+      },
+      "durationMs": 1199,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Tick tock, wiggly, decide!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "dceb5158186b6e2ad75e7baec314f5e324738fce001a44be9fc8f0fc902518c5"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -24.35 LUFS, TP -5.69 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_hurt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_hurt_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_hurt_1.mp3"
+      },
+      "durationMs": 980,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Ow! My everything!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 18,
+        "sha256": "d067051770c3349750cd4704bb023ce747176a6e4b05d07f507f4ed7e1df3e0e"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.7 dB from peak -0.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_hurt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_hurt_2.ogg",
+        "mp3": "audio/voice/voice_en_comedic_hurt_2.mp3"
+      },
+      "durationMs": 913,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Rude. Very rude.",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 16,
+        "sha256": "3f5f1e87bf6fe924d62ca4016683360149f7a8f5bb8fc811067c98476661e5fc"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 2.3 dB from peak -5.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_hurt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_hurt_3.ogg",
+        "mp3": "audio/voice/voice_en_comedic_hurt_3.mp3"
+      },
+      "durationMs": 734,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Not the face!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 13,
+        "sha256": "82abdbc1711b12e8803285a69119e2b0023332673e9f140713f83cd92a60f02a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.3 dB from peak -0.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_incoming_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_incoming_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_incoming_1.mp3"
+      },
+      "durationMs": 981,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Sky's falling! Duck!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 20,
+        "sha256": "ac15d6cd3c75be3373765dcbbb86e0576b9349d34676bd4190fcb421ed33001f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -1.7 dB from peak -1.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_near_miss_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_near_miss_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_near_miss_1.mp3"
+      },
+      "durationMs": 1089,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Ha! You brushed my hair!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "3f992b8c3f95abbc2c956c83a386156c64fc9d20c20743b63a3e0eda718221fe"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -20.15 LUFS, TP -0.9 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_oops_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_oops_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_oops_1.mp3"
+      },
+      "durationMs": 1373,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "That was... totally on purpose.",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 31,
+        "sha256": "722b92513d6c3b6b4989e6743781ce21979214a8e19ee6f9c2e83c09f954d51c"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -18.8 LUFS, TP -1 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_perfect_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_perfect_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_perfect_1.mp3"
+      },
+      "durationMs": 1052,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Chef's kiss, flawless!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 22,
+        "sha256": "29e75e927d3755afa73954b33eac471a592bec601a1650dd10dad1fe1c19db47"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.37 LUFS, TP -0.32 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_taunt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_taunt_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_taunt_1.mp3"
+      },
+      "durationMs": 1021,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Did that sting? Good!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 21,
+        "sha256": "ea07c51c9e54b49e43a1f3626b4c3860867eb56f58fbafedfa0c898c7d14eb5d"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -21.57 LUFS, TP -3.81 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_taunt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_taunt_2.ogg",
+        "mp3": "audio/voice/voice_en_comedic_taunt_2.mp3"
+      },
+      "durationMs": 981,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Textbook aim, baby!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 19,
+        "sha256": "69bea075b81f8972b189587607461ce7d7bb0525b3b3fdf5e5e11175e2194620"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.1 dB from peak -0.9 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_taunt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_taunt_3.ogg",
+        "mp3": "audio/voice/voice_en_comedic_taunt_3.mp3"
+      },
+      "durationMs": 1088,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Say hi to the fish for me!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "291be87f25694d3d9e6ff5cc2c4faafffdb68b1a07418c13a72d415f2c70576f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -20.96 LUFS, TP -4.15 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_turn_start_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_turn_start_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_turn_start_1.mp3"
+      },
+      "durationMs": 988,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Ooh, my go, my go!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 18,
+        "sha256": "3151864af619e132b60aeb8d4a89fa97ebe6f1d8472938a694f210e040187137"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -1.3 dB from peak -1.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_turn_start_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_turn_start_2.ogg",
+        "mp3": "audio/voice/voice_en_comedic_turn_start_2.mp3"
+      },
+      "durationMs": 880,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Right. Nobody panic.",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 20,
+        "sha256": "0d1372e84c06d0723e8a45a173c97697e5d614def3764c485ece1123573dd6a9"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 2.4 dB from peak -5.4 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_turn_start_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_turn_start_3.ogg",
+        "mp3": "audio/voice/voice_en_comedic_turn_start_3.mp3"
+      },
+      "durationMs": 950,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Hold my juice box.",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 18,
+        "sha256": "239b351d9eda84a2e9a4ca7ac6acf94744cd8205b01002dc270d4bb30edad453"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 2.7 dB from peak -5.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_en_comedic_victory_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_en_comedic_victory_1.ogg",
+        "mp3": "audio/voice/voice_en_comedic_victory_1.mp3"
+      },
+      "durationMs": 1308,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Champions! Cake for everyone!",
+        "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+        "attempts": 1,
+        "credits": 29,
+        "sha256": "4754142fa0fa08c37648983caf6626710c33803a3457f5df084e57a367973753"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -23.39 LUFS, TP -2.66 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_bye_bye_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_bye_bye_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_bye_bye_1.mp3"
+      },
+      "durationMs": 1378,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Adiós, mundo cruel!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 20,
+        "sha256": "d31461968d8e11d30da14f8bb8e0ae93bac806f6387e26a093c64cc5cd4bf48f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.11 LUFS, TP -0.6 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_coward_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_coward_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_coward_1.mp3"
+      },
+      "durationMs": 1416,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Gallina! ¡Cocorocó!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 20,
+        "sha256": "814558b204ffd5d5f565dda718c3bf93074eb2e6d706e8908893d81eeddf79f8"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -7.25 LUFS, TP -0.14 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_defeat_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_defeat_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_defeat_1.mp3"
+      },
+      "durationMs": 2134,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Nos hicieron trampa, se me hace.",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 32,
+        "sha256": "7e4e9c93c86832962783d95ca220e2e6990148dfe64c9f23b37652d56f904ae0"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -18.44 LUFS, TP -4.45 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_drown_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_drown_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_drown_1.mp3"
+      },
+      "durationMs": 1202,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Yo no sé nadaaar!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 18,
+        "sha256": "4108bfe24e8a8a2821b2cc7fd35a143e52805502d646f01d845a0ffd806ee602"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -11.7 LUFS, TP -0.18 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_fall_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_fall_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_fall_1.mp3"
+      },
+      "durationMs": 1410,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Aguas, aguas, aguaaas!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 23,
+        "sha256": "22541eefbd0bce15cbe6d47edc092b5651d7ca51829194a80bab1b09c2e10d13"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -10.75 LUFS, TP -0.24 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_hurry_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_hurry_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_hurry_1.mp3"
+      },
+      "durationMs": 1346,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Ándale, se acaba el tiempo!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 28,
+        "sha256": "ef70e184050d758a8731d14a733efe7d24f58134aa85e99a7ca8373221964f90"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.72 LUFS, TP -3.38 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_hurt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_hurt_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_hurt_1.mp3"
+      },
+      "durationMs": 1203,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Ay, mi cuerpito!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 17,
+        "sha256": "f68ecd8c39550ce6012dc658092a3942f4484ac90c93b5c065a55e0a1ca6b03b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -22.99 LUFS, TP -6.64 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_hurt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_hurt_2.ogg",
+        "mp3": "audio/voice/voice_es_mx_hurt_2.mp3"
+      },
+      "durationMs": 1485,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Auch! ¡Eso sí dolió!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 21,
+        "sha256": "bbed266942a163e827b6adf332c3a17cbec8e8a4a118cfcc504aca88737bac08"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.13 LUFS, TP -0.56 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_hurt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_hurt_3.ogg",
+        "mp3": "audio/voice/voice_es_mx_hurt_3.mp3"
+      },
+      "durationMs": 878,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡No manches!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 12,
+        "sha256": "21084adb0ae017d5aa958ca788f72861b1c362ed13535bc23053dbc84d47c068"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -1.9 dB from peak -1.1 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_incoming_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_incoming_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_incoming_1.mp3"
+      },
+      "durationMs": 1520,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Aviones! ¡Pecho tierra!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "1f1bd158a9e360ee521da2758d69df8183c6a675f2e05da642ff3e890039dfaa"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -12.02 LUFS, TP -0.42 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_near_miss_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_near_miss_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_near_miss_1.mp3"
+      },
+      "durationMs": 1309,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Casi, casi, chavo!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 19,
+        "sha256": "055ba0cfc77f3a0b4e6bd9f663561c909f5f153f20d5089b40f0b0da4e2d0ca7"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -12.95 LUFS, TP -1.63 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_oops_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_oops_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_oops_1.mp3"
+      },
+      "durationMs": 1778,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Eso fue... a propósito.",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 23,
+        "sha256": "f9a45af54838e075c4b923f8c749d5238908ab9600a1a5adfc773c89dadacb90"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -17.42 LUFS, TP -2.5 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_perfect_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_perfect_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_perfect_1.mp3"
+      },
+      "durationMs": 1274,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Se lo cargó el payaso!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 23,
+        "sha256": "6755cb46b4ee7d495b201ec9117db0a45ce169016bd928771b6a3e29cd1fc9c1"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -17.06 LUFS, TP -2.39 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_taunt_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_taunt_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_taunt_1.mp3"
+      },
+      "durationMs": 1420,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Eso! ¡Pa' que aprendas!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "f29a2e495afeca2d7c488b41892ed3ea81a08574af5011b20ef16aa5569fbd55"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -12.82 LUFS, TP -0.66 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_taunt_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_taunt_2.ogg",
+        "mp3": "audio/voice/voice_es_mx_taunt_2.mp3"
+      },
+      "durationMs": 1090,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Toma tu chanclazo!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 19,
+        "sha256": "b62aeb41fabb035f3b8d7ed9f329cc5ec73a7ab0ece03e782fc3b70a10ecc1f9"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -11.52 LUFS, TP -0.57 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_taunt_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_taunt_3.ogg",
+        "mp3": "audio/voice/voice_es_mx_taunt_3.mp3"
+      },
+      "durationMs": 1234,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Salúdame a los peces.",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 21,
+        "sha256": "2281dda4c69894e7e2246831fa35f50c5d7046c8bd2ef21a4879ce41bebc2065"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -15.83 LUFS, TP -1.64 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_turn_start_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_turn_start_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_turn_start_1.mp3"
+      },
+      "durationMs": 953,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Órale, me toca!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 16,
+        "sha256": "00d1c4ca8d4d621d16a927ad4b71fd078542e6e7ba442efc069a778b44f13255"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.2 dB from peak -0.8 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_turn_start_2",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_turn_start_2.ogg",
+        "mp3": "audio/voice/voice_es_mx_turn_start_2.mp3"
+      },
+      "durationMs": 1237,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "Tranquilos, yo me encargo.",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 26,
+        "sha256": "28905afba4bb24a7a51d28842b1e1e526b18c6d21163e4f37393f17d1300beca"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.96 LUFS, TP -1.36 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_turn_start_3",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_turn_start_3.ogg",
+        "mp3": "audio/voice/voice_es_mx_turn_start_3.mp3"
+      },
+      "durationMs": 2059,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "A ver, a ver, háganse pa' allá.",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 31,
+        "sha256": "96a1f31a76a859a08e3969ef43f025fa793e30d590d6d4c592030a1a8d49a9d4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -12.15 LUFS, TP -0.22 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "voice_es_mx_victory_1",
+      "bus": "voice",
+      "group": "voice",
+      "files": {
+        "ogg": "audio/voice/voice_es_mx_victory_1.ogg",
+        "mp3": "audio/voice/voice_es_mx_victory_1.mp3"
+      },
+      "durationMs": 2234,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/text-to-speech",
+        "model": "eleven_multilingual_v2",
+        "text": "¡Ganamos, compadre! ¡Tacos para todos!",
+        "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+        "attempts": 1,
+        "credits": 38,
+        "sha256": "45936874452777fafc9b7ccd85e651be1ba117ce4a68350f61c30453fba14d4e"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -12.34 LUFS, TP -0.24 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_crate_land",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_crate_land.ogg",
+        "mp3": "audio/sfx/wld_crate_land.mp3"
+      },
+      "durationMs": 680,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "wooden crate landing on dirt: solid wooden thump, light rattle, one-shot",
+        "requestedSeconds": 0.7,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "c121fde3ea3adbf3a81347747e8b2e773eeeb276243119f7ed0752295317b51d"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.7 dB from peak -0.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_crate_parachute",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_crate_parachute.ogg",
+        "mp3": "audio/sfx/wld_crate_parachute.mp3"
+      },
+      "durationMs": 1480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "supply crate descending under a parachute: gentle fabric flutter, creaking rope",
+        "requestedSeconds": 1.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "e8df7e09f7b2fd9e8c2fe828d94ac194807b3c0994e7affb94b16d1d2e4b699f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -18.68 LUFS, TP -0.81 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_fuse_tick",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_fuse_tick.ogg",
+        "mp3": "audio/sfx/wld_fuse_tick.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -8,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "single mechanical timer tick: crisp clockwork click, dry, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "6096f5aea35a5011c8d93c6fa3040852422294c8aa722d2b44514072cef93b8b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 9.3 dB from peak -12.3 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_health_pickup",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_health_pickup.ogg",
+        "mp3": "audio/sfx/wld_health_pickup.mp3"
+      },
+      "durationMs": 800,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "health pickup chime: bright cheerful ascending two-note sparkle, clean, one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "8937198903847c1fff105f5eafaa426a48ba7f017c307adec6fbff5505da9f78"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 4.2 dB from peak -7.2 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_sudden_death_siren",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_sudden_death_siren.ogg",
+        "mp3": "audio/sfx/wld_sudden_death_siren.mp3"
+      },
+      "durationMs": 3000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "air raid siren: rising and falling wail, ominous, natural fade",
+        "requestedSeconds": 3,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "bab2e1fe96fb0514748ca424acbb5189bd6d4b490aa5d720942b3d87268cf651"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -8.95 LUFS, TP 2.8 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_timer_beep",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_timer_beep.ogg",
+        "mp3": "audio/sfx/wld_timer_beep.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "countdown warning beep: short urgent electronic tone, dry, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "580492a113374763060a2d51ccf651c403c277e9cec47902bb880019944b22db"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 2.7 dB from peak -5.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_turn_swoosh",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_turn_swoosh.ogg",
+        "mp3": "audio/sfx/wld_turn_swoosh.mp3"
+      },
+      "durationMs": 308,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "turn change transition: quick airy swoosh, soft whip-crack at the end, one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "816161ecb37eb5834ca1211335b12f03bf81376ef03b832bb51b3a25e46f890e"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_water_loop",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_water_loop.ogg",
+        "mp3": "audio/sfx/wld_water_loop.mp3"
+      },
+      "durationMs": 8000,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 8000,
+      "gainDb": -14,
+      "pitchVariance": 0,
+      "channels": 2,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "calm lapping water: gentle small waves and light ripples at a shoreline, seamless loop",
+        "requestedSeconds": 8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "74709aba703d55d29b933ce60bdb4765180f8bf099ebd34655a288a496978723"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -20.03 LUFS, TP -0.52 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_weapon_pickup",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_weapon_pickup.ogg",
+        "mp3": "audio/sfx/wld_weapon_pickup.mp3"
+      },
+      "durationMs": 800,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "weapon crate pickup: satisfying mechanical clunk then short bright confirmation tone, one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "1a6bb10579fc7ba0424017d89270b849d2ce56e26a3ca4fcb30f3f6e863d021a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wld_wind_loop",
+      "bus": "sfx",
+      "group": "world",
+      "files": {
+        "ogg": "audio/sfx/wld_wind_loop.ogg",
+        "mp3": "audio/sfx/wld_wind_loop.mp3"
+      },
+      "durationMs": 8000,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 8000,
+      "gainDb": -14,
+      "pitchVariance": 0,
+      "channels": 2,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "gentle outdoor wind: soft gusting breeze over open grass, airy, seamless loop",
+        "requestedSeconds": 8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "c0b18d83544a300d9e0c31aef37bc3d4627ac21222b38c932011f02de2e9f798"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -28.81 LUFS, TP -6.1 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_airstrike_flyby",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_airstrike_flyby.ogg",
+        "mp3": "audio/sfx/wpn_airstrike_flyby.mp3"
+      },
+      "durationMs": 2170,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "fighter jet flyby: fast Doppler pass left to right, roaring afterburner, fading tail",
+        "requestedSeconds": 2.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "9d9bb8aec37581c724ca999df2b80c5ada770d4556190db8c64004737c390011"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -10.58 LUFS, TP 2.72 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_banana_boing",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_banana_boing.ogg",
+        "mp3": "audio/sfx/wpn_banana_boing.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "cartoon rubber boing: springy elastic bounce, fast upward pitch bend, comedic, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "ba7e34c8f962a3c88e08f61065a5dac093f851eeb7ac717bd642fd45021c650c"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -2.9 dB from peak -0.1 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_bat_crack",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_bat_crack.ogg",
+        "mp3": "audio/sfx/wpn_bat_crack.mp3"
+      },
+      "durationMs": 256,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "baseball bat hit: loud sharp wooden crack, punchy thwack, quick wooden ring, close mic, one-shot, dry",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 24,
+        "sha256": "c2328f872c42f39535d2ac96ba757b7e2a0fd0c720fd94e9a307e0e1062724ff",
+        "promptInfluence": 0.3
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_bazooka_launch",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_bazooka_launch.ogg",
+        "mp3": "audio/sfx/wpn_bazooka_launch.mp3"
+      },
+      "durationMs": 747,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "rocket launcher firing: compressed-air pop, low thump, short exhaust tail, one-shot, dry",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "607b67ee8e1753aaf0b01f77931b8bbfc1e005622dbfc2f15365dd46eeba8ca0"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_blowtorch_loop",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_blowtorch_loop.ogg",
+        "mp3": "audio/sfx/wpn_blowtorch_loop.mp3"
+      },
+      "durationMs": 2250,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2250,
+      "gainDb": -8,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "handheld blowtorch: steady hissing gas jet, low fiery roar, seamless loop",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "c54f83b5daefab2fbcde3412a5ffd0f24a43c6fb4c4b9ee57e7a20180ff3a304"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -8.46 LUFS, TP 2.86 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_bomb_whistle",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_bomb_whistle.ogg",
+        "mp3": "audio/sfx/wpn_bomb_whistle.mp3"
+      },
+      "durationMs": 1480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "falling bomb whistle: descending high whistle, slight wobble, no impact",
+        "requestedSeconds": 1.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "12708545d63ac46dc7a0729702450511147d33b13e84c0dc86412d6954e4d6b4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -4.58 LUFS, TP 2.38 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_cluster_split",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_cluster_split.ogg",
+        "mp3": "audio/sfx/wpn_cluster_split.mp3"
+      },
+      "durationMs": 800,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "cluster bomb splitting: snappy mechanical pop, four tiny pellets scattering, one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 3,
+        "credits": 0,
+        "sha256": "ee218a7145e5127db075db4010ee4faa2c082aedaf689a698a845049e5135e3f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 22.5 dB from peak -25.5 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_drill_loop",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_drill_loop.ogg",
+        "mp3": "audio/sfx/wpn_drill_loop.mp3"
+      },
+      "durationMs": 2250,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2250,
+      "gainDb": -6,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "pneumatic drill into rock: rattling percussive hammering, grinding motor, seamless loop",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "2cf4ca1ca2d201771838156aff7e6841b5ffdf6b310a839fdcfbf9973cda75b8"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.78 LUFS, TP 2.6 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_dynamite_fuse",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_dynamite_fuse.ogg",
+        "mp3": "audio/sfx/wpn_dynamite_fuse.mp3"
+      },
+      "durationMs": 2250,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2250,
+      "gainDb": -8,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "burning fuse: steady sizzling hiss, tiny sparking pops, seamless loop",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "81b45d852c9ccae5fcf9c4709c9dbd89244bc4c337dfd054b9fb7fd0bf49073f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -16.01 LUFS, TP -4.9 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_firepunch_thud",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_firepunch_thud.ogg",
+        "mp3": "audio/sfx/wpn_firepunch_thud.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "heavy cartoon punch: meaty thud, low body hit, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "b2977e22306c115ac0b2c8bae07da3fc65778d43d42a5a44df84da4ac3d561ca"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 8.8 dB from peak -11.8 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_firepunch_whoosh",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_firepunch_whoosh.ogg",
+        "mp3": "audio/sfx/wpn_firepunch_whoosh.mp3"
+      },
+      "durationMs": 680,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -1,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "flaming uppercut: fiery whoosh, crackling flare, rising sweep, one-shot",
+        "requestedSeconds": 0.7,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "734d7f9ee763b972632c6baecbacb5a54d3cf55aa3fbbacca912da33a3261d4b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 1.7 dB from peak -4.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_girder_place",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_girder_place.ogg",
+        "mp3": "audio/sfx/wpn_girder_place.mp3"
+      },
+      "durationMs": 600,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "steel girder set down: solid metallic clang, short resonant ring, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "2d1945fbc8a2903edbaa9ea29de6d1dc6e5058beb1ee552f90fcbfae2b3b6377"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 4.2 dB from peak -7.2 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_grenade_bounce_1",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_grenade_bounce_1.ogg",
+        "mp3": "audio/sfx/wpn_grenade_bounce_1.mp3"
+      },
+      "durationMs": 280,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small metal canister bouncing on dirt: dull hollow clank, short ring, one-shot (take 1 of 2, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 3,
+        "credits": 0,
+        "sha256": "ada4f14894d51cd5852f24b88f0cb7846e8ae3cda323ce42d006c0c782322259"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 12.9 dB from peak -15.9 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_grenade_bounce_2",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_grenade_bounce_2.ogg",
+        "mp3": "audio/sfx/wpn_grenade_bounce_2.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small metal canister bouncing on dirt: dull hollow clank, short ring, one-shot (take 2 of 2, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 2,
+        "credits": 0,
+        "sha256": "be6a47cfd998de0783dbbf2ae30e96341a0a9b337dbf7c3bbeefa3c8b6242f33"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -1.6 dB from peak -1.4 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_grenade_throw",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_grenade_throw.ogg",
+        "mp3": "audio/sfx/wpn_grenade_throw.mp3"
+      },
+      "durationMs": 563,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "quick underhand toss: short cloth and air swish, light, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 2,
+        "credits": 0,
+        "sha256": "cd0b97d4c140f91131a4f0102f7f6eee1c392d5fc645fe6688cbe8669d35cbeb"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_handgun_shot",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_handgun_shot.ogg",
+        "mp3": "audio/sfx/wpn_handgun_shot.mp3"
+      },
+      "durationMs": 600,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "pistol shot: sharp snappy crack, very short room tail, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 3,
+        "credits": 0,
+        "sha256": "fb86a0891d5b1323d00f40360b965433a2f4576381ca9cc9c9e0eee7ea401f6e"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 12.2 dB from peak -15.2 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_holy_blast",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_holy_blast.ogg",
+        "mp3": "audio/sfx/wpn_holy_blast.mp3"
+      },
+      "durationMs": 3000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "colossal explosion: sub-bass detonation, cracking mid impact, long debris rumble tail, cinematic",
+        "requestedSeconds": 3,
+        "attempts": 1,
+        "credits": 120,
+        "sha256": "e6caa48379f2199494040cdf2398a05c18fc3120df8d1ad1bb775a5964857f96",
+        "promptInfluence": 0.3
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.47 LUFS, TP 2.75 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_holy_choir",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_holy_choir.ogg",
+        "mp3": "audio/sfx/wpn_holy_choir.mp3"
+      },
+      "durationMs": 2480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "angelic choir swell: bright sustained \"ahh\" chord rising, heavenly shimmer, no lyrics",
+        "requestedSeconds": 2.5,
+        "attempts": 3,
+        "credits": 0,
+        "sha256": "d6e9a183548af5b5e090ecff4246959f7047c7539d821c236c216b5d983c260b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -9.56 LUFS, TP 2.68 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_mine_arm",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_mine_arm.ogg",
+        "mp3": "audio/sfx/wpn_mine_arm.mp3"
+      },
+      "durationMs": 503,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "landmine arming: mechanical click then rising electronic tone that locks, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "5b781d43df59b6027d77f9ef4e6242147a33920bbd004a5dfa98032dffbb4162"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 3.7 dB from peak -6.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_mine_beep",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_mine_beep.ogg",
+        "mp3": "audio/sfx/wpn_mine_beep.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "proximity mine beep: short high piezo chirp, dry, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "e02b7f756666adefea45273e7a62b130cfa1078beea920a2dea222b39e655ec4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 8.5 dB from peak -11.5 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_napalm_loop",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_napalm_loop.ogg",
+        "mp3": "audio/sfx/wpn_napalm_loop.mp3"
+      },
+      "durationMs": 2610,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2610,
+      "gainDb": -6,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "burning napalm: intense crackling flames, hissing, popping embers, seamless loop",
+        "requestedSeconds": 2.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "358a88b9723e6365a846ddd5a3425918809017138785aa01b71e5c37fffded49"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -18.42 LUFS, TP 0.92 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_parachute_open",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_parachute_open.ogg",
+        "mp3": "audio/sfx/wpn_parachute_open.mp3"
+      },
+      "durationMs": 800,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "parachute deploying: quick fabric flap, snapping canopy fill, one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "d24996b09cad56e5201632d050b996ff09d9fbddfe30341cca977df5c8a02a99"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_rocket_loop",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_rocket_loop.ogg",
+        "mp3": "audio/sfx/wpn_rocket_loop.mp3"
+      },
+      "durationMs": 2250,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2250,
+      "gainDb": -6,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small rocket in flight: steady hissing jet, turbulent flutter, faint Doppler wobble, seamless loop",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "5154d0aa967a495ab36a1b0059e84c599ae528acc41d2368f8427801dac674e2"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.54 LUFS, TP -1.49 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_sheep_baa",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_sheep_baa.ogg",
+        "mp3": "audio/sfx/wpn_sheep_baa.mp3"
+      },
+      "durationMs": 800,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "cartoon sheep bleat: single comedic nasal \"baa\", one-shot",
+        "requestedSeconds": 0.8,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "cc8d7185ed70cba93943e50570b5bf9b17ff37783202d72cbc6f220d98a03082"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_sheep_boing",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_sheep_boing.ogg",
+        "mp3": "audio/sfx/wpn_sheep_boing.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -4,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "light cartoon hop: soft springy boing, small thud landing, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "1baa30d68a88cbcbfc107a95dd4a1b14047c06366a8d9e36e8e9a7490be51b0b"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 22.5 dB from peak -25.5 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_shotgun_blast",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_shotgun_blast.ogg",
+        "mp3": "audio/sfx/wpn_shotgun_blast.mp3"
+      },
+      "durationMs": 880,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 1,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "shotgun report: tight punchy blast, fast decay, light shell rattle, one-shot",
+        "requestedSeconds": 0.9,
+        "attempts": 3,
+        "credits": 108,
+        "sha256": "50b1ff0c680c60dc2b51f84da94175bc8c5320f3c8b24fed822339bebd123828",
+        "promptInfluence": 0.8
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_shotgun_cock",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_shotgun_cock.ogg",
+        "mp3": "audio/sfx/wpn_shotgun_cock.mp3"
+      },
+      "durationMs": 570,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "pump-action shotgun rack: crisp double metallic slide, one-shot, close mic",
+        "requestedSeconds": 0.6,
+        "attempts": 2,
+        "credits": 0,
+        "sha256": "b1c0032fe9fce4e4ef78c75c68c32d29f95b1eb4f7db616d45a7c2a20d3a5e2a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_supersheep_jet",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_supersheep_jet.ogg",
+        "mp3": "audio/sfx/wpn_supersheep_jet.mp3"
+      },
+      "durationMs": 2250,
+      "loop": true,
+      "loopStartMs": 0,
+      "loopEndMs": 2250,
+      "gainDb": -6,
+      "pitchVariance": 0,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "tiny jet flying: high whistling turbine, soft rocket roar, seamless loop",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "cd91dc15cea7d760f908d85a5df6697e2c2155e5088ebd080c1e0bbf48ac0f35"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.21 LUFS, TP 0.14 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_teleport_zap",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_teleport_zap.ogg",
+        "mp3": "audio/sfx/wpn_teleport_zap.mp3"
+      },
+      "durationMs": 1000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "sci-fi teleport: electric zap, shimmering upward sparkle, quick vacuum pop, one-shot",
+        "requestedSeconds": 1,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "512d18997d8d179e5e34b816a2cb74da10ae5ec2f464e39c8b3b5dd09b631a8f"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -11.07 LUFS, TP 2.87 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_uzi_burst",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_uzi_burst.ogg",
+        "mp3": "audio/sfx/wpn_uzi_burst.mp3"
+      },
+      "durationMs": 1200,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": 0,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "compact submachine gun burst: rapid eight-round clatter, brass casings tinkling, one-shot",
+        "requestedSeconds": 1.2,
+        "attempts": 3,
+        "credits": 0,
+        "sha256": "fc53d0205cccf1a993ce7ae3b0276f225fa5b6fb8ba988ef893dec54dc9d067d"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -9.21 LUFS, TP 4.2 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_backflip",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_backflip.ogg",
+        "mp3": "audio/sfx/wrm_backflip.mp3"
+      },
+      "durationMs": 600,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -5,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "cartoon backflip: quick spinning whoosh, rising then falling swish, one-shot",
+        "requestedSeconds": 0.6,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "27722abe1ab2d95eccfec94d46ff939fd8660703611c06452f2f161a44e41bcb"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_drown_gurgle",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_drown_gurgle.ogg",
+        "mp3": "audio/sfx/wrm_drown_gurgle.mp3"
+      },
+      "durationMs": 1200,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "cartoon drowning: bubbly gurgle sinking underwater, rising small bubbles, comedic, one-shot",
+        "requestedSeconds": 1.2,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "3eea75bcccf2cbd3220902a967a048b383664f451129c6f5bdfdb39808d7aa42"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -16.16 LUFS, TP -0.67 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_fall_thud",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_fall_thud.ogg",
+        "mp3": "audio/sfx/wrm_fall_thud.mp3"
+      },
+      "durationMs": 334,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small soft body landing hard on dirt: dull thud, light dust puff, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "e4003b079a88184ca6f457b09e225dae385a684eb24790b44ead841db5927b73"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 10.7 dB from peak -13.7 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_footstep_1",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_footstep_1.ogg",
+        "mp3": "audio/sfx/wrm_footstep_1.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -10,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "single tiny footstep on grass and dirt: soft light scuff, one-shot (take 1 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "021f9806e1d3fc108146c0e303d1fe94558e428b01b341b7dcd6540ed8e6bf30"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 15.8 dB from peak -18.8 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_footstep_2",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_footstep_2.ogg",
+        "mp3": "audio/sfx/wrm_footstep_2.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -10,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "single tiny footstep on grass and dirt: soft light scuff, one-shot (take 2 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 2,
+        "credits": 0,
+        "sha256": "f31a68d4e4ade5fcd6fcdb88325a0cdbb41dfe557495d15da80749a1609e0ee4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 7.1 dB from peak -10.1 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_footstep_3",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_footstep_3.ogg",
+        "mp3": "audio/sfx/wrm_footstep_3.mp3"
+      },
+      "durationMs": 371,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -10,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "single tiny footstep on grass and dirt: soft light scuff, one-shot (take 3 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "c0c0cf59edaef108d1395423a1ec3c813f2ed2795fa2f048efc89bdf25c6bc43"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 16.1 dB from peak -19.1 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_hurt_grunt_1",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_hurt_grunt_1.ogg",
+        "mp3": "audio/sfx/wrm_hurt_grunt_1.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small cartoon creature pained grunt: short squeaky \"ugh\", comedic, one-shot (take 1 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "817331137cbaabb0db398b9532518cd031ab19951e27fd5db48d3a03f5500d2a"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_hurt_grunt_2",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_hurt_grunt_2.ogg",
+        "mp3": "audio/sfx/wrm_hurt_grunt_2.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small cartoon creature pained grunt: short squeaky \"ugh\", comedic, one-shot (take 2 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "a5cd94ab2f68b9f8290b72e96539c73a6cda3f10fca47b6cc1b463ac78c93184"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_hurt_grunt_3",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_hurt_grunt_3.ogg",
+        "mp3": "audio/sfx/wrm_hurt_grunt_3.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -3,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small cartoon creature pained grunt: short squeaky \"ugh\", comedic, one-shot (take 3 of 3, a distinct variation)",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "d5fa4fc2df67208ec6b830c4b75c346c8d4e751bb6343a9a0d696ef3aa530871"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_jump",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_jump.ogg",
+        "mp3": "audio/sfx/wrm_jump.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "small cartoon hop: quick springy effort whoosh, light, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "ea2ab36316f69964b71c5f88365717859895aee6e2fc75906d8be63a4c997f01"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain -3 dB from peak 0 dB"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wrm_land",
+      "bus": "sfx",
+      "group": "worms",
+      "files": {
+        "ogg": "audio/sfx/wrm_land.ogg",
+        "mp3": "audio/sfx/wrm_land.mp3"
+      },
+      "durationMs": 480,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -6,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "elevenlabs",
+        "endpoint": "/v1/sound-generation",
+        "model": "eleven_text_to_sound_v2",
+        "prompt": "light landing on soft ground: small soft thump, one-shot",
+        "requestedSeconds": 0.5,
+        "attempts": 1,
+        "credits": 0,
+        "sha256": "ef6d7defdf1ab0752c51feb336b3d3176ce101f483b87c8a25dedc510b3484dc"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "peak: gain 28.6 dB from peak -31.6 dB"
+      },
+      "status": "ok"
+    }
+  ]
+}
