@@ -176,7 +176,7 @@ export function buildIntent(state: InputState, toWorld: (screen: Vec2) => Vec2):
     backflip: state.pressed.has('backflip'),
     aimDelta: axis(state, 'aimDown', 'aimUp'),
     fireHeld: state.held.has('fire'),
-    thrust: state.held.has('jump'),
+    thrust: state.held.has('jump') || state.held.has('aimUp'),
     fireReleased: state.released.has('fire'),
     selectedSlot: firstIndex(state.pressed, slotIndex),
     fuse: firstIndex(state.pressed, fuseIndex),

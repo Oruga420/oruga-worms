@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { addWorm, stepWorld, type SimWorld } from '@/sim/world.ts';
 import type { WormBody, WormIntent } from '@/sim/types.ts';
 import { flatWorld } from './fixture.ts';
+import { fire } from '@/weapons/fire.ts';
+import { WEAPONS } from '@/weapons/registry.ts';
+import { wormAtRest } from '@/sim/rest.ts';
+import { setSpan, SOLID } from '@/terrain/mask.ts';
 
 /**
  * The jetpack used to be a data row with a dead flag: fireUtility set motion 'jetpacking' and a
@@ -32,6 +36,42 @@ function step(world: SimWorld, intent: WormIntent, ticks: number): void {
 }
 
 describe('jetpack flight', () => {
+  it('keeps the pack after a ceiling collision and can steer away', () => {
+    const { world, worm } = flying();
+    setSpan(world.terrain.mask, 150, 250, 350, SOLID);
+    step(world, HOLD, 45);
+    expect(worm.motion).toBe('jetpacking');
+    expect(worm.y).toBeGreaterThan(150);
+    step(world, HOLD_RIGHT, 60);
+    expect(worm.motion).toBe('jetpacking');
+    expect(worm.x).toBeGreaterThan(350);
+  });
+  it('stays equipped after ground activation so thrust can start later', () => {
+    const { world, worm } = flying();
+    worm.y = 349;
+    worm.motion = 'idle';
+    worm.onGround = true;
+    fire(world, worm, WEAPONS.jetpack, { angleDeg: 45, power: 1 });
+    step(world, COAST, 60);
+    expect(worm.motion).toBe('jetpacking');
+    expect(worm.fuelMs).toBe(5000);
+    expect(wormAtRest(worm)).toBe(true);
+    step(world, HOLD_RIGHT, 30);
+    expect(worm.y).toBeLessThan(329);
+    expect(worm.x).toBeGreaterThan(300);
+    expect(worm.onGround).toBe(false);
+  });
+
+  it('can land and take off again using the same remaining fuel', () => {
+    const { world, worm } = flying();
+    step(world, COAST, 120);
+    expect(worm.onGround).toBe(true);
+    expect(worm.motion).toBe('jetpacking');
+    const fuel = worm.fuelMs;
+    step(world, HOLD, 30);
+    expect(worm.y).toBeLessThan(329);
+    expect(worm.fuelMs).toBeLessThan(fuel);
+  });
   it('climbs while the thrust key is held and steers on the movement keys', () => {
     const { world, worm } = flying();
     step(world, HOLD_RIGHT, 60);

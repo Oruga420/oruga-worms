@@ -571,6 +571,68 @@ test('options from the pause overlay: a volume step and a key rebind survive a r
   expect(await page.evaluate(() => window.__orugas?.keybinds().fire.join(',') ?? '')).toBe('KeyF');
 });
 
+test('jetpack from inventory survives a pause after activation and flies with Enter and arrows', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
+  const stage = await page.locator('#stage').boundingBox();
+  const setup = await page.evaluate(() => window.__orugas!.teamSetupCells());
+  const human = setup.find((cell) => cell.id === 'team:1:controller');
+  if (stage === null || human === undefined) throw new Error('Missing team setup');
+  await page.mouse.click(stage.x + human.x + human.w / 2, stage.y + human.y + human.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // Jetpack unlocks on turn 2; ending turn 1 leaves another human in control.
+  const firstTurn = await page.evaluate(() => window.__orugas!.turn());
+  await page.evaluate(() => window.__orugas!.endTurn());
+  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(firstTurn);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const jetpack = (await page.evaluate(() => window.__orugas!.panelCells())).find((cell) => cell.id === 'jetpack');
+  if (jetpack === undefined) throw new Error('Missing jetpack inventory cell');
+  expect(jetpack.enabled).toBe(true);
+  await page.mouse.click(stage.x + jetpack.x + jetpack.w / 2, stage.y + jetpack.y + jetpack.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.selectedWeapon())).toBe('jetpack');
+  const inventory = await page.evaluate(() => window.__orugas!.inventory());
+  const originalAmmo = inventory.worms.find((worm) => worm.id === inventory.activeId)!.ammo.jetpack!;
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(100);
+  await page.keyboard.up('Space');
+  await page.waitForTimeout(700);
+  const grounded = await page.evaluate(() => window.__orugas!.activeBody());
+  expect(grounded?.motion).toBe('jetpacking');
+  if (grounded === null) throw new Error('Missing active body');
+  await page.keyboard.down('Enter');
+  await page.keyboard.down('ArrowRight');
+  try {
+    await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.y ?? Infinity)).toBeLessThan(grounded.y - 20);
+    await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.x ?? -Infinity)).toBeGreaterThan(grounded.x + 10);
+    expect(await page.evaluate(() => window.__orugas!.activeBody()?.fuelMs)).toBeLessThan(grounded.fuelMs);
+    await page.screenshot({ path: resolve(ROOT, 'test-results/jetpack-flight.png') });
+  } finally {
+    await page.keyboard.up('Enter');
+    await page.keyboard.up('ArrowRight');
+  }
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround), { timeout: 10000 }).toBe(true);
+  const landed = await page.evaluate(() => window.__orugas!.activeBody());
+  expect(landed?.motion).toBe('jetpacking');
+  if (landed === null) throw new Error('Missing landed body');
+  await page.keyboard.down('ArrowUp');
+  try {
+    await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.y ?? Infinity)).toBeLessThan(landed.y - 20);
+    expect(await page.evaluate(() => window.__orugas!.activeBody()?.fuelMs)).toBeLessThan(landed.fuelMs);
+  } finally {
+    await page.keyboard.up('ArrowUp');
+  }
+  const after = await page.evaluate(() => window.__orugas!.inventory());
+  expect(after.worms.find((worm) => worm.id === inventory.activeId)?.ammo.jetpack).toBe(originalAmmo - 1);
+});
+
 test('individual inventories, fuse controls, and the third-turn parachute drop', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });

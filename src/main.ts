@@ -77,7 +77,7 @@ interface OrugasDebug {
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
   /** The active worm's sim body, for diagnosing movement stalls (backlog 4.5). */
-  readonly activeBody: () => { x: number; y: number; vx: number; vy: number; motion: string; onGround: boolean } | null;
+  readonly activeBody: () => { x: number; y: number; vx: number; vy: number; motion: string; onGround: boolean; fuelMs: number } | null;
   /** The settings in play (audio levels and key bindings), as loaded from storage at boot. */
   readonly settings: () => Settings;
   /** Pause overlay state and its button rects, so a test can pause with the key and click a real button. */
@@ -610,6 +610,7 @@ function boot(): void {
         renderer.updateDpr(stats.averageFrameMs, now);
         const state = controller.state();
         const selected = controller.selectedWeapon();
+        const activeBody = controller.world().worms.find((body) => body.id === activeWormOf(state)?.id);
         const targeting = WEAPONS[selected].requiresTargetSelect && activeTeamOf(state)?.controller === 'human' && !panelOpen && !paused;
         const model = { state, world: controller.world(), aim: controller.aim(), timeMs: now, sprites, weapon: selected, weaponSprites, pointer: pointerWorld, targeting };
         // At MatchEnd the end screen carries the message, so the centre banner would collide with it.
@@ -622,6 +623,7 @@ function boot(): void {
           stepsTotal: controller.stepsPerTurn(),
           fuseMs: controller.selectedFuseMs(),
           dropEveryTurns: game.deps.config.crates.dropEveryTurns,
+          jetpackFuelMs: activeBody?.motion === 'jetpacking' ? activeBody.fuelMs : null,
           panel: panelLayout,
           weaponSprites,
         };
@@ -718,7 +720,7 @@ function boot(): void {
       activeBody: () => {
         const active = activeWormOf(controller.state());
         const body = active === undefined ? undefined : findBody(controller.world(), active.id);
-        return body === undefined ? null : { x: body.x, y: body.y, vx: body.vx, vy: body.vy, motion: body.motion, onGround: body.onGround };
+        return body === undefined ? null : { x: body.x, y: body.y, vx: body.vx, vy: body.vy, motion: body.motion, onGround: body.onGround, fuelMs: body.fuelMs };
       },
       panelOpen: () => panelOpen,
       panelCells: () => (panelLayout === null ? [] : panelLayout.rows.flatMap((row) => row.cells.map((cell) => ({ id: cell.id, x: cell.x, y: cell.y, w: cell.w, h: cell.h, enabled: cell.enabled })))),

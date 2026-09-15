@@ -137,6 +137,17 @@ function stepJetpack(worm: WormBody, intent: WormIntent, dt: number): void {
 
 function stepAirborne(world: SimWorld, worm: WormBody, intent: WormIntent, dt: number): void {
   const mask = world.terrain.mask;
+  // An equipped pack survives ground contact. Waiting between activation and the first
+  // thrust must not discard it, and a parked pack must still let the turn settle.
+  if (worm.motion === 'jetpacking' && worm.fuelMs > 0 && worm.onGround && !intent.thrust && intent.moveX === 0
+    && groundBelow(mask, worm.x, worm.y, WORM_HALF_WIDTH)) {
+    worm.vx = 0;
+    worm.vy = 0;
+    worm.restTicks += 1;
+    return;
+  }
+  worm.onGround = false;
+  worm.restTicks = 0;
   applyForces(worm, dt, 1, world.wind, worm.motion === 'parachuting', world.gravity);
   if (worm.motion === 'jetpacking') stepJetpack(worm, intent, dt);
   if (worm.motion === 'parachuting') {
@@ -149,6 +160,10 @@ function stepAirborne(world: SimWorld, worm: WormBody, intent: WormIntent, dt: n
   const before = worm.vy;
   const hit = sweepBodyMove(mask, worm, dt, 0);
   if (hit === null) return;
+  // Thin ledges can have an ambiguous mask normal. Separate a powered worm toward
+  // the side it approached from, never through the ledge.
+  const normal = worm.motion === 'jetpacking' && hit.normal.x * worm.vx + hit.normal.y * before > 0
+    ? { x: -hit.normal.x, y: -hit.normal.y } : hit.normal;
   const landingOnFloor = hit.normal.y < -0.3 && before >= 0;
   if (worm.motion === 'flying' && !landingOnFloor) {
     if (!bounce(worm, hit, WORM_FLY_RESTITUTION, WORM_FLY_FRICTION)) worm.motion = 'falling';
@@ -161,13 +176,19 @@ function stepAirborne(world: SimWorld, worm: WormBody, intent: WormIntent, dt: n
       world.events.push({ type: 'activity', kind: 'bounce' });
       return;
     }
+    const keepJetpack = worm.motion === 'jetpacking' && worm.fuelMs > 0;
     land(worm, before, world.events);
+    if (keepJetpack) worm.motion = 'jetpacking';
     return;
   }
   // Side or ceiling contact while jumping or falling: kill the blocked component and keep falling.
-  if (Math.abs(hit.normal.x) > 0.5) worm.vx = 0;
-  if (hit.normal.y > 0.3) worm.vy = Math.max(0, worm.vy);
-  worm.motion = 'falling';
+  if (Math.abs(normal.x) > 0.5) worm.vx = 0;
+  if (normal.y > 0.3) worm.vy = Math.max(0, worm.vy);
+  if (worm.motion === 'jetpacking' && worm.fuelMs > 0) {
+    worm.x = hit.x + normal.x;
+    worm.y = hit.y + normal.y;
+  }
+  if (worm.motion !== 'jetpacking' || worm.fuelMs <= 0) worm.motion = 'falling';
 }
 
 function stepGrounded(world: SimWorld, worm: WormBody, intent: WormIntent, dt: number): void {
