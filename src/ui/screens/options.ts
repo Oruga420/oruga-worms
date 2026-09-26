@@ -110,8 +110,10 @@ export function prettyKey(code: string): string {
 export function layoutOptionsScreen(viewport: Size): OptionsLayout {
   const keyRows = Math.ceil(KEY_ROW_ORDER.length / KEY_COLUMNS);
   const cardH = PAD + 40 + AUDIO_TARGETS.length * VOLUME_ROW_H + 36 + keyRows * KEY_ROW_H + 24 + BUTTON_H_PX + PAD;
-  const x0 = Math.round((viewport.w - CARD_W) / 2);
-  const y0 = Math.round((viewport.h - cardH) / 2);
+  // Never above the top edge: on a short phone the card runs off the bottom, but the audio rows
+  // stay reachable and touch mode keeps its own Back button for leaving.
+  const x0 = Math.max(0, Math.round((viewport.w - CARD_W) / 2));
+  const y0 = Math.max(0, Math.round((viewport.h - cardH) / 2));
   const cells: OptionsCell[] = [];
 
   // Volume rows: label, minus, bar, plus, value.
