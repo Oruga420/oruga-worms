@@ -1,6 +1,7 @@
 /**
  * Melee rows of the ultraplan rev 2 roster: fire punch (uppercut that cuts the land above) and
- * baseball bat (30 damage, calibrated to throw a worm 643 px at 45 degrees).
+ * baseball bat (30 damage, calibrated to throw a worm 643 px at 45 degrees), plus Ryuko Ranbu,
+ * the Kyokugen style super move: the screen goes white while the worm beats its victim senseless.
  */
 
 import type { WeaponDef, WeaponId } from '../types.ts';
@@ -89,7 +90,58 @@ const BASEBALL_BAT: WeaponDef = defineWeapon({
   sfx: { fire: 'wpn_bat_crack' },
 });
 
+/**
+ * Ryuko Ranbu: lock on to the nearest enemy in plain sight within reach, freeze, rush, sixteen
+ * blows and a launching finisher. 16 x 3 + 27 is 75, the dynamite figure, spread over a beating
+ * instead of a crater; the finisher throws a little higher than the bat. All v1 tuning.
+ */
+const RYUKO_RANGE_PX = 180;
+const RYUKO_HITS = 16;
+const RYUKO_HIT_DAMAGE = 3;
+const RYUKO_FINISHER_DAMAGE = 27;
+const RYUKO_FINISHER_KNOCKBACK = { x: BAT_COMPONENT, y: BAT_COMPONENT * 1.25 } as const;
+
+const RYUKO_RANBU: WeaponDef = defineWeapon({
+  id: 'ryuko_ranbu',
+  name: 'Ryuko Ranbu',
+  kind: 'MELEE',
+  category: 'melee',
+  icon: iconFrame('ryuko_ranbu'),
+  heldSprite: heldFrame('ryuko_ranbu'),
+  ammo: 1,
+  /** A super needs a charged gauge: never on the opening turn. */
+  delayTurns: 2,
+  charged: false,
+  maxPower: 0,
+  windAffected: false,
+  gravityScale: 1,
+  shotsPerTurn: 1,
+  endsTurnOnFire: true,
+  requiresTargetSelect: false,
+  crateWeight: 1,
+  /** What the heuristic and the panel read: the lock range, the whole beating and the final throw. */
+  melee: {
+    reachPx: RYUKO_RANGE_PX,
+    arcDeg: 360,
+    damage: RYUKO_HITS * RYUKO_HIT_DAMAGE + RYUKO_FINISHER_DAMAGE,
+    knockback: RYUKO_FINISHER_KNOCKBACK,
+  },
+  combo: {
+    rangePx: RYUKO_RANGE_PX,
+    startupMs: 700,
+    dashMs: 250,
+    hits: RYUKO_HITS,
+    hitIntervalMs: 85,
+    damagePerHit: RYUKO_HIT_DAMAGE,
+    finisherDamage: RYUKO_FINISHER_DAMAGE,
+    finisherKnockback: RYUKO_FINISHER_KNOCKBACK,
+    recoverMs: 900,
+  },
+  sfx: { fire: 'wpn_firepunch_whoosh', impact: 'wpn_firepunch_thud' },
+});
+
 export const MELEE = Object.freeze({
   fire_punch: FIRE_PUNCH,
   baseball_bat: BASEBALL_BAT,
+  ryuko_ranbu: RYUKO_RANBU,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;

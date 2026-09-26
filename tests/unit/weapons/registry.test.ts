@@ -5,9 +5,9 @@ import type { WeaponDef, WeaponId } from '@/weapons/types.ts';
 import { CPU_WEAPON_META } from '../../../sidecar/weapon-meta.ts';
 
 /**
- * The 26 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
- * cannon, napalm gun and sonic blast gun. Spelled out rather than derived so a lost or reordered
- * id fails here instead of silently changing what F1..F9 select.
+ * The 27 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
+ * cannon, napalm gun, sonic blast gun and the Ryuko Ranbu super move. Spelled out rather than
+ * derived so a lost or reordered id fails here instead of silently changing what F1..F9 select.
  */
 const SIDECAR_IDS = [
   'bazooka',
@@ -27,6 +27,7 @@ const SIDECAR_IDS = [
   'sonic_blast',
   'fire_punch',
   'baseball_bat',
+  'ryuko_ranbu',
   'dynamite',
   'mine',
   'sheep',
@@ -52,10 +53,10 @@ function isDeepFrozen(value: unknown, path = 'root'): string[] {
 }
 
 describe('weapon registry: ids', () => {
-  it('has exactly the 26 sidecar ids in panel order', () => {
+  it('has exactly the 27 sidecar ids in panel order', () => {
     expect(WEAPON_IDS).toEqual(SIDECAR_IDS);
-    expect(WEAPON_IDS).toHaveLength(26);
-    expect(PANEL_SLOTS).toBe(26);
+    expect(WEAPON_IDS).toHaveLength(27);
+    expect(PANEL_SLOTS).toBe(27);
     expect(WEAPON_IDS).toEqual(PANEL_WEAPON_IDS);
   });
 
@@ -68,10 +69,16 @@ describe('weapon registry: ids', () => {
     for (const id of WEAPON_IDS) expect(WEAPONS[id].id).toBe(id);
   });
 
-  it('splits into 21 combat weapons and 5 utilities', () => {
+  it('splits into 22 combat weapons and 5 utilities', () => {
     const utilities = WEAPON_IDS.filter((id) => WEAPONS[id].kind === 'UTILITY');
     expect(utilities).toEqual(UTILITY_IDS);
-    expect(WEAPON_IDS.length - utilities.length).toBe(21);
+    expect(WEAPON_IDS.length - utilities.length).toBe(22);
+  });
+
+  it('keeps the combo block to the one super move, on a melee row', () => {
+    const combos = WEAPON_IDS.filter((id) => WEAPONS[id].combo !== undefined);
+    expect(combos).toEqual(['ryuko_ranbu']);
+    for (const id of combos) expect(WEAPONS[id].kind).toBe('MELEE');
   });
 
   it('recognises panel ids and rejects child or unknown ids', () => {

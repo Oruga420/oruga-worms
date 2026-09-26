@@ -67,7 +67,7 @@ describe('buildInitialState', () => {
     expect(table.mortar).toBe(1);
     expect(table.bazooka).toBe(-1);
     expect(table.minigun).toBe(0);
-    expect(Object.keys(table)).toHaveLength(26);
+    expect(Object.keys(table)).toHaveLength(27);
   });
 });
 

@@ -111,7 +111,7 @@ function land(worm: WormBody, landingSpeed: number, events: SimEvent[]): void {
   worm.vy = 0;
   worm.restTicks = 0;
   events.push({ type: 'landed', wormId: worm.id, speed: landingSpeed });
-  if (damage > 0) events.push({ type: 'damage', wormId: worm.id, amount: damage, sourceTeamId: null, sourceWormId: null, cause: 'fall' });
+  if (damage > 0) events.push({ type: 'damage', wormId: worm.id, amount: damage, sourceTeamId: null, sourceWormId: null, cause: 'fall', at: { x: worm.x, y: worm.y - 2, dx: 0, dy: -1 } });
 }
 
 /**

@@ -39,7 +39,9 @@ export function explode(world: SimWorld, input: BlastInput): void {
     if (distance > r) continue;
     const amount = blastDamage(blast.maxDamage, distance, r);
     if (amount > 0) {
-      world.events.push({ type: 'damage', wormId: worm.id, amount, sourceTeamId: input.sourceTeamId, sourceWormId: input.sourceWormId, cause: 'blast' });
+      // Away from the blast centre; straight up when the worm sits on it.
+      const at = distance === 0 ? { x: center.x, y: center.y, dx: 0, dy: -1 } : { x: center.x, y: center.y, dx: (center.x - x) / distance, dy: (center.y - y) / distance };
+      world.events.push({ type: 'damage', wormId: worm.id, amount, sourceTeamId: input.sourceTeamId, sourceWormId: input.sourceWormId, cause: 'blast', at });
     }
     const push = knockbackVelocity(vec2(x, y), center, blast.knockback, r);
     if (push.x !== 0 || push.y !== 0) {

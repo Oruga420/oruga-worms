@@ -7,7 +7,8 @@
  * can never make the CPU play worse than this floor.
  */
 
-import { GRAVITY_PX_PER_S2 } from '../sim/constants.ts';
+import { GRAVITY_PX_PER_S2, WORM_HEIGHT } from '../sim/constants.ts';
+import { lineOfSight } from '../terrain/queries.ts';
 import { clamp } from '../core/math.ts';
 import type { CpuDifficulty, CpuTurnRequest, CpuTurnResponse } from './contract.ts';
 import { CPU_TURN_SCHEMA } from './contract.ts';
@@ -119,6 +120,8 @@ function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint):
     const dy = worm.y - from.y;
     const dist = Math.hypot(dx, dy);
     if (dist > range) continue;
+    // A super move rushes only a victim in plain sight; one behind a wall would be a wasted super.
+    if (def.combo !== undefined && !lineOfSight(input.mask, from.x, from.y - WORM_HEIGHT * 0.6, worm.x, worm.y - WORM_HEIGHT * 0.6)) continue;
     const angle = Math.round((Math.atan2(-dy, Math.abs(dx)) * 180) / Math.PI);
     const score = Math.min(perHit, worm.hp);
     if (best === null || score > best.score) best = { weapon: def.id, angleDeg: clamp(angle, ANGLE_MIN, ANGLE_MAX), power: 1, score, confidence: clamp(score / Math.max(1, perHit), 0, 1) };

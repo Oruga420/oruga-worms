@@ -44,7 +44,9 @@ function firePellet(ctx: FireContext, hitscan: HitscanSpec, jitterDeg: number): 
   if (worm !== null) {
     const wormT = (worm.x - muzzle.x) * dir.x + (worm.y - WORM_HEIGHT / 2 - muzzle.y) * dir.y;
     if (wormT <= wallT) {
-      ctx.world.events.push({ type: 'damage', wormId: worm.id, amount: hitscan.damagePerPellet, sourceTeamId: ctx.worm.teamId, sourceWormId: ctx.worm.id, cause: 'hit' });
+      const at = { x: muzzle.x + dir.x * wormT, y: muzzle.y + dir.y * wormT, dx: dir.x, dy: dir.y };
+      ctx.world.events.push({ type: 'damage', wormId: worm.id, amount: hitscan.damagePerPellet, sourceTeamId: ctx.worm.teamId, sourceWormId: ctx.worm.id, cause: 'hit', at });
+      ctx.world.events.push({ type: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: at.x, y1: at.y, hit: 'worm' });
       // The hit is visible: a small burst on the body, no screen shake. Without it a gun that
       // connects looks identical to a gun that misses.
       ctx.world.events.push({ type: 'explosion', x: muzzle.x + dir.x * wormT, y: muzzle.y + dir.y * wormT, radius: IMPACT_FX_RADIUS_PX, particle: 'small', shake: 0 });
@@ -62,6 +64,7 @@ function firePellet(ctx: FireContext, hitscan: HitscanSpec, jitterDeg: number): 
       return;
     }
   }
+  ctx.world.events.push({ type: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: muzzle.x + dir.x * wallT, y1: muzzle.y + dir.y * wallT, hit: wall.hit === null ? 'none' : 'land' });
   if (wall.hit !== null) {
     if (hitscan.carveRadiusPx > 0) {
       carve(ctx.world.terrain, wall.hit.solidX, wall.hit.solidY, hitscan.carveRadiusPx);

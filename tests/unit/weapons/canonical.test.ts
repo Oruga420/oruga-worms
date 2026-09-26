@@ -171,6 +171,22 @@ describe('canonical numbers: melee', () => {
   });
 });
 
+describe('canonical numbers: the super move', () => {
+  it('ryuko ranbu: 16 blows of 3 and a finisher of 27, one per worm, locked on the opening turn', () => {
+    const def = WEAPONS.ryuko_ranbu;
+    expect(def.kind).toBe('MELEE');
+    expect(def.combo?.hits).toBe(16);
+    expect(def.combo?.damagePerHit).toBe(3);
+    expect(def.combo?.finisherDamage).toBe(27);
+    expect(def.combo?.rangePx).toBe(180);
+    expect(def.ammo).toBe(1);
+    expect(def.delayTurns).toBe(2);
+    // The finisher throws harder upward than the bat, the same way along the rush.
+    expect(def.combo?.finisherKnockback.x).toBeCloseTo(WEAPONS.baseball_bat.melee?.knockback.x ?? 0, 9);
+    expect(def.combo?.finisherKnockback.y ?? 0).toBeGreaterThan(WEAPONS.baseball_bat.melee?.knockback.y ?? 0);
+  });
+});
+
 describe('canonical numbers: placed, animal, strike', () => {
   it('dynamite: 75 damage, 147 px crater, fixed 5 s fuse, 5 s retreat, ammo 1', () => {
     const def = WEAPONS.dynamite;

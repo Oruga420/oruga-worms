@@ -1,7 +1,8 @@
 /**
  * Camera director: when a shot is in the air the camera rides the projectile, then holds on the
  * impact point for a beat so the hit and the damage are readable, then hands control back to the
- * active worm. Pure, so the timings and the hand back are unit tested.
+ * active worm. A super move frames the fight, and a worm thrown through the air is followed until
+ * it lands. Pure, so the timings and the hand back are unit tested.
  *
  * Two details drive the design:
  * - Dead projectiles are filtered out of `world.projectiles` on the same step they explode, so the
@@ -12,16 +13,21 @@
  *   screen, which is the whole thing this is meant to fix.
  */
 
+import { holdsVictim } from '../sim/combo.ts';
 import type { SimWorld } from '../sim/world.ts';
 
 /** Smoothing while chasing ammo. Well under the camera's 150 ms default so the shell stays framed. */
 export const PROJECTILE_TAU_MS = 60;
+/** Smoothing on a super move: tight, the fight is the whole picture. */
+export const COMBO_TAU_MS = 45;
+/** A knocked worm this fast is worth watching fly (world px per second). */
+export const FLYER_MIN_SPEED = 160;
 /** Smoothing while sitting on the impact, slightly looser so the settle is not abrupt. */
 export const IMPACT_TAU_MS = 120;
 /** How long the camera stays on the impact point before returning to the active worm. */
 export const IMPACT_HOLD_MS = 900;
 
-export type CameraFocus = 'worm' | 'projectile' | 'impact';
+export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'flyer';
 
 export interface CameraDirector {
   readonly focus: CameraFocus;
@@ -72,8 +78,36 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
     };
   }
 
+  // A super move frames the fight: both fighters while the victim is held, then the thrown victim.
+  const combo = (world.combos ?? []).find((c) => c.alive);
+  if (combo !== undefined) {
+    const worms = world.worms ?? [];
+    const attacker = worms.find((w) => w.id === combo.attackerId);
+    const victim = combo.victimId === null ? undefined : worms.find((w) => w.id === combo.victimId);
+    const focus =
+      victim !== undefined && !holdsVictim(combo.stage) ? { x: victim.x, y: victim.y - 8 }
+      : victim !== undefined && combo.stage !== 'startup' ? { x: (combo.toX + combo.holdX) / 2, y: (combo.toY + combo.holdY) / 2 - 8 }
+      : attacker !== undefined ? { x: attacker.x, y: attacker.y - 8 }
+      : null;
+    if (focus !== null) {
+      return { director: { focus: 'combo', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: COMBO_TAU_MS };
+    }
+  }
+
+  // A worm thrown by a blast or a blow: follow it until it lands, as the source game does.
+  let flyer: { readonly x: number; readonly y: number; readonly speed: number } | null = null;
+  for (const worm of world.worms ?? []) {
+    if (!worm.alive || worm.motion !== 'flying') continue;
+    const speed = Math.hypot(worm.vx, worm.vy);
+    if (speed >= FLYER_MIN_SPEED && (flyer === null || speed > flyer.speed)) flyer = { x: worm.x, y: worm.y, speed };
+  }
+  if (flyer !== null) {
+    return { director: { focus: 'flyer', projectileId: null, x: flyer.x, y: flyer.y, holdMs: IMPACT_HOLD_MS }, target: { x: flyer.x, y: flyer.y }, tauMs: PROJECTILE_TAU_MS };
+  }
+
   // The shell we were riding is gone: it detonated, timed out or left the map. Sit on where it was.
-  if (director.focus === 'projectile') {
+  // The same for a finished fight or a worm that has landed.
+  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'flyer') {
     return {
       director: { ...director, focus: 'impact', projectileId: null, holdMs: IMPACT_HOLD_MS },
       target: { x: director.x, y: director.y },
