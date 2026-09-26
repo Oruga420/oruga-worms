@@ -727,10 +727,64 @@ test('device choice: picking Phone / Tablet shows touch controls that walk and f
     await page.mouse.up();
     await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 4000 }).not.toBe('Active');
 
+    // Pause, then Options: the touch Back button backs out of Options and then out of the pause,
+    // even though the options card is taller than a landscape phone.
+    const tap = async (selector: string): Promise<void> => {
+      const box = await page.locator(selector).boundingBox();
+      if (box === null) throw new Error(`${selector} has no box`);
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    };
+    await tap('.tc-pause');
+    await expect.poll(() => page.evaluate(() => window.__orugas?.paused())).toBe(true);
+    await expect(page.locator('.tc-back')).toBeVisible();
+    const optionsButton = (await page.evaluate(() => window.__orugas?.pauseCells() ?? [])).find((c) => c.id === 'options');
+    if (optionsButton === undefined) throw new Error('options button missing');
+    await page.mouse.click(stage.x + optionsButton.x + optionsButton.w / 2, stage.y + optionsButton.y + optionsButton.h / 2);
+    await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(true);
+    expect((await page.evaluate(() => window.__orugas?.optionsCard()))?.y ?? -1).toBeGreaterThanOrEqual(0);
+    await tap('.tc-back');
+    await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(false);
+    await tap('.tc-back');
+    await expect.poll(() => page.evaluate(() => window.__orugas?.paused())).toBe(false);
+    await expect(page.locator('.tc-fire')).toBeVisible();
+
     // The pick is remembered: a reload lands on the title with Phone / Tablet still selected.
     await page.reload({ waitUntil: 'load' });
     await waitForHook(page);
     expect(await page.evaluate(() => window.__orugas?.deviceMode())).toBe('touch');
+  } finally {
+    await context.close();
+  }
+});
+
+test('touch mode in portrait: the weapon panel fits the phone and a tapped weapon is selected', async ({ browser }) => {
+  test.skip(skipReason !== '', skipReason);
+  const viewport = { width: 390, height: 844 };
+  const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${baseUrl}/?seed=1&device=touch`, { waitUntil: 'load' });
+    await waitForHook(page);
+    await startGame(page);
+    await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+    await page.locator('.tc-weapons').click();
+    await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
+    const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
+    expect(cells.length).toBe(26);
+    for (const cell of cells) {
+      expect(cell.x).toBeGreaterThanOrEqual(0);
+      expect(cell.y).toBeGreaterThanOrEqual(0);
+      expect(cell.x + cell.w).toBeLessThanOrEqual(viewport.width);
+      expect(cell.y + cell.h).toBeLessThanOrEqual(viewport.height);
+    }
+    await page.screenshot({ path: 'test-results/touch-weapon-panel-portrait.png' });
+    // The last enabled cell sits on a wrapped line that used to be off screen.
+    const target = [...cells].reverse().find((cell) => cell.enabled);
+    if (target === undefined) throw new Error('no enabled weapon');
+    const stage = await page.locator('#stage').boundingBox();
+    if (stage === null) throw new Error('stage element has no bounding box');
+    await page.touchscreen.tap(stage.x + target.x + target.w / 2, stage.y + target.y + target.h / 2);
+    await expect.poll(() => page.evaluate(() => window.__orugas?.selectedWeapon() ?? '')).toBe(target.id);
   } finally {
     await context.close();
   }

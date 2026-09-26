@@ -14,7 +14,8 @@ import { SHIFT_PREFIX, type Action, type Keybinds } from '../config/keybinds.ts'
 import type { InputSink } from '../engine/input-dom.ts';
 import type { RawInputEvent } from '../engine/input.ts';
 
-export type TouchControlsView = 'hidden' | 'play' | 'end';
+/** 'paused' keeps a Back button (the pause key) up, so the pause and options cards can be left without a keyboard. */
+export type TouchControlsView = 'hidden' | 'play' | 'paused' | 'panel' | 'end';
 
 export interface TouchControlsOptions {
   /** The stage; the controls layer is appended to it. */
@@ -70,6 +71,11 @@ const TOP: readonly ButtonSpec[] = [
   { label: '−', title: 'Zoom out', className: 'tc-zoom', wheel: 1 },
   { label: 'II', title: 'Pause', className: 'tc-pause', action: 'pause' },
 ];
+
+const BACK: readonly ButtonSpec[] = [{ label: 'Back', title: 'Resume, or leave the options', className: 'tc-back', action: 'pause' }];
+
+/** While the weapon panel is open every other button would sit on its cells; only Close stays. */
+const CLOSE: readonly ButtonSpec[] = [{ label: 'Close', title: 'Close the weapon panel', className: 'tc-close', action: 'weaponPanel' }];
 
 export function createTouchControls(options: TouchControlsOptions): TouchControls {
   const layer = document.createElement('div');
@@ -150,6 +156,8 @@ export function createTouchControls(options: TouchControlsOptions): TouchControl
   const pad = group('tc-pad', PAD);
   const actions = group('tc-actions', ACTIONS);
   const top = group('tc-top', TOP);
+  const back = group('tc-corner', BACK);
+  const close = group('tc-corner', CLOSE);
 
   const restart = document.createElement('button');
   restart.type = 'button';
@@ -177,6 +185,8 @@ export function createTouchControls(options: TouchControlsOptions): TouchControl
       pad.hidden = next !== 'play';
       actions.hidden = next !== 'play';
       top.hidden = next !== 'play';
+      back.hidden = next !== 'paused';
+      close.hidden = next !== 'panel';
       restart.hidden = next !== 'end';
     },
     destroy: () => {

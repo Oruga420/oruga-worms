@@ -155,7 +155,8 @@ function drawWeaponPanel(ctx: Ctx2D, panel: PanelLayout, selected: WeaponId, spr
   ctx.textAlign = 'right';
   ctx.font = '11px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('Shift+Q or Tab closes', panel.x + panel.w - 14, panel.y + 22);
+  // A phone sized panel has no room for the hint beside the title (and no keyboard to read it for).
+  if (panel.w >= 480) ctx.fillText('Shift+Q or Tab closes', panel.x + panel.w - 14, panel.y + 22);
 
   for (const row of panel.rows) {
     ctx.textAlign = 'left';

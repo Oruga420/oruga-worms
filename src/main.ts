@@ -103,6 +103,8 @@ interface OrugasDebug {
   readonly appPhase: () => string;
   readonly teamSetupCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
   readonly teamControllers: () => readonly string[];
+  /** Options card rect, so a test can check it stays on screen. */
+  readonly optionsCard: () => { x: number; y: number; w: number; h: number } | null;
   readonly pauseCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
   /** Sets one audio bus level, applies it to the mixer and persists it; false when nothing could be saved. */
   readonly setVolume: (target: string, level: number) => boolean;
@@ -659,7 +661,7 @@ function boot(): void {
       render: () => {
         frames += 1;
         const touchView: TouchControlsView =
-          deviceMode !== 'touch' || appPhase !== 'playing' ? 'hidden' : controller.state().phase === 'MatchEnd' ? 'end' : optionsOpen ? 'hidden' : 'play';
+          deviceMode !== 'touch' || appPhase !== 'playing' ? 'hidden' : controller.state().phase === 'MatchEnd' ? 'end' : paused ? 'paused' : panelOpen ? 'panel' : 'play';
         touchControls.show(touchView);
         const now = scheduler.now();
         const stats = loop.stats();
@@ -769,6 +771,7 @@ function boot(): void {
       titleCells: () => (titleLayout === null ? [] : titleLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
       teamSetupCells: () => (teamSetupLayout === null ? [] : teamSetupLayout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h }))),
       teamControllers: () => controller.state().teams.map((team) => team.controller),
+      optionsCard: () => optionsLayout?.card ?? null,
       pauseCells: () => (pauseLayout === null ? [] : pauseLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
       setVolume: (target: string, level: number) => {
         if (!isAudioTarget(target)) return false;
