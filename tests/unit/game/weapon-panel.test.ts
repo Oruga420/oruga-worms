@@ -125,3 +125,25 @@ describe('ammo badge', () => {
     expect(ammoBadge(3)).toBe('3');
   });
 });
+
+describe('weapon panel on phone screens', () => {
+  const inside = (layout: ReturnType<typeof layoutWeaponPanel>, viewport: { w: number; h: number }): boolean =>
+    panelCells(layout).every((cell) => cell.x >= 0 && cell.y >= 0 && cell.x + cell.w <= viewport.w && cell.y + cell.h <= viewport.h);
+
+  for (const viewport of [
+    { w: 390, h: 844 },
+    { w: 844, h: 390 },
+    { w: 360, h: 640 },
+    { w: 667, h: 375 },
+  ]) {
+    it(`keeps every weapon on screen and tappable at ${viewport.w}x${viewport.h}`, () => {
+      const layout = layoutWeaponPanel(viewport, { ammo: createLedger(WEAPONS), turnsElapsed: 99 });
+      expect(panelCells(layout)).toHaveLength(WEAPON_IDS.length);
+      expect(inside(layout, viewport)).toBe(true);
+      expect(panelCells(layout).some((cell) => cell.enabled)).toBe(true);
+      for (const cell of panelCells(layout)) {
+        expect(hitTestWeaponPanel(layout, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 })).toBe(cell.enabled ? cell.id : null);
+      }
+    });
+  }
+});
