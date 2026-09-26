@@ -790,7 +790,8 @@ test('device choice: picking Phone / Tablet shows touch controls that walk and f
     if (optionsButton === undefined) throw new Error('options button missing');
     await page.mouse.click(stage.x + optionsButton.x + optionsButton.w / 2, stage.y + optionsButton.y + optionsButton.h / 2);
     await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(true);
-    expect((await page.evaluate(() => window.__orugas?.optionsCard()))?.y ?? -1).toBeGreaterThanOrEqual(0);
+    // The card is laid out on the tick after the click that opens Options, so wait for it.
+    await expect.poll(() => page.evaluate(() => window.__orugas?.optionsCard()?.y ?? -1)).toBeGreaterThanOrEqual(0);
     await tap('.tc-back');
     await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(false);
     await tap('.tc-back');
@@ -819,7 +820,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(26);
+    expect(cells.length).toBe(27);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);
