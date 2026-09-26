@@ -10,7 +10,8 @@
 
 import { validateUtilityTarget } from '../weapons/behaviors/utility.ts';
 import { TICK_MS } from '../config/units.ts';
-import { TICK_S, WALK_SPEED_PX_PER_S } from '../sim/constants.ts';
+import { TICK_S, WALK_SPEED_PX_PER_S, WORM_HEIGHT } from '../sim/constants.ts';
+import { heldWormIds } from '../sim/combo.ts';
 import { reduce } from '../match/machine.ts';
 import type { MatchEvent } from '../match/events.ts';
 import type { MatchState } from '../match/state.ts';
@@ -50,16 +51,37 @@ export interface ControllerInput {
   readonly pointerClicked: boolean;
 }
 
-export interface GameEvent {
-  readonly type: 'sound' | 'explosion';
-  readonly id?: string;
-  readonly x: number;
-  readonly y: number;
-  readonly radius?: number;
-  readonly shake?: number;
-  /** Blast tier from the weapon row, so the presentation can scale the fireworks to the weapon. */
-  readonly particle?: 'small' | 'medium' | 'big' | 'holy';
-}
+/**
+ * What the presentation hears from a tick: cues to play, blasts to draw, and the moments the
+ * animation and gore layers react to (a hit and where it landed, a worm reduced to 0 hp, a
+ * bullet's path, a shot leaving the barrel, a landing, a worm going under, a super move's
+ * beats). None of it feeds back into the match; the reducer reads the sim events directly.
+ */
+export type GameEvent =
+  | { readonly type: 'sound'; readonly id?: string; readonly x: number; readonly y: number }
+  | {
+      readonly type: 'explosion';
+      readonly x: number;
+      readonly y: number;
+      readonly radius?: number;
+      readonly shake?: number;
+      /** Blast tier from the weapon row, so the presentation can scale the fireworks to the weapon. */
+      readonly particle?: 'small' | 'medium' | 'big' | 'holy';
+    }
+  /** A worm was hurt: where the blow landed and which way it pushed (unit dx, dy). */
+  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly cause: 'blast' | 'fall' | 'hit' | 'melee'; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  /** A worm hit 0 hp (not drowned): it bursts where it stood, carried along its last velocity. */
+  | { readonly type: 'gib'; readonly wormId: string; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number; readonly colorIndex: number }
+  | { readonly type: 'tracer'; readonly x: number; readonly y: number; readonly x1: number; readonly y1: number; readonly hit: 'worm' | 'land' | 'none' }
+  /** A round or a launch left the active worm's weapon (every round of a burst). */
+  | { readonly type: 'fired'; readonly wormId: string; readonly weapon: WeaponId; readonly x: number; readonly y: number; readonly angleDeg: number; readonly facing: 1 | -1 }
+  | { readonly type: 'swing'; readonly wormId: string; readonly weapon: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'landed'; readonly wormId: string; readonly x: number; readonly y: number; readonly speed: number }
+  | { readonly type: 'drown'; readonly wormId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
+  | { readonly type: 'comboStart'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  /** One blow of a super move; ko once the victim has nothing left. */
+  | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number };
 
 export interface Controller {
   tick(input: ControllerInput): void;
@@ -98,6 +120,8 @@ interface Pending {
   refireTicks: number;
   /** A gun burst in progress: the remaining rounds fire one per interval while the phase is Firing. */
   burst: Burst | null;
+  /** A super move playing in the sim: the shot stays open in the reducer until the combo is done. */
+  sequence: WeaponId | null;
 }
 
 interface Burst {
@@ -136,7 +160,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
   let bannerMs = BANNER_MS;
   let cpuBusy = false;
   const events: GameEvent[] = [];
-  const pending: Pending = { walk: [], fireAfterWalk: null, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null };
+  const pending: Pending = { walk: [], fireAfterWalk: null, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
+  // Worms whose last hp already went to gore (a burst) or to the water, so each dies exactly once.
+  const goneWorms = new Set<string>();
 
   // Movement budget: real horizontal displacement spent while walking this turn, in world px.
   // Measured, not assumed, so pushing against a wall costs nothing and knockback is never billed.
@@ -209,12 +235,82 @@ export function createController(game: Game, options: ControllerOptions): Contro
    * was spliced away and never reached the ledger, and guns took no health off anyone.
    */
   const applySimEvents = (simEvents: readonly SimEvent[]): void => {
-    for (const e of simEvents) {
-      if (e.type === 'sound') events.push({ type: 'sound', id: e.id, x: e.x, y: e.y });
-      else if (e.type === 'explosion') events.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius, shake: e.shake, particle: e.particle });
-    }
+    // The ledger first, so a blow's event already knows whether it was the knockout.
     for (const matchEvent of translateSimEvents(simEvents)) apply(matchEvent);
+    for (const e of simEvents) presentSimEvent(e);
     syncMatchToSim(state, world);
+    observeCasualties();
+  };
+
+  const colorIndexOf = (wormId: string): number => {
+    for (const team of state.teams) if (team.worms.some((w) => w.id === wormId)) return team.colorIndex;
+    return 0;
+  };
+
+  /** The sim event, as the presentation needs it: positions filled in from the bodies. */
+  const presentSimEvent = (e: SimEvent): void => {
+    switch (e.type) {
+      case 'sound':
+        events.push({ type: 'sound', id: e.id, x: e.x, y: e.y });
+        return;
+      case 'explosion':
+        events.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius, shake: e.shake, particle: e.particle });
+        return;
+      case 'damage': {
+        const body = findBody(world, e.wormId);
+        const at = e.at ?? (body === undefined ? null : { x: body.x, y: body.y - WORM_HEIGHT / 2, dx: 0, dy: -1 });
+        if (at !== null) events.push({ type: 'damage', wormId: e.wormId, amount: e.amount, cause: e.cause, x: at.x, y: at.y, dx: at.dx, dy: at.dy });
+        return;
+      }
+      case 'tracer':
+        events.push({ type: 'tracer', x: e.x0, y: e.y0, x1: e.x1, y1: e.y1, hit: e.hit });
+        return;
+      case 'swing':
+        events.push({ type: 'swing', wormId: e.wormId, weapon: e.weaponId, x: e.x, y: e.y, facing: e.facing });
+        return;
+      case 'landed': {
+        const body = findBody(world, e.wormId);
+        if (body !== undefined) events.push({ type: 'landed', wormId: e.wormId, x: body.x, y: body.y, speed: e.speed });
+        return;
+      }
+      case 'drown': {
+        goneWorms.add(e.wormId);
+        const body = findBody(world, e.wormId);
+        if (body !== undefined) events.push({ type: 'drown', wormId: e.wormId, x: body.x, y: body.y, facing: body.facing, colorIndex: colorIndexOf(e.wormId) });
+        return;
+      }
+      case 'comboStart':
+        events.push({ type: 'comboStart', comboId: e.comboId, attackerId: e.attackerId, victimId: e.victimId, x: e.x, y: e.y });
+        return;
+      case 'comboHit':
+        events.push({ type: 'comboHit', comboId: e.comboId, attackerId: e.attackerId, victimId: e.victimId, hit: e.hit, finisher: e.finisher, ko: hpOf(e.victimId) <= 0, x: e.at.x, y: e.at.y, dx: e.at.dx, dy: e.at.dy });
+        return;
+      case 'comboEnd': {
+        const body = findBody(world, e.attackerId);
+        events.push({ type: 'comboEnd', comboId: e.comboId, attackerId: e.attackerId, victimId: e.victimId, hits: e.hits, x: body?.x ?? 0, y: body?.y ?? 0 });
+        return;
+      }
+      default:
+        return;
+    }
+  };
+
+  /**
+   * A worm at 0 hp is not drawn any more (the Worms rule keeps it in the ledger until TurnEnd), so
+   * that is the moment it bursts. A worm a super move still holds keeps taking the beating first
+   * and bursts on the finisher; a drowned worm sinks instead.
+   */
+  const observeCasualties = (): void => {
+    const held = heldWormIds(world.combos);
+    for (const team of state.teams) {
+      for (const worm of team.worms) {
+        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id)) continue;
+        goneWorms.add(worm.id);
+        const body = findBody(world, worm.id);
+        if (body === undefined || body.motion === 'drowning') continue;
+        events.push({ type: 'gib', wormId: worm.id, x: body.x, y: body.y - WORM_HEIGHT / 2, vx: body.vx, vy: body.vy, colorIndex: team.colorIndex });
+      }
+    }
   };
 
   /** Drains what fire() just emitted through the same path as a tick's events. */
@@ -272,9 +368,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const barrel = shotIndex;
     shotIndex += 1;
     const result = fire(world, body, def, fireAim, barrel);
+    announceShot(body, weapon, fireAim.angleDeg);
     // Damage a gun or a punch dealt inside fire() is booked while the phase is still Firing, so
     // the shot window credits it and a lethal hit resolves the way a projectile kill does.
     drainSimAfterFire();
+    if (result.sequence === true) {
+      // A super move: the sim plays it out and the shot closes when the combo is done.
+      pending.sequence = weapon;
+      return;
+    }
     const burstCount = def.hitscan?.burstCount ?? 1;
     if (def.hitscan !== undefined && burstCount > 1) {
       // Automatic fire: the remaining rounds go out one per interval from the sim phase branch;
@@ -284,6 +386,28 @@ export function createController(game: Game, options: ControllerOptions): Contro
       return;
     }
     completeShot(def, body.motion, result);
+  };
+
+  /** The muzzle flash, recoil and casing of a shot: a presentation beat, nothing the sim reads. */
+  const announceShot = (body: { readonly id: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }, weapon: WeaponId, angleDeg: number): void => {
+    const def = getWeapon(weapon);
+    if (def.kind === 'UTILITY' || def.combo !== undefined) return;
+    events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
+  };
+
+  /** Closes a super move's shot once the sim has played the combo out. */
+  const stepSequence = (): void => {
+    const weapon = pending.sequence;
+    if (weapon === null) return;
+    if (state.phase !== 'Firing') {
+      pending.sequence = null;
+      return;
+    }
+    if (world.combos.some((combo) => combo.alive)) return;
+    pending.sequence = null;
+    const activeWorm = activeWormOf(state);
+    const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);
+    completeShot(getWeapon(weapon), body?.motion ?? 'idle', null);
   };
 
   /** One more round of a gun burst; closes the shot after the last one or if the phase moved on. */
@@ -300,6 +424,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);
     const def = getWeapon(burst.weapon);
     const result = body !== undefined && body.alive ? fire(world, body, def, burst.aim, burst.shotIndex) : null;
+    if (result !== null && body !== undefined) announceShot(body, burst.weapon, burst.aim.angleDeg);
     drainSimAfterFire();
     burst.roundsLeft -= 1;
     burst.ticksUntilNext = burst.intervalTicks;
@@ -418,6 +543,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
           pending.cpuDecided = false;
           pending.refireTicks = 0;
           pending.burst = null;
+          pending.sequence = null;
           // A fresh turn, a fresh movement budget and the first barrel.
           spentPx = 0;
           shotIndex = 0;
@@ -481,7 +607,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
               pending.fireAfterWalk = null;
               pending.fireWeapon = null;
             }
-          } else if (pending.cpuDecided && !cpuBusy && pending.walk.length === 0 && pending.fireAfterWalk === null && pending.burst === null && state.phase === 'Active') {
+          } else if (pending.cpuDecided && !cpuBusy && pending.walk.length === 0 && pending.fireAfterWalk === null && pending.burst === null && pending.sequence === null && state.phase === 'Active') {
             // The decision came back with nothing to do (or failed): pass instead of riding the clock.
             apply({ type: 'SkipTurn', reason: 'skip' });
           }
@@ -502,6 +628,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
           pending.burst = { ...pending.burst, aim: { ...pending.burst.aim, angleDeg: aim.angleDeg } };
         }
         stepBurst();
+        stepSequence();
         apply({ type: 'TimerTick', dtMs: TICK_MS });
         emitSim();
         if (state.phase === 'Resolving' && worldAtRest(world)) {
@@ -521,6 +648,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
     drainEvents: () => events.splice(0, events.length),
     surrender(teamId) {
       apply({ type: 'Surrender', teamId });
+      syncMatchToSim(state, world);
+      observeCasualties();
     },
     advanceRoundClock(ms) {
       apply({ type: 'TimerTick', dtMs: ms });

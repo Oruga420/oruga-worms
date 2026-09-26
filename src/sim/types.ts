@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BlastSpec, ClusterSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
+import type { BlastSpec, ClusterSpec, ComboSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -108,8 +108,51 @@ export interface SheepBody {
   detonateRequested: boolean;
 }
 
+/**
+ * A super move in progress (sim/combo.ts). The attacker, and the victim until the finisher, are
+ * held by the combo: the worm controller does not step them, the combo places them every tick.
+ */
+export type ComboStage = 'startup' | 'dash' | 'flurry' | 'finisher' | 'recover';
+
+export interface ComboBody {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly attackerId: string;
+  readonly ownerTeamId: string;
+  /** Null when nobody was in reach and in sight: the rush whiffs. */
+  readonly victimId: string | null;
+  readonly spec: ComboSpec;
+  stage: ComboStage;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  /** Where the rush starts and where the attacker plants its feet for the beating, world px. */
+  readonly fromX: number;
+  readonly fromY: number;
+  readonly toX: number;
+  readonly toY: number;
+  /** Where the attacker is left standing afterwards: beside the victim when it can stand there, else home. */
+  readonly restX: number;
+  readonly restY: number;
+  /** Where the victim is held until the finisher throws it. */
+  readonly holdX: number;
+  readonly holdY: number;
+  /** Direction of the rush and of every blow. */
+  readonly facing: 1 | -1;
+  hitsLanded: number;
+  alive: boolean;
+}
+
+/** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
+export interface HitPoint {
+  readonly x: number;
+  readonly y: number;
+  /** Unit direction of the blow. */
+  readonly dx: number;
+  readonly dy: number;
+}
+
 export type SimEvent =
-  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee' }
+  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee'; readonly at?: HitPoint }
   | { readonly type: 'drown'; readonly wormId: string }
   | { readonly type: 'activity'; readonly kind: 'bounce' | 'carve' | 'spawn' }
   | { readonly type: 'explosion'; readonly x: number; readonly y: number; readonly radius: number; readonly particle: BlastSpec['particle']; readonly shake: number }
@@ -118,7 +161,14 @@ export type SimEvent =
   | { readonly type: 'cratePicked'; readonly crateId: number; readonly kind: CrateKind; readonly wormId: string }
   | { readonly type: 'crateDestroyed'; readonly crateId: number; readonly wasCounted: boolean }
   | { readonly type: 'landed'; readonly wormId: string; readonly speed: number }
-  | { readonly type: 'projectileGone'; readonly projectileId: number; readonly reason: 'exploded' | 'water' | 'bounds' | 'timeout' };
+  | { readonly type: 'projectileGone'; readonly projectileId: number; readonly reason: 'exploded' | 'water' | 'bounds' | 'timeout' }
+  /** A bullet's path from the muzzle to where it stopped, for the tracer; presentation only. */
+  | { readonly type: 'tracer'; readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number; readonly hit: 'worm' | 'land' | 'none' }
+  /** A melee swing left the worm's hands (fire punch, bat), hit or miss; presentation only. */
+  | { readonly type: 'swing'; readonly wormId: string; readonly weaponId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'comboStart'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly at: HitPoint }
+  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

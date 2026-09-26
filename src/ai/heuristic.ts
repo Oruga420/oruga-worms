@@ -16,6 +16,7 @@ import { estimateBlast, simulateShot, type ShotSpec, type TrajectoryEnv, type Wo
 import type { TerrainMask } from '../terrain/mask.ts';
 import type { WeaponDef, WeaponId } from '../weapons/types.ts';
 import type { WeaponRegistry } from '../weapons/registry.ts';
+import { pickLockTarget } from '../weapons/behaviors/combo.ts';
 import { degToRad } from '../core/math.ts';
 
 export interface HeuristicInput {
@@ -126,6 +127,23 @@ function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint):
   return best;
 }
 
+/**
+ * A super move takes no aim: the rush locks its victim by the sim's own rule, from the facing the
+ * plan will turn the worm to. Score that victim and nobody else; a worm behind a wall, or beyond a
+ * nearer enemy the lock prefers, would take none of the damage.
+ */
+function evaluateCombo(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const combo = def.combo;
+  if (combo === undefined) return null;
+  const request = input.request;
+  const enemies = input.worms.filter((w) => w.alive && w.teamId !== request.active.team && w.y < request.waterY);
+  const victim = pickLockTarget(input.mask, { x: from.x, y: from.y, facing }, enemies, combo.rangePx);
+  if (victim === null) return null;
+  const total = combo.hits * combo.damagePerHit + combo.finisherDamage;
+  const score = Math.min(total, victim.hp);
+  return { weapon: def.id, angleDeg: 0, power: 1, score, confidence: clamp(score / Math.max(1, total), 0, 1) };
+}
+
 /** Air strike and homing: aim at the enemy with the most hp on a roughly open sky. */
 function evaluateTargeted(input: HeuristicInput, def: WeaponDef): Candidate | null {
   let best: Candidate | null = null;
@@ -150,6 +168,7 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
       if (def === undefined) continue;
       let candidate: Candidate | null = null;
       if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') candidate = evaluateBallistic(input, def, from, facing, env);
+      else if (def.combo !== undefined) candidate = evaluateCombo(input, def, from, facing);
       else if (def.kind === 'HITSCAN' || def.kind === 'MELEE') candidate = evaluateDirect(input, def, from);
       else if (def.kind === 'TARGETED' && def.strike !== undefined) candidate = evaluateTargeted(input, def);
       if (candidate !== null && (best === null || candidate.score > best.score)) best = candidate;

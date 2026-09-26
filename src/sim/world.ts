@@ -1,7 +1,7 @@
 /**
  * The simulation world (architecture.md section C): owns the terrain, the wind, gravity, the
  * seeded rng and the entity lists, and steps everything once per tick in a fixed order (worms,
- * projectiles, crates, mines, sheep, crate pickups). Events accumulate in `events` and are
+ * combos, projectiles, crates, mines, sheep, crate pickups). Events accumulate in `events` and are
  * drained by the caller after each tick; the match reducer, the audio mixer and the particles
  * read them. Entity arrays are compacted after each step so dead bodies do not linger.
  */
@@ -11,12 +11,13 @@ import type { TerrainData } from '../terrain/terrain.ts';
 import { withWater } from '../terrain/terrain.ts';
 import { createWater } from '../terrain/water.ts';
 import { GRAVITY_PX_PER_S2, TICK_S } from './constants.ts';
+import { heldWormIds, stepCombo } from './combo.ts';
 import { collectCrates, stepCrate } from './crate.ts';
 import { stepMine } from './mine.ts';
 import { stepProjectile } from './projectile.ts';
 import { allAtRest } from './rest.ts';
 import { stepSheep } from './sheep.ts';
-import { IDLE_INTENT, type CrateBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type WormBody, type WormIntent } from './types.ts';
+import { IDLE_INTENT, type ComboBody, type CrateBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type WormBody, type WormIntent } from './types.ts';
 import { stepWorm } from './worm-controller.ts';
 
 export interface SimWorld {
@@ -30,6 +31,8 @@ export interface SimWorld {
   crates: CrateBody[];
   mines: MineBody[];
   sheep: SheepBody[];
+  /** Super moves in progress (sim/combo.ts); they hold their worms while they play. */
+  combos: ComboBody[];
   readonly events: SimEvent[];
   tick: number;
   nextId(): number;
@@ -53,6 +56,7 @@ export function createWorld(terrain: TerrainData, options: WorldOptions): SimWor
     crates: [],
     mines: [],
     sheep: [],
+    combos: [],
     events: [],
     tick: 0,
     nextId: () => {
@@ -105,7 +109,10 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   const dt = TICK_S;
   world.tick += 1;
   // Snapshots: bodies spawned during this tick (cluster children, strike bombs) step from the next tick.
-  for (const worm of world.worms) stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
+  // A worm a combo holds is placed by the combo instead, right after the others moved.
+  const held = heldWormIds(world.combos);
+  for (const worm of world.worms) if (!held.has(worm.id)) stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
+  for (const combo of [...world.combos]) stepCombo(world, combo);
   for (const projectile of [...world.projectiles]) stepProjectile(world, projectile, dt);
   for (const crate of [...world.crates]) stepCrate(world, crate, dt);
   for (const mine of [...world.mines]) stepMine(world, mine, dt);
@@ -115,6 +122,7 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   world.crates = world.crates.filter((c) => c.alive);
   world.mines = world.mines.filter((m) => m.alive);
   world.sheep = world.sheep.filter((s) => s.alive);
+  world.combos = world.combos.filter((c) => c.alive);
   const events = world.events.splice(0, world.events.length);
   return events;
 }

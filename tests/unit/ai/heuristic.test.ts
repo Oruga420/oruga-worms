@@ -43,6 +43,47 @@ const flatWorms = [
   { id: 'b1', teamId: 'blue', x: 500, y: 299, hp: 100, alive: true },
 ];
 
+describe('decideHeuristic: the super move', () => {
+  const close = [
+    { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+    { id: 'b1', teamId: 'blue', x: 300, y: 299, hp: 100, alive: true },
+  ];
+  const ammo = [
+    { weapon: 'bazooka' as WeaponId, count: -1 },
+    { weapon: 'ryuko_ranbu' as WeaponId, count: 1 },
+  ];
+
+  it('rushes an enemy in reach and in plain sight', () => {
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 300, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(req, close)).weapon).toBe('ryuko_ranbu');
+  });
+
+  it('never wastes it on an enemy behind a wall', () => {
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 300, y: 299, hp: 100 }] });
+    const mask = flatMask(req.world.w, req.world.h, 300);
+    for (let y = 240; y < 300; y += 1) setSpan(mask, y, 248, 252, SOLID);
+    const decision = decideHeuristic({ request: req, registry: WEAPONS, mask, worms: close });
+    expect(decision.weapon).not.toBe('ryuko_ranbu');
+  });
+
+  it('scores the victim the lock would take, not the juiciest enemy in reach', () => {
+    // Both in reach: the rush locks the nearer one, which has 1 hp left to lose.
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 240, y: 299, hp: 1, alive: true },
+      { id: 'b2', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({
+      ammo,
+      enemies: [
+        { id: 'b1', team: 'blue', x: 240, y: 299, hp: 1 },
+        { id: 'b2', team: 'blue', x: 330, y: 299, hp: 100 },
+      ],
+    });
+    expect(decideHeuristic(input(req, worms)).weapon).not.toBe('ryuko_ranbu');
+  });
+});
+
 describe('decideHeuristic', () => {
   it('aims a bazooka toward the enemy and reports a legal response', () => {
     const decision = decideHeuristic(input(request(), flatWorms));

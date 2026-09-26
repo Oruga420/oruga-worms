@@ -3,8 +3,9 @@
  * transitions onto mixer play calls. The sim already names its own cues (wpn_bazooka_launch,
  * wpn_grenade_bounce_1, ...), so those play by id; explosions pick a boom by radius; each new
  * turn plays a voice line from the active team's bank, and damage, victory and defeat play the
- * matching bank line, ducking the music while a voice speaks. Pure over a small mixer interface
- * plus an rng, so the mapping is unit tested with a fake.
+ * matching bank line, ducking the music while a voice speaks. A hard blow makes the victim grunt
+ * and a worm bursting into gore cracks and splashes. Pure over a small mixer interface plus an
+ * rng, so the mapping is unit tested with a fake.
  */
 
 import type { MatchState } from '../match/state.ts';
@@ -54,6 +55,18 @@ export const MUSIC_LOOP_ID = 'music_theme_loop';
 const VOICE_DUCK_DB = 6;
 const VOICE_DUCK_MS = 900;
 
+/** Damage at or above this makes the victim grunt. */
+export const HURT_GRUNT_MIN = 8;
+/** What a worm bursting into gore sounds like. */
+export const GIB_CUES: readonly string[] = Object.freeze(['wpn_bat_crack', 'exp_water_splash']);
+
+/** One of the worm grunts that the manifest has, or null. */
+export function pickGrunt(has: (id: string) => boolean, random: () => number): string | null {
+  const candidates = ['wrm_hurt_grunt_1', 'wrm_hurt_grunt_2', 'wrm_hurt_grunt_3'].filter(has);
+  if (candidates.length === 0) return null;
+  return candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))] ?? null;
+}
+
 /** Picks a numbered variant of voice_<bank>_<event>_N that exists, or null. */
 export function pickVoiceLine(has: (id: string) => boolean, bank: VoiceBank, event: string, random: () => number): string | null {
   const candidates: string[] = [];
@@ -88,6 +101,13 @@ export function createSoundDirector(deps: SoundDirectorDeps): SoundDirector {
         } else if (event.type === 'explosion') {
           const id = boomFor(event.radius ?? 40);
           if (deps.has(id)) deps.mixer.play(id, { pan: deps.panAt(event.x) });
+        } else if (event.type === 'damage' && event.amount >= HURT_GRUNT_MIN && event.cause !== 'hit') {
+          // A worm that takes a real blow cries out; bullets, a few points each, would turn it into a drone.
+          const id = pickGrunt(deps.has, deps.random);
+          if (id !== null) deps.mixer.play(id, { pan: deps.panAt(event.x) });
+        } else if (event.type === 'gib') {
+          // A worm bursting: a crack of bone and a wet splash.
+          for (const id of GIB_CUES) if (deps.has(id)) deps.mixer.play(id, { pan: deps.panAt(event.x) });
         }
       }
     },

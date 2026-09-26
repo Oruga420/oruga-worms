@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 26 panel slots: 21 combat weapons plus 5 utilities, in panel order. */
+/** The 27 panel slots: 22 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -25,6 +25,7 @@ export const PANEL_WEAPON_IDS = [
   'sonic_blast',
   'fire_punch',
   'baseball_bat',
+  'ryuko_ranbu',
   'dynamite',
   'mine',
   'sheep',
@@ -116,6 +117,8 @@ export interface WeaponDef {
   readonly cluster?: ClusterSpec;
   readonly hitscan?: HitscanSpec;
   readonly melee?: MeleeSpec;
+  /** A MELEE row that plays out as a super move over several ticks (Ryuko Ranbu). */
+  readonly combo?: ComboSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -256,6 +259,31 @@ export interface MeleeSpec {
    * melee module may rescale knockback so this holds under the live gravity.
    */
   readonly throwRangePx?: number;
+}
+
+/**
+ * A super move that resolves over time instead of at fire time: a super freeze, a rush to a
+ * victim in plain sight, a flurry of blows and a finisher. Like clustering it is a FIELD on a
+ * MELEE row, not a kind of its own: the row's melee block still states the lock range, the total
+ * damage and the final throw, which is what the CPU heuristic and the panel read; this block is
+ * the timeline the sim plays (sim/combo.ts). Durations are ms, rounded to ticks by the sim.
+ */
+export interface ComboSpec {
+  /** Lock range, worm centre to worm centre, world px. The victim must be in plain sight. */
+  readonly rangePx: number;
+  /** The super freeze before the rush: the flash and the name call. */
+  readonly startupMs: number;
+  /** The rush from the attacker's spot to the victim. */
+  readonly dashMs: number;
+  /** Blows in the flurry, and the time between two of them. */
+  readonly hits: number;
+  readonly hitIntervalMs: number;
+  readonly damagePerHit: number;
+  /** The last blow: its own damage and its throw, px per second, x along the rush and y upward. */
+  readonly finisherDamage: number;
+  readonly finisherKnockback: { readonly x: number; readonly y: number };
+  /** The pose held on the finisher before the shot closes. */
+  readonly recoverMs: number;
 }
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

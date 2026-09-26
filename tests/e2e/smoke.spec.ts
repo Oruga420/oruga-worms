@@ -99,7 +99,7 @@ async function startGame(page: import('@playwright/test').Page): Promise<void> {
 
 /**
  * The widest test in the suite and it keeps growing: title to team setup to match, the CSP and
- * health checks, all 26 panel weapons fired, crates, drowning, sudden death, a CPU turn, the
+ * health checks, all 27 panel weapons fired, crates, drowning, sudden death, a CPU turn, the
  * camera ride and the restart. It sat just under Playwright's 60 s default and now runs past it,
  * so it gets a budget of its own rather than being trimmed.
  */
@@ -273,9 +273,9 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
     .toBeLessThan(aliveBefore);
 
   // Every panel weapon fires in a real browser without throwing: the Goal's 23 slots plus the
-  // tank cannon, napalm gun and sonic blast gun.
+  // tank cannon, napalm gun, sonic blast gun and the Ryuko Ranbu super move.
   const fired = await page.evaluate(() => window.__orugas?.fireAll() ?? []);
-  expect(fired).toHaveLength(26);
+  expect(fired).toHaveLength(27);
   expect(fired.filter((entry) => !entry.ok)).toEqual([]);
   await page.waitForTimeout(500);
 
@@ -494,7 +494,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(26);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(27);
 
   // Title to the team setup card.
   await page.keyboard.press('Enter');
@@ -633,6 +633,55 @@ test('jetpack from inventory survives a pause after activation and flies with En
   expect(after.worms.find((worm) => worm.id === inventory.activeId)?.ammo.jetpack).toBe(originalAmmo - 1);
 });
 
+test('ryuko ranbu from the inventory: the screen whites out, the victim takes the beating, the land bleeds', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
+  const stage = await page.locator('#stage').boundingBox();
+  const setup = await page.evaluate(() => window.__orugas!.teamSetupCells());
+  const human = setup.find((cell) => cell.id === 'team:1:controller');
+  if (stage === null || human === undefined) throw new Error('Missing team setup');
+  await page.mouse.click(stage.x + human.x + human.w / 2, stage.y + human.y + human.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // The super unlocks on turn 2 (its scheme delay): end turn 1, the other human takes over.
+  const firstTurn = await page.evaluate(() => window.__orugas!.turn());
+  await page.evaluate(() => window.__orugas!.endTurn());
+  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(firstTurn);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));
+  if (victim === null) throw new Error('No enemy to line up');
+  await page.waitForTimeout(600);
+  const before = await page.evaluate((id: string) => window.__orugas!.wormHp(id), victim);
+
+  // Picked from the inventory like any weapon, fired with the fire key.
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const cell = (await page.evaluate(() => window.__orugas!.panelCells())).find((c) => c.id === 'ryuko_ranbu');
+  if (cell === undefined) throw new Error('Missing Ryuko Ranbu inventory cell');
+  expect(cell.enabled).toBe(true);
+  await page.mouse.click(stage.x + cell.x + cell.w / 2, stage.y + cell.y + cell.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.selectedWeapon())).toBe('ryuko_ranbu');
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.combos()), { timeout: 3000 }).toBe(1);
+  // Into the flurry: the white screen with the fighters in black and the blood in red.
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/ryuko-ranbu.png') });
+  await expect.poll(() => page.evaluate((id: string) => window.__orugas!.wormHp(id), victim), { timeout: 8000 }).toBeLessThanOrEqual(Math.max(0, before - 48));
+  await expect.poll(() => page.evaluate(() => window.__orugas!.combos()), { timeout: 8000 }).toBe(0);
+  const gore = await page.evaluate(() => window.__orugas!.goreCount());
+  expect(gore.stains).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 test('individual inventories, fuse controls, and the third-turn parachute drop', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
@@ -741,7 +790,8 @@ test('device choice: picking Phone / Tablet shows touch controls that walk and f
     if (optionsButton === undefined) throw new Error('options button missing');
     await page.mouse.click(stage.x + optionsButton.x + optionsButton.w / 2, stage.y + optionsButton.y + optionsButton.h / 2);
     await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(true);
-    expect((await page.evaluate(() => window.__orugas?.optionsCard()))?.y ?? -1).toBeGreaterThanOrEqual(0);
+    // The card is laid out on the tick after the click that opens Options, so wait for it.
+    await expect.poll(() => page.evaluate(() => window.__orugas?.optionsCard()?.y ?? -1)).toBeGreaterThanOrEqual(0);
     await tap('.tc-back');
     await expect.poll(() => page.evaluate(() => window.__orugas?.optionsOpen())).toBe(false);
     await tap('.tc-back');
@@ -770,7 +820,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(26);
+    expect(cells.length).toBe(27);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);

@@ -16,7 +16,7 @@ import { loadSettings, saveSettings, storageOrNull } from './persistence/setting
 import { SIM_HZ } from './config/units.ts';
 import { createLoop, createRafScheduler } from './core/loop.ts';
 import { createRng, seedFromString } from './core/rng.ts';
-import { createCamera, follow, moveTo, screenToWorld, shake, updateCamera, zoomBy } from './engine/camera.ts';
+import { createCamera, follow, moveTo, screenToWorld, shake, updateCamera, worldToScreen, zoomBy, type Camera } from './engine/camera.ts';
 import type { Size } from './engine/canvas-types.ts';
 import { bindDomInput } from './engine/input-dom.ts';
 import { createInputController } from './engine/input.ts';
@@ -25,7 +25,11 @@ import { createRenderer } from './engine/renderer.ts';
 import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
 import { createCpuClient } from './ai/client.ts';
 import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
-import { drawGame, teamColor, type CharacterSprites } from './game/render.ts';
+import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
+import { createGore, drawGore, drawLens, goreEnabledFromSearch, resetGore, updateGore } from './game/gore.ts';
+import { advanceFx, applyFxEvents, createFx, drawFxScreen, drawFxWorld, noteWeapon, wormAnim, type FxDeps, type FxState } from './game/fx.ts';
+import { cinematicFor } from './game/cinematic.ts';
+import { GAME_CONFIG } from './config/game-config.ts';
 import { loadAtlas } from './engine/atlas.ts';
 import { drawHud, hudKey } from './game/hud.ts';
 import { pickMatchSeed, pickRestartSeed } from './game/match-seed.ts';
@@ -58,6 +62,7 @@ import { DEFAULT_MATCH_CONFIG } from './match/deps.ts';
 import { createDomContextFactory } from './terrain/context.ts';
 import { WEAPONS, WEAPON_IDS } from './weapons/registry.ts';
 import { solidCount } from './terrain/terrain.ts';
+import { firstSolidBelow } from './terrain/queries.ts';
 import { findWorm as findBody } from './sim/world.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
@@ -131,12 +136,29 @@ interface OrugasDebug {
   readonly aliveCount: () => number;
   /** Camera centre and the followed projectile, for verifying the camera rides the shot. */
   readonly cameraDebug: () => { camX: number; camY: number; projX: number | null; projY: number | null; focus: string };
+  /** Fires any panel weapon from the active worm straight through the sim, like fireBazooka. */
+  readonly fireWeapon: (id: string, angleDeg?: number, power?: number) => boolean;
+  /** Parks the nearest enemy (or the one named) dx world px in front of the active worm, on the ground. */
+  readonly lineUpEnemy: (dx?: number, id?: string) => string | null;
+  /** Live gore: flying and lying bits, blood on the lens, stain rects painted into the land. */
+  readonly goreCount: () => { bits: number; lens: number; stains: number };
+  /** Live super moves in the sim. */
+  readonly combos: () => number;
 }
 
 declare global {
   interface Window {
     __orugas?: OrugasDebug;
   }
+}
+
+/** The small offscreen canvas the renderer composites wounds, hit flashes and silhouettes on. */
+function createScratch(): Scratch | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  return ctx === null ? null : { canvas, ctx, size: 128 };
 }
 
 function acquireCanvas(id: string): HTMLCanvasElement {
@@ -248,6 +270,26 @@ function boot(): void {
   });
   const particles = createParticleSystem();
   const rng = createRng(seedFromString('orugas-fx'));
+  // Gore and the animation effects: presentation only, on the tick clock, reset with each match.
+  const gore = createGore();
+  gore.enabled = goreEnabledFromSearch(window.location.search);
+  let fx: FxState = createFx();
+  const scratch = createScratch();
+  const onScreen = (x: number, y: number): boolean => {
+    const viewport = renderer.viewport();
+    const p = worldToScreen(camera, viewport, { x, y });
+    return p.x >= -20 && p.x <= viewport.w + 20 && p.y >= -20 && p.y <= viewport.h + 20;
+  };
+  const fxDeps: FxDeps = { gore, particles, rng, onScreen };
+  const hpOf = (wormId: string): number => {
+    for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.hp;
+    return 0;
+  };
+  const resetEffects = (): void => {
+    resetGore(gore);
+    particles.clear();
+    fx = createFx();
+  };
   const scheduler = createRafScheduler();
 
   let camera = createCamera({ x: WORLD_SIZE_DEFAULT.w / 2, y: WORLD_SIZE_DEFAULT.h / 2, bounds: WORLD_SIZE_DEFAULT });
@@ -396,6 +438,7 @@ function boot(): void {
     camera = createCamera({ x: WORLD_SIZE_DEFAULT.w / 2, y: WORLD_SIZE_DEFAULT.h / 2, bounds: WORLD_SIZE_DEFAULT });
     lastSoundState = null;
     cameraDirector = INITIAL_DIRECTOR;
+    resetEffects();
     panelOpen = false;
     panelLayout = null;
     paused = false;
@@ -420,6 +463,7 @@ function boot(): void {
     camera = createCamera({ x: WORLD_SIZE_DEFAULT.w / 2, y: WORLD_SIZE_DEFAULT.h / 2, bounds: WORLD_SIZE_DEFAULT });
     lastSoundState = null;
     cameraDirector = INITIAL_DIRECTOR;
+    resetEffects();
     // A panel left open on the end screen must not cover the new match (review, run #36).
     panelOpen = false;
     panelLayout = null;
@@ -622,7 +666,12 @@ function boot(): void {
           });
           const gameEvents = controller.drainEvents();
           soundDirector.handleEvents(gameEvents);
+          applyFxEvents(fx, gameEvents, fxDeps);
           for (const event of gameEvents) {
+            // Every blow of a super shakes the screen; the finisher and a worm bursting shake it hard.
+            if (event.type === 'comboHit') camera = shake(camera, event.finisher ? 9 : 2.4);
+            else if (event.type === 'gib') camera = shake(camera, 5);
+            else if (event.type === 'comboStart') camera = shake(camera, 2);
             if (event.type === 'explosion') {
               // The fireworks scale with the weapon: a dynamite stick (blast tier 'big') used to get
               // the same intensity and shake as a grenade, which is what "the TNT effect sucks"
@@ -641,6 +690,8 @@ function boot(): void {
           const nowState = controller.state();
           soundDirector.observe(lastSoundState, nowState);
           lastSoundState = nowState;
+          const activeNow = activeWormOf(nowState);
+          if (activeNow !== undefined) noteWeapon(fx, activeNow.id, controller.selectedWeapon());
           // Ride the shot while it is in the air, hold on the impact, then back to the worm. While
           // the player is dragging the view (and for a beat after) the follow stands aside; a shot
           // in the air always wins, so the ride is never missed.
@@ -657,6 +708,8 @@ function boot(): void {
         }
         camera = updateCamera(camera, 1000 / SIM_HZ, viewport);
         particles.update(1 / SIM_HZ);
+        advanceFx(fx, 1000 / SIM_HZ, appPhase === 'playing' ? { world: controller.world(), hpOf, maxHp: GAME_CONFIG.wormHp } : null, fxDeps);
+        updateGore(gore, 1 / SIM_HZ, controller.world().terrain, rng);
       },
       render: () => {
         frames += 1;
@@ -670,7 +723,27 @@ function boot(): void {
         const selected = controller.selectedWeapon();
         const activeBody = controller.world().worms.find((body) => body.id === activeWormOf(state)?.id);
         const targeting = WEAPONS[selected].requiresTargetSelect && activeTeamOf(state)?.controller === 'human' && !panelOpen && !paused;
-        const model = { state, world: controller.world(), aim: controller.aim(), timeMs: now, sprites, weapon: selected, weaponSprites, pointer: pointerWorld, targeting };
+        // The super move's camera work: the freeze dims and pulls in, the beating turns the screen white.
+        const cine = cinematicFor(controller.world().combos);
+        const view: Camera = cine.zoom === 1 ? camera : { ...camera, zoom: camera.zoom * cine.zoom };
+        const model = {
+          state,
+          world: controller.world(),
+          aim: controller.aim(),
+          timeMs: now,
+          sprites,
+          weapon: selected,
+          weaponSprites,
+          pointer: pointerWorld,
+          targeting,
+          anim: (wormId: string) => wormAnim(fx, wormId),
+          scratch,
+          whiteout: cine.whiteout,
+          dim: cine.dim,
+          aura: cine.aura,
+          aimAssist: activeTeamOf(state)?.controller === 'human' && !panelOpen,
+          gore: gore.enabled,
+        };
         // At MatchEnd the end screen carries the message, so the centre banner would collide with it.
         const hud = {
           state,
@@ -697,8 +770,12 @@ function boot(): void {
         if (overlayChanged) renderer.markHudDirty();
         renderer.render(
           (ctx, viewport: Size) => {
-            drawGame(ctx, viewport, camera, model);
-            drawParticles(ctx, particles, camera, viewport);
+            drawGame(ctx, viewport, view, model);
+            drawGore(ctx, gore, view, viewport, cine.whiteout);
+            drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
+            drawParticles(ctx, particles, view, viewport);
+            drawLens(ctx, gore, viewport);
+            drawFxScreen(ctx, fx, viewport, WEAPONS.ryuko_ranbu.name);
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {
@@ -857,6 +934,43 @@ function boot(): void {
         return { camX: camera.x, camY: camera.y, projX: lead?.x ?? null, projY: lead?.y ?? null, focus: cameraDirector.focus };
       },
       aliveCount: () => controller.state().teams.reduce((total, team) => total + team.worms.filter((worm) => worm.alive).length, 0),
+      fireWeapon: (id: string, angleDeg = 30, power = 0.7) => {
+        const weapon = WEAPON_IDS.find((candidate) => candidate === id);
+        const active = activeWormOf(controller.state());
+        const body = active === undefined ? undefined : findBody(controller.world(), active.id);
+        if (weapon === undefined || body === undefined) return false;
+        const def = WEAPONS[weapon];
+        fire(controller.world(), body, def, {
+          angleDeg,
+          power,
+          ...(def.requiresTargetSelect ? { targetPoint: { x: body.x + body.facing * 120, y: body.y - 40 } } : {}),
+          ...(def.fuse === undefined ? {} : { fuseMs: def.fuse.defaultMs }),
+        });
+        return true;
+      },
+      lineUpEnemy: (dx = 40, id?: string) => {
+        const state = controller.state();
+        const active = activeWormOf(state);
+        const team = activeTeamOf(state);
+        const world = controller.world();
+        const body = active === undefined ? undefined : findBody(world, active.id);
+        if (body === undefined || team === undefined) return null;
+        const enemy = world.worms
+          .filter((w) => w.alive && w.teamId !== team.id && (id === undefined || w.id === id))
+          .sort((a, b) => Math.abs(a.x - body.x) - Math.abs(b.x - body.x))[0];
+        if (enemy === undefined) return null;
+        const x = Math.round(body.x + body.facing * dx);
+        const ground = firstSolidBelow(world.terrain.mask, x, body.y - 40, 240);
+        enemy.x = x;
+        enemy.y = ground === null ? body.y : ground - 1;
+        enemy.vx = 0;
+        enemy.vy = 0;
+        enemy.motion = 'falling';
+        enemy.onGround = false;
+        return enemy.id;
+      },
+      goreCount: () => ({ bits: gore.bits.activeCount(), lens: gore.lens.length, stains: gore.stains }),
+      combos: () => controller.world().combos.length,
       // Surrender every team but the first one still alive, so the match reaches a real MatchEnd.
       forceWin: () => {
         const teams = controller.state().teams;

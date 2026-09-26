@@ -2,12 +2,12 @@
  * The "everything at rest" predicate the Resolving phase waits for (architecture.md section E,
  * the most likely hard failure of the design gets its own module and its own tests): every
  * living worm idle on the ground or dead, no live projectile, no falling crate, no live sheep,
- * no mine mid air. The reducer still has the inactivity and absolute caps for anything this
- * misses.
+ * no mine mid air, no super move still playing. The reducer still has the inactivity and absolute
+ * caps for anything this misses.
  */
 
 import { REST_TICKS } from './constants.ts';
-import type { CrateBody, MineBody, ProjectileBody, SheepBody, WormBody } from './types.ts';
+import type { ComboBody, CrateBody, MineBody, ProjectileBody, SheepBody, WormBody } from './types.ts';
 
 export function wormAtRest(worm: WormBody): boolean {
   if (!worm.alive || worm.motion === 'dead') return true;
@@ -30,12 +30,18 @@ export function sheepAtRest(sheep: SheepBody): boolean {
   return !sheep.alive;
 }
 
+export function comboDone(combo: ComboBody): boolean {
+  return !combo.alive;
+}
+
 export interface RestSnapshot {
   readonly worms: readonly WormBody[];
   readonly projectiles: readonly ProjectileBody[];
   readonly crates: readonly CrateBody[];
   readonly mines: readonly MineBody[];
   readonly sheep: readonly SheepBody[];
+  /** Optional so a snapshot built before super moves existed still reads as it did. */
+  readonly combos?: readonly ComboBody[];
 }
 
 export function allAtRest(world: RestSnapshot): boolean {
@@ -44,6 +50,7 @@ export function allAtRest(world: RestSnapshot): boolean {
     world.projectiles.every(projectileAtRest) &&
     world.crates.every(crateAtRest) &&
     world.mines.every(mineAtRest) &&
-    world.sheep.every(sheepAtRest)
+    world.sheep.every(sheepAtRest) &&
+    (world.combos ?? []).every(comboDone)
   );
 }

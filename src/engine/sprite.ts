@@ -4,7 +4,8 @@
  * pixel covers zoom / SPRITE_SCALE screen pixels. spriteTransform is the pure math: it turns a
  * frame, its pivot and the draw options into the exact drawImage arguments plus the transform
  * to apply around the pivot. drawSprite applies it to a Ctx2D; flipX is a negative x scale about
- * the pivot so mirrored frames stay anchored at the feet.
+ * the pivot so mirrored frames stay anchored at the feet, and squash and stretch scale about the
+ * same pivot, so a landing worm flattens onto its feet instead of sinking into the ground.
  */
 
 import { SPRITE_SCALE } from '../config/units.ts';
@@ -21,6 +22,9 @@ export interface SpriteOptions {
   readonly rotation?: number;
   /** Extra multiplier on top of the zoom, 1 by default. */
   readonly scale?: number;
+  /** Squash and stretch about the pivot, 1 by default: a landing is wider and shorter. */
+  readonly stretchX?: number;
+  readonly stretchY?: number;
   readonly alpha?: number;
 }
 
@@ -38,6 +42,8 @@ export interface SpriteDraw {
   readonly y: number;
   readonly rotation: number;
   readonly scaleX: 1 | -1;
+  readonly stretchX: number;
+  readonly stretchY: number;
   readonly alpha: number;
   /** True when translate, rotate and scale can be skipped and drawImage placed directly. */
   readonly direct: boolean;
@@ -58,6 +64,8 @@ export function spriteTransform(frame: AtlasFrame, pivot: AtlasPoint, options: S
   const rotation = options.rotation ?? 0;
   const flipX = options.flipX ?? false;
   const alpha = options.alpha ?? 1;
+  const stretchX = options.stretchX ?? 1;
+  const stretchY = options.stretchY ?? 1;
   const { frame: rect, spriteSourceSize, sourceSize } = frame;
   return Object.freeze({
     sx: rect.x,
@@ -72,8 +80,10 @@ export function spriteTransform(frame: AtlasFrame, pivot: AtlasPoint, options: S
     y: options.y,
     rotation,
     scaleX: flipX ? -1 : 1,
+    stretchX,
+    stretchY,
     alpha,
-    direct: rotation === 0 && !flipX && alpha === 1,
+    direct: rotation === 0 && !flipX && alpha === 1 && stretchX === 1 && stretchY === 1,
   });
 }
 
@@ -87,7 +97,7 @@ export function drawSprite(ctx: Ctx2D, image: ImageSource, frame: AtlasFrame, pi
   ctx.save();
   ctx.translate(t.x, t.y);
   if (t.rotation !== 0) ctx.rotate(t.rotation);
-  if (t.scaleX !== 1) ctx.scale(t.scaleX, 1);
+  if (t.scaleX !== 1 || t.stretchX !== 1 || t.stretchY !== 1) ctx.scale(t.scaleX * t.stretchX, t.stretchY);
   if (t.alpha !== 1) ctx.globalAlpha = t.alpha;
   ctx.drawImage(image, t.sx, t.sy, t.sw, t.sh, t.dx, t.dy, t.dw, t.dh);
   ctx.restore();

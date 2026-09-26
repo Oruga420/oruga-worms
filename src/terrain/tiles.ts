@@ -233,6 +233,53 @@ export function scorchRing(tiles: TerrainTiles, disc: Disc, style: ScorchStyle =
   return painted;
 }
 
+/** One square dot in world px: its centre and half its side. */
+export interface Dot {
+  readonly x: number;
+  readonly y: number;
+  readonly r: number;
+}
+
+/**
+ * Paints dots over existing land only (source-atop): blood stains. Cosmetic like the scorch ring
+ * and, like it, part of the tile picture, so a later carve erases a stain together with the land
+ * under it and a dot that lands half in the air shows only on the land half. Edges snap to tile
+ * pixels so the stains stay as crisp as the terrain. Returns the number of rects drawn.
+ */
+export function paintDots(tiles: TerrainTiles, dots: readonly Dot[], style: FillStyleLike): number {
+  const { scale, tileSize } = tiles;
+  let rects = 0;
+  for (const dot of dots) {
+    if (!(dot.r > 0) || !Number.isFinite(dot.x) || !Number.isFinite(dot.y)) continue;
+    const x0 = dot.x - dot.r;
+    const y0 = dot.y - dot.r;
+    const x1 = dot.x + dot.r;
+    const y1 = dot.y + dot.r;
+    if (x1 <= 0 || y1 <= 0 || x0 >= tiles.width || y0 >= tiles.height) continue;
+    const columns = tileRange(Math.max(0, x0), Math.min(tiles.width - 1, x1), tileSize, tiles.cols);
+    const rows = tileRange(Math.max(0, y0), Math.min(tiles.height - 1, y1), tileSize, tiles.rows);
+    for (let row = rows.from; row <= rows.to; row += 1) {
+      for (let col = columns.from; col <= columns.to; col += 1) {
+        const tile = tileAt(tiles, col, row);
+        if (tile === undefined) continue;
+        const px0 = Math.round((Math.max(x0, tile.x) - tile.x) * scale);
+        const py0 = Math.round((Math.max(y0, tile.y) - tile.y) * scale);
+        const px1 = Math.round((Math.min(x1, tile.x + tile.w) - tile.x) * scale);
+        const py1 = Math.round((Math.min(y1, tile.y + tile.h) - tile.y) * scale);
+        if (px1 <= px0 || py1 <= py0) continue;
+        const ctx = tile.ctx;
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.fillStyle = style;
+        ctx.fillRect(px0, py0, px1 - px0, py1 - py0);
+        ctx.globalCompositeOperation = 'source-over';
+        tiles.dirty[tileIndex(tiles, col, row)] = 1;
+        rects += 1;
+      }
+    }
+  }
+  return rects;
+}
+
 /**
  * The visual half of a carve: erases exactly the mask spans (destination-out, smoothing off),
  * then paints the scorch ring when a disc is given. Returns the number of erase rects drawn.

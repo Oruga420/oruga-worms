@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bankForTeam, boomFor, createSoundDirector, pickVoiceLine, type PlayLike } from '@/game/sound.ts';
+import { GIB_CUES, bankForTeam, boomFor, createSoundDirector, pickVoiceLine, type PlayLike } from '@/game/sound.ts';
 import type { GameEvent } from '@/game/controller.ts';
 import { buildInitialState, type MatchSetup } from '@/match/setup.ts';
 import type { MatchState } from '@/match/state.ts';
@@ -88,6 +88,24 @@ describe('handleEvents', () => {
     const director = createSoundDirector({ mixer, has: (id) => id !== 'wpn_bazooka_launch', random: () => 0, panAt: () => 0 });
     director.handleEvents([{ type: 'sound', id: 'wpn_bazooka_launch', x: 0, y: 0 }]);
     expect(played).toHaveLength(0);
+  });
+
+  it('a hard blow makes the victim grunt; a bullet does not', () => {
+    const { mixer, played } = fakeMixer();
+    const director = createSoundDirector({ mixer, has: ALL, random: () => 0.5, panAt: () => 0 });
+    director.handleEvents([
+      { type: 'damage', wormId: 'w', amount: 30, cause: 'melee', x: 0, y: 0, dx: 1, dy: 0 },
+      { type: 'damage', wormId: 'w', amount: 5, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
+      { type: 'damage', wormId: 'w', amount: 25, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
+    ]);
+    expect(played.map((p) => p.id)).toEqual(['wrm_hurt_grunt_2']);
+  });
+
+  it('a worm bursting cracks and splashes', () => {
+    const { mixer, played } = fakeMixer();
+    const director = createSoundDirector({ mixer, has: ALL, random: () => 0, panAt: () => 0 });
+    director.handleEvents([{ type: 'gib', wormId: 'w', x: 0, y: 0, vx: 0, vy: 0, colorIndex: 0 }]);
+    expect(played.map((p) => p.id)).toEqual([...GIB_CUES]);
   });
 });
 
