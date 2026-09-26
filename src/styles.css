@@ -32,3 +32,177 @@ body {
 #hud {
   pointer-events: none;
 }
+
+/* Phones: the dynamic viewport height ignores the collapsing address bar. */
+@supports (height: 100dvh) {
+  #stage {
+    height: 100dvh;
+  }
+}
+
+/* The stage owns every gesture: no browser scroll, pinch zoom, text selection or callout. */
+#stage {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch mode (ui/touch-controls.ts). The layer itself lets taps through to the map; only the
+   buttons take them. */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: system-ui, sans-serif;
+}
+
+.touch-controls[hidden],
+.touch-controls [hidden] {
+  display: none !important;
+}
+
+.tc-group {
+  position: absolute;
+  display: grid;
+  gap: 10px;
+}
+
+.tc-btn {
+  pointer-events: auto;
+  touch-action: none;
+  margin: 0;
+  padding: 0;
+  min-width: 56px;
+  min-height: 56px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 14px;
+  background: rgba(12, 20, 34, 0.45);
+  color: #ffffff;
+  font: 700 20px system-ui, sans-serif;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tc-btn.is-down {
+  background: rgba(255, 209, 102, 0.55);
+  border-color: #ffd166;
+}
+
+/* Move and aim: a cross on the left, lifted above the HUD's bottom lines. */
+.tc-pad {
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  grid-template-columns: repeat(3, 60px);
+  grid-template-rows: repeat(3, 60px);
+}
+
+.tc-pad .tc-btn {
+  width: 60px;
+  height: 60px;
+}
+
+.tc-up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.tc-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.tc-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.tc-down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+/* Jump, backflip and a large fire button on the right. */
+.tc-actions {
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(40px + env(safe-area-inset-bottom));
+  grid-template-columns: 64px 96px;
+  grid-template-rows: 64px 64px;
+  align-items: center;
+}
+
+.tc-jump {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 15px;
+}
+
+.tc-flip {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 15px;
+}
+
+.tc-fire {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(224, 90, 77, 0.6);
+  border-color: rgba(255, 210, 200, 0.9);
+  font-size: 22px;
+}
+
+/* Panel, zoom and pause along the top right, under the wind gauge. */
+.tc-top {
+  top: calc(62px + env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  grid-auto-flow: column;
+  gap: 8px;
+}
+
+.tc-top .tc-btn {
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 16px;
+}
+
+.tc-restart {
+  position: absolute;
+  left: 50%;
+  bottom: calc(32px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 0 28px;
+  background: rgba(255, 209, 102, 0.85);
+  border-color: #ffffff;
+  color: #0b1020;
+}
+
+/* Short landscape phones: tighter buttons so the map stays visible. */
+@media (max-height: 420px) {
+  .tc-pad {
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(3, 48px);
+    grid-template-rows: repeat(3, 48px);
+    gap: 6px;
+  }
+
+  .tc-pad .tc-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  .tc-actions {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .tc-top {
+    top: calc(58px + env(safe-area-inset-top));
+  }
+}

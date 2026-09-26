@@ -680,3 +680,58 @@ test('individual inventories, fuse controls, and the third-turn parachute drop',
   await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
   await page.screenshot({ path: resolve(ROOT, 'test-results/individual-inventory.png') });
 });
+
+test('device choice: picking Phone / Tablet shows touch controls that walk and fire', async ({ browser }) => {
+  test.skip(skipReason !== '', skipReason);
+  const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+    await waitForHook(page);
+    const stage = await page.locator('#stage').boundingBox();
+    if (stage === null) throw new Error('stage element has no bounding box');
+
+    // The title offers both devices; tap the phone one.
+    await expect.poll(() => page.evaluate(() => window.__orugas?.titleCells().length ?? 0)).toBe(2);
+    const touchCell = (await page.evaluate(() => window.__orugas?.titleCells() ?? [])).find((c) => c.id === 'touch');
+    if (touchCell === undefined) throw new Error('touch button missing');
+    await page.touchscreen.tap(stage.x + touchCell.x + touchCell.w / 2, stage.y + touchCell.y + touchCell.h / 2);
+    await expect.poll(() => page.evaluate(() => window.__orugas?.appPhase() ?? '')).toBe('setup');
+    expect(await page.evaluate(() => window.__orugas?.deviceMode())).toBe('touch');
+    await expect(page.locator('.touch-controls')).toBeHidden();
+
+    const start = (await page.evaluate(() => window.__orugas?.teamSetupCells() ?? [])).find((c) => c.id === 'start');
+    if (start === undefined) throw new Error('start cell missing');
+    await page.touchscreen.tap(stage.x + start.x + start.w / 2, stage.y + start.y + start.h / 2);
+    await expect.poll(() => page.evaluate(() => window.__orugas?.appPhase() ?? ''), { timeout: 8000 }).toBe('playing');
+    await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+    await expect(page.locator('.tc-fire')).toBeVisible();
+    await page.screenshot({ path: 'test-results/touch-controls.png' });
+
+    // Holding the right arrow walks the worm.
+    const before = await page.evaluate(() => window.__orugas?.activeBody()?.x ?? 0);
+    const right = await page.locator('.tc-right').boundingBox();
+    if (right === null) throw new Error('right button has no box');
+    await page.mouse.move(right.x + right.width / 2, right.y + right.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__orugas?.activeBody()?.x ?? 0)).toBeGreaterThan(before);
+
+    // Hold Fire to charge and release to shoot: the turn leaves Active.
+    const fire = await page.locator('.tc-fire').boundingBox();
+    if (fire === null) throw new Error('fire button has no box');
+    await page.mouse.move(fire.x + fire.width / 2, fire.y + fire.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 4000 }).not.toBe('Active');
+
+    // The pick is remembered: a reload lands on the title with Phone / Tablet still selected.
+    await page.reload({ waitUntil: 'load' });
+    await waitForHook(page);
+    expect(await page.evaluate(() => window.__orugas?.deviceMode())).toBe('touch');
+  } finally {
+    await context.close();
+  }
+});

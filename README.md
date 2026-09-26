@@ -7,7 +7,23 @@ local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2
 
 https://oruga-worms.vercel.app
 
-Press Enter to open team setup, choose human or CPU teams, then start the match.
+Pick your device on the title screen: **Computer** (keyboard and mouse) or **Phone / Tablet**
+(on-screen touch controls). The game suggests one from your screen and remembers your pick;
+`?device=touch` or `?device=desktop` in the URL forces either. Then choose human or CPU teams
+and start the match.
+
+### Touch controls
+
+| Action | Control |
+| --- | --- |
+| Walk / aim | ◀ ▶ / ▲ ▼ pad on the left |
+| Charge and fire | Hold and release FIRE |
+| Jump / backflip | Jump / Flip |
+| Jetpack lift | Hold Jump or ▲ |
+| Weapons, zoom, pause | Buttons at the top right |
+| Target teleport, girder, or strike | Select weapon, then tap the destination |
+| Look around | Drag the map |
+| Play again | Play again button on the end screen |
 
 ### What's new
 

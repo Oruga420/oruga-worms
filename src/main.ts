@@ -34,7 +34,9 @@ import { drawPauseScreen, hitTestPause, layoutPauseScreen, type PauseLayout } fr
 import { buildScoreboard } from './ui/screens/end-screen.ts';
 import { drawOptionsScreen, hitTestOptions, layoutOptionsScreen, type OptionsAction, type OptionsLayout } from './ui/screens/options.ts';
 import { rebind, shiftedKeyCode, type Action, type Keybinds } from './config/keybinds.ts';
-import { drawEndScreen, drawTitleScreen } from './game/screens.ts';
+import { drawEndScreen, drawTitleScreen, hitTestTitle, layoutTitleScreen, type TitleLayout } from './game/screens.ts';
+import { DEVICE_KEY, resolveDeviceMode, type DeviceMode } from './config/device.ts';
+import { createTouchControls, type TouchControlsView } from './ui/touch-controls.ts';
 import { createFrameOverlay, overlayEnabledFromSearch } from './engine/frame-overlay.ts';
 import { createSoundDirector } from './game/sound.ts';
 import { INITIAL_DIRECTOR, updateCameraTarget, type CameraDirector } from './game/camera-target.ts';
@@ -94,6 +96,9 @@ interface OrugasDebug {
   readonly weaponFrames: () => number;
   /** Picks a weapon by id through the controller's own guard (ammo, scheme delay); unknown ids are ignored. */
   readonly selectWeapon: (id: string) => void;
+  /** 'desktop' or 'touch', as picked on the title screen, and the title's device buttons. */
+  readonly deviceMode: () => string;
+  readonly titleCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
   /** The app screen ('menu', 'setup' or 'playing') and the team setup card's cells. */
   readonly appPhase: () => string;
   readonly teamSetupCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
@@ -177,6 +182,29 @@ function boot(): void {
   // record falls back to the defaults inside loadSettings, so boot never depends on it.
   const settingsStore = storageOrNull(() => window.localStorage);
   let settings: Settings = loadSettings(settingsStore).settings;
+  // Keyboard and mouse, or the on screen touch controls: picked on the title screen, remembered,
+  // and guessed from the pointer the first time (config/device.ts).
+  const readStored = (): string | null => {
+    try {
+      return settingsStore?.getItem(DEVICE_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  let deviceMode: DeviceMode = resolveDeviceMode({
+    search: window.location.search,
+    stored: readStored(),
+    coarsePointer: window.matchMedia?.('(pointer: coarse)').matches ?? false,
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+  });
+  const chooseDevice = (mode: DeviceMode): void => {
+    deviceMode = mode;
+    try {
+      settingsStore?.setItem(DEVICE_KEY, mode);
+    } catch {
+      // Private mode or blocked storage: the pick holds for this session only.
+    }
+  };
   const mixer = createMixer(createBrowserMixerDeps());
   for (const target of AUDIO_TARGETS) mixer.setVolume(target, settings.audio[target]);
   const soundReady = fetch('/audio/manifest.json')
@@ -207,6 +235,15 @@ function boot(): void {
     input = createInputController(binds);
     unbindInput = bindDomInput(input, { pointerTarget: stage, keyTarget: window, binds });
   };
+  // Touch mode's on screen buttons feed the live input controller the same key events a keyboard does.
+  const touchControls = createTouchControls({
+    root: stage,
+    sink: () => input,
+    binds: () => settings.keybinds,
+    onRestart: () => {
+      if (controller.state().phase === 'MatchEnd') restart();
+    },
+  });
   const particles = createParticleSystem();
   const rng = createRng(seedFromString('orugas-fx'));
   const scheduler = createRafScheduler();
@@ -295,6 +332,7 @@ function boot(): void {
   // Title, then the team setup card, then the match. The boot game above is what the setup screen
   // is drawn over; Start rebuilds it from the chosen teams.
   let appPhase: 'menu' | 'setup' | 'playing' = 'menu';
+  let titleLayout: TitleLayout | null = null;
   let teamSetup: TeamSetupState = DEFAULT_TEAM_SETUP;
   let teamSetupLayout: TeamSetupLayout | null = null;
   // Pause: Escape or P while playing. While paused the controller is not ticked, so the turn
@@ -342,9 +380,9 @@ function boot(): void {
   const startMatch = (): void => {
     if (appPhase !== 'menu') return;
     appPhase = 'setup';
+    titleLayout = null;
     renderer.markHudDirty();
   };
-  window.addEventListener('pointerdown', startMatch);
 
   /** Builds the match from the chosen teams and starts it; a rejected setup leaves the card up. */
   const beginMatch = (seed: number): void => {
@@ -418,7 +456,13 @@ function boot(): void {
       renderer.markHudDirty();
       return;
     }
+    if (appPhase === 'menu' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      chooseDevice(deviceMode === 'desktop' ? 'touch' : 'desktop');
+      renderer.markHudDirty();
+      return;
+    }
     if (appPhase === 'menu' && (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar')) {
+      chooseDevice(deviceMode);
       startMatch();
       return;
     }
@@ -470,6 +514,15 @@ function boot(): void {
               teamSetup = reduceTeamSetup(teamSetup, action);
               renderer.markHudDirty();
             }
+          }
+        }
+        // After the setup card, so the click that leaves the title cannot also press a setup cell.
+        if (appPhase === 'menu') {
+          // A tap on a device button picks it and starts; a tap anywhere else starts with the one lit.
+          titleLayout = layoutTitleScreen(viewport, deviceMode);
+          if (intent.pointerClicked) {
+            chooseDevice(hitTestTitle(titleLayout, intent.pointerScreen) ?? deviceMode);
+            startMatch();
           }
         }
         // While the title screen is up the match is frozen; input is still drained above.
@@ -605,6 +658,9 @@ function boot(): void {
       },
       render: () => {
         frames += 1;
+        const touchView: TouchControlsView =
+          deviceMode !== 'touch' || appPhase !== 'playing' ? 'hidden' : controller.state().phase === 'MatchEnd' ? 'end' : optionsOpen ? 'hidden' : 'play';
+        touchControls.show(touchView);
         const now = scheduler.now();
         const stats = loop.stats();
         renderer.updateDpr(stats.averageFrameMs, now);
@@ -644,7 +700,7 @@ function boot(): void {
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {
-              drawTitleScreen(ctx, viewport);
+              drawTitleScreen(ctx, viewport, titleLayout ?? layoutTitleScreen(viewport, deviceMode));
             } else if (appPhase === 'setup') {
               drawTeamSetup(ctx, viewport, teamSetupLayout ?? layoutTeamSetup(viewport, teamSetup), teamSetup, teamColor);
             } else {
@@ -658,6 +714,7 @@ function boot(): void {
                   color: winner === undefined ? '#f4f4f4' : teamColor(winner.colorIndex),
                   rows: buildScoreboard(state),
                   colorOf: teamColor,
+                  touch: deviceMode === 'touch',
                 });
               }
             }
@@ -708,6 +765,8 @@ function boot(): void {
         if (found !== undefined) controller.selectWeapon(found);
       },
       appPhase: () => appPhase,
+      deviceMode: () => deviceMode,
+      titleCells: () => (titleLayout === null ? [] : titleLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
       teamSetupCells: () => (teamSetupLayout === null ? [] : teamSetupLayout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h }))),
       teamControllers: () => controller.state().teams.map((team) => team.controller),
       pauseCells: () => (pauseLayout === null ? [] : pauseLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
