@@ -98,6 +98,8 @@ export interface RenderModel {
   readonly aura?: number;
   /** Aim helpers (laser sight, reach, lock on) for the human; the CPU's aim stays bare. */
   readonly aimAssist?: boolean;
+  /** False keeps the worms clean (?gore=0): no wounds on the sprites. On by default. */
+  readonly gore?: boolean;
 }
 
 /**
@@ -1091,7 +1093,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
     });
-    const wounds = fight?.role === 'victim' && info.hp <= 0 ? 1 : woundLevel(info.hp);
+    const wounds = model.gore === false ? 0 : fight?.role === 'victim' && info.hp <= 0 ? 1 : woundLevel(info.hp);
     visuals.set(body.id, { visual, pose, wounds });
     drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
   }

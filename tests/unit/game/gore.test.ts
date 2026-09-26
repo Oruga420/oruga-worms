@@ -10,6 +10,7 @@ import {
   ejectCasing,
   gibBurst,
   goreCount,
+  goreEnabledFromSearch,
   splatterLens,
   updateGore,
   type GoreBit,
@@ -139,6 +140,15 @@ describe('gore: gibs', () => {
 });
 
 describe('gore: switches and screen', () => {
+  it('is on unless the URL turns it off', () => {
+    expect(goreEnabledFromSearch('')).toBe(true);
+    expect(goreEnabledFromSearch('?seed=4')).toBe(true);
+    expect(goreEnabledFromSearch('?gore=0')).toBe(false);
+    expect(goreEnabledFromSearch('?seed=4&gore=off')).toBe(false);
+    expect(goreEnabledFromSearch('?gore=FALSE&seed=1')).toBe(false);
+    expect(goreEnabledFromSearch('?gore=01')).toBe(true);
+  });
+
   it('spawns nothing when turned off', () => {
     const gore = createGore();
     gore.enabled = false;

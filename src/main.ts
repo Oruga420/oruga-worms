@@ -26,7 +26,7 @@ import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
 import { createCpuClient } from './ai/client.ts';
 import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
 import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
-import { createGore, drawGore, drawLens, resetGore, updateGore } from './game/gore.ts';
+import { createGore, drawGore, drawLens, goreEnabledFromSearch, resetGore, updateGore } from './game/gore.ts';
 import { advanceFx, applyFxEvents, createFx, drawFxScreen, drawFxWorld, noteWeapon, wormAnim, type FxDeps, type FxState } from './game/fx.ts';
 import { cinematicFor } from './game/cinematic.ts';
 import { GAME_CONFIG } from './config/game-config.ts';
@@ -143,11 +143,6 @@ declare global {
   interface Window {
     __orugas?: OrugasDebug;
   }
-}
-
-/** ?gore=0 (or off, false) turns the blood and the gibs off; they are on by default. */
-function goreEnabledFromSearch(search: string): boolean {
-  return !/[?&]gore=(0|off|false)(&|$)/i.test(search);
 }
 
 /** The small offscreen canvas the renderer composites wounds, hit flashes and silhouettes on. */
@@ -689,6 +684,7 @@ function boot(): void {
           dim: cine.dim,
           aura: cine.aura,
           aimAssist: activeTeamOf(state)?.controller === 'human' && !panelOpen,
+          gore: gore.enabled,
         };
         // At MatchEnd the end screen carries the message, so the centre banner would collide with it.
         const hud = {

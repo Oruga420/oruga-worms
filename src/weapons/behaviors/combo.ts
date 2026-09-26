@@ -11,7 +11,7 @@ import { sweep } from '../../sim/collision.ts';
 import { WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
 import type { WormBody } from '../../sim/types.ts';
 import type { SimWorld } from '../../sim/world.ts';
-import { lineOfSight } from '../../terrain/queries.ts';
+import { firstSolidBelow, lineOfSight } from '../../terrain/queries.ts';
 import { endsAfter, type FireContext, type FireResult } from './types.ts';
 import { resolveTeleport } from './utility.ts';
 
@@ -56,9 +56,15 @@ export function lockTarget(world: SimWorld, worm: WormBody, rangePx: number): Wo
   return best;
 }
 
-/** A standing spot at (x, y), snapped like a teleport, or the fallback when there is none. */
+/**
+ * A spot to stand on at (x, y), snapped like a teleport, with ground right under the feet; else the
+ * fallback. A teleport may arrive in mid air, a finished super must not: a rush over a pit would
+ * drop the attacker into it, into the water even, for having landed its blows.
+ */
 function standingSpot(world: SimWorld, x: number, y: number, fallback: { readonly x: number; readonly y: number }): { x: number; y: number } {
-  return resolveTeleport(world.terrain.mask, world.terrain.water.y, { x, y }) ?? { x: fallback.x, y: fallback.y };
+  const spot = resolveTeleport(world.terrain.mask, world.terrain.water.y, { x, y });
+  if (spot === null || firstSolidBelow(world.terrain.mask, spot.x, spot.y + 1, 2) === null) return { x: fallback.x, y: fallback.y };
+  return spot;
 }
 
 export function fireCombo(ctx: FireContext): FireResult {

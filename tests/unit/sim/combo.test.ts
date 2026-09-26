@@ -139,6 +139,22 @@ describe('ryuko ranbu: the beating', () => {
     expect(hero.x).toBeGreaterThan(300);
   });
 
+  it('sends the attacker home rather than leave it over a pit it rushed across', () => {
+    const world = flatWorld({ width: 1200, height: 500, floorY: 350, waterY: 480, gap: { x0: 360, x1: 395 } });
+    const hero = addWorm(world, { id: 'hero', teamId: 'a', x: 300, y: 349, facing: 1 });
+    addWorm(world, { id: 'victim', teamId: 'b', x: 400, y: 349 });
+    fire(world, hero, SUPER, { angleDeg: 0, power: 1 });
+    const combo = world.combos[0];
+    expect(combo?.victimId).toBe('victim');
+    // Beside the victim is the pit: the attacker is left standing where it started.
+    expect(combo?.restX).toBe(300);
+    expect(combo?.restY).toBe(349);
+    playOut(world);
+    for (let i = 0; i < 300 && !worldAtRest(world); i += 1) stepWorld(world);
+    expect(hero.alive).toBe(true);
+    expect(hero.y).toBeLessThan(351);
+  });
+
   it('never rushes through a wall when it whiffs', () => {
     const { world, hero } = arena({ wall: { x: 330, height: 40 } });
     fire(world, hero, SUPER, { angleDeg: 0, power: 1 });

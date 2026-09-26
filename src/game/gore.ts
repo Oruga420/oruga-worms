@@ -143,6 +143,11 @@ function resetBit(bit: GoreBit): void {
   bit.trail = 0;
 }
 
+/** ?gore=0 (or off, false) in the page URL turns the blood and the gibs off; they are on by default. */
+export function goreEnabledFromSearch(search: string): boolean {
+  return !/[?&]gore=(0|off|false)(&|$)/i.test(search);
+}
+
 export function createGore(capacity = GORE_CAPACITY): GoreSystem {
   return {
     bits: createPool<GoreBit>({ capacity, create: createBit, reset: resetBit, prewarm: Math.min(capacity, 400) }),
