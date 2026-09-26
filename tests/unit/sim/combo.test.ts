@@ -101,7 +101,7 @@ describe('ryuko ranbu: the beating', () => {
       if (combo !== undefined && combo.stage === 'flurry') {
         expect(victim.x).toBe(400);
         expect(victim.y).toBe(349);
-        expect(hero.x).toBe(400 - 12);
+        expect(hero.x).toBe(400 - 14);
         expect(heldWormIds(world.combos).has(victim.id)).toBe(true);
       }
     }
@@ -125,7 +125,7 @@ describe('ryuko ranbu: the beating', () => {
     expect(settled).toBe(true);
     // The attacker is left standing on the ground beside where the victim was.
     expect(hero.onGround).toBe(true);
-    expect(Math.abs(hero.x - 388)).toBeLessThan(2);
+    expect(Math.abs(hero.x - 386)).toBeLessThan(2);
   });
 
   it('whiffs with nobody in reach: no damage, the rush still plays and ends', () => {

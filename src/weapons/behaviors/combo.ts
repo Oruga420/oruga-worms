@@ -16,7 +16,7 @@ import { endsAfter, type FireContext, type FireResult } from './types.ts';
 import { resolveTeleport } from './utility.ts';
 
 /** Feet to feet gap between the attacker and its victim during the beating, world px. */
-export const COMBO_STAND_GAP_PX = 12;
+export const COMBO_STAND_GAP_PX = 14;
 /** A target behind the worm costs this much more distance: the rush prefers what it faces. */
 const BEHIND_PENALTY = 1.5;
 /** A whiffed rush covers this fraction of the lock range. */
