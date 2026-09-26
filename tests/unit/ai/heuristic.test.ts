@@ -65,6 +65,23 @@ describe('decideHeuristic: the super move', () => {
     const decision = decideHeuristic({ request: req, registry: WEAPONS, mask, worms: close });
     expect(decision.weapon).not.toBe('ryuko_ranbu');
   });
+
+  it('scores the victim the lock would take, not the juiciest enemy in reach', () => {
+    // Both in reach: the rush locks the nearer one, which has 1 hp left to lose.
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 240, y: 299, hp: 1, alive: true },
+      { id: 'b2', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({
+      ammo,
+      enemies: [
+        { id: 'b1', team: 'blue', x: 240, y: 299, hp: 1 },
+        { id: 'b2', team: 'blue', x: 330, y: 299, hp: 100 },
+      ],
+    });
+    expect(decideHeuristic(input(req, worms)).weapon).not.toBe('ryuko_ranbu');
+  });
 });
 
 describe('decideHeuristic', () => {

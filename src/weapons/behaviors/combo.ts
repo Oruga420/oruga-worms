@@ -11,6 +11,7 @@ import { sweep } from '../../sim/collision.ts';
 import { WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
 import type { WormBody } from '../../sim/types.ts';
 import type { SimWorld } from '../../sim/world.ts';
+import type { TerrainMask } from '../../terrain/mask.ts';
 import { firstSolidBelow, lineOfSight } from '../../terrain/queries.ts';
 import { endsAfter, type FireContext, type FireResult } from './types.ts';
 import { resolveTeleport } from './utility.ts';
@@ -22,8 +23,13 @@ const BEHIND_PENALTY = 1.5;
 /** A whiffed rush covers this fraction of the lock range. */
 const WHIFF_REACH = 0.45;
 
-function inPlainSight(world: SimWorld, from: WormBody, to: WormBody): boolean {
-  const mask = world.terrain.mask;
+/** A worm's feet in world px: all the lock rule needs to know about either end of a rush. */
+export interface LockPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+function inPlainSight(mask: TerrainMask, from: LockPoint, to: LockPoint): boolean {
   // Chest to chest, or head to head over a bump in the ground between them.
   for (const height of [0.6, 0.9]) {
     if (lineOfSight(mask, from.x, from.y - WORM_HEIGHT * height, to.x, to.y - WORM_HEIGHT * height)) return true;
@@ -32,21 +38,20 @@ function inPlainSight(world: SimWorld, from: WormBody, to: WormBody): boolean {
 }
 
 /**
- * The worm a super fired now would rush: the nearest living enemy within rangePx, centre to
- * centre, that the worm can see, those behind it counted a little farther. Null when nobody
- * qualifies. The aim UI calls this every frame to draw the lock on marker.
+ * The lock rule on its own: of the candidates, the nearest within rangePx, centre to centre, in
+ * plain sight, those behind the facing counted a little farther. Null when nobody qualifies. The
+ * caller decides who may be a candidate; the CPU scores a super on the victim this picks, so it
+ * never counts damage on a worm the rush would pass over.
  */
-export function lockTarget(world: SimWorld, worm: WormBody, rangePx: number): WormBody | null {
-  let best: WormBody | null = null;
+export function pickLockTarget<T extends LockPoint>(mask: TerrainMask, from: LockPoint & { readonly facing: 1 | -1 }, candidates: readonly T[], rangePx: number): T | null {
+  let best: T | null = null;
   let bestScore = Infinity;
-  for (const other of world.worms) {
-    if (!other.alive || other.teamId === worm.teamId || other.motion === 'drowning' || other.motion === 'dead') continue;
-    if (other.y >= world.terrain.water.y) continue;
-    const dx = other.x - worm.x;
-    const dist = Math.hypot(dx, other.y - worm.y);
+  for (const other of candidates) {
+    const dx = other.x - from.x;
+    const dist = Math.hypot(dx, other.y - from.y);
     if (dist > rangePx) continue;
-    if (!inPlainSight(world, worm, other)) continue;
-    const behind = dx !== 0 && Math.sign(dx) !== worm.facing;
+    if (!inPlainSight(mask, from, other)) continue;
+    const behind = dx !== 0 && Math.sign(dx) !== from.facing;
     const score = dist * (behind ? BEHIND_PENALTY : 1);
     if (score < bestScore) {
       bestScore = score;
@@ -54,6 +59,16 @@ export function lockTarget(world: SimWorld, worm: WormBody, rangePx: number): Wo
     }
   }
   return best;
+}
+
+/**
+ * The worm a super fired now would rush: the lock rule over the living enemies above the water.
+ * The aim UI calls this every frame to draw the lock on marker.
+ */
+export function lockTarget(world: SimWorld, worm: WormBody, rangePx: number): WormBody | null {
+  const waterY = world.terrain.water.y;
+  const enemies = world.worms.filter((other) => other.alive && other.teamId !== worm.teamId && other.motion !== 'drowning' && other.motion !== 'dead' && other.y < waterY);
+  return pickLockTarget(world.terrain.mask, worm, enemies, rangePx);
 }
 
 /**
