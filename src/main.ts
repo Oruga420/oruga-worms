@@ -23,6 +23,7 @@ import { createInputController } from './engine/input.ts';
 import { createParticleSystem, drawParticles, spawnExplosion } from './engine/particles.ts';
 import { createRenderer } from './engine/renderer.ts';
 import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
+import { assetUrl } from './engine/asset-url.ts';
 import { createCpuClient } from './ai/client.ts';
 import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
 import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
@@ -229,9 +230,11 @@ function boot(): void {
       // Private mode or blocked storage: the pick holds for this session only.
     }
   };
-  const mixer = createMixer(createBrowserMixerDeps());
+  // Sounds load by versioned URL like the sprites: the files are served immutable (asset-url.ts).
+  const browserMixerDeps = createBrowserMixerDeps();
+  const mixer = createMixer({ ...browserMixerDeps, fetchBytes: (url) => browserMixerDeps.fetchBytes(assetUrl(url)) });
   for (const target of AUDIO_TARGETS) mixer.setVolume(target, settings.audio[target]);
-  const soundReady = fetch('/audio/manifest.json')
+  const soundReady = fetch(assetUrl('/audio/manifest.json'))
     .then((response) => (response.ok ? response.json() : null))
     .then((json) => {
       if (json === null) return;
@@ -325,14 +328,14 @@ function boot(): void {
   const FREE_LOOK_HOLD_MS = 2500;
   void (async (): Promise<void> => {
     try {
-      const response = await fetch('/sprites/weapons/atlas.json');
+      const response = await fetch(assetUrl('/sprites/weapons/atlas.json'));
       if (!response.ok) return;
       const json: unknown = await response.json();
       const image = new Image();
       await new Promise<void>((done, fail) => {
         image.onload = () => done();
         image.onerror = () => fail(new Error('weapon sheet failed'));
-        image.src = '/sprites/weapons/sheet.png';
+        image.src = assetUrl('/sprites/weapons/sheet.png');
       });
       const atlas = loadAtlas(json, image);
       if (atlas.ok) {
@@ -353,14 +356,14 @@ function boot(): void {
     await Promise.all(
       roster.map(async (entry) => {
         try {
-          const response = await fetch(`/sprites/${entry.id}/atlas.json`);
+          const response = await fetch(assetUrl(`/sprites/${entry.id}/atlas.json`));
           if (!response.ok) return;
           const json: unknown = await response.json();
           const image = new Image();
           await new Promise<void>((done, fail) => {
             image.onload = () => done();
             image.onerror = () => fail(new Error(`sheet failed for ${entry.id}`));
-            image.src = `/sprites/${entry.id}/sheet.png`;
+            image.src = assetUrl(`/sprites/${entry.id}/sheet.png`);
           });
           const atlas = loadAtlas(json, image);
           if (atlas.ok) sprites.set(entry.team, { atlas: atlas.value, image });

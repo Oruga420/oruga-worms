@@ -7,8 +7,10 @@
  * only the HMR websocket sources plus 'unsafe-inline' for the styles Vite injects.
  */
 
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { createThrottle } from './sidecar/auth.ts';
@@ -49,6 +51,30 @@ export function applyCsp(html: string, options: Pick<OrugasPluginOptions, 'viteP
   const withConnect = match[2].replace("connect-src 'self'", `connect-src 'self'${sidecar}${devSockets}`);
   const csp = options.dev ? withConnect.replace("style-src 'self'", "style-src 'self' 'unsafe-inline'") : withConnect;
   return html.replace(CSP_META, (_all, open: string, _old: string, close: string) => `${open}${csp}${close}`);
+}
+
+/** The public folders vercel.json serves immutable for a year: every file in them is versioned. */
+export const VERSIONED_PUBLIC_DIRS: readonly string[] = Object.freeze(['sprites', 'audio']);
+
+/**
+ * Content hash of every file under the given public folders, keyed by the path it is served at
+ * ("/sprites/weapons/sheet.png"). The build defines it as __ASSET_VERSIONS__ and assetUrl
+ * (src/engine/asset-url.ts) appends it as ?v=, so a changed file gets a URL no stale cache holds.
+ */
+export function assetVersions(publicDir: string, folders: readonly string[] = VERSIONED_PUBLIC_DIRS): Record<string, string> {
+  const versions: Record<string, string> = {};
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.isFile()) versions[`/${relative(publicDir, path).split(sep).join('/')}`] = createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 10);
+    }
+  };
+  for (const folder of folders) {
+    const dir = join(publicDir, folder);
+    if (existsSync(dir)) walk(dir);
+  }
+  return versions;
 }
 
 function orugasPlugin(options: OrugasPluginOptions): Plugin {
@@ -97,6 +123,7 @@ export default defineConfig(({ command, mode }) => {
       ...(sidecarOrigin === '' ? {} : { proxy: { '/api': { target: sidecarOrigin, changeOrigin: true } } }),
     },
     plugins: [orugasPlugin({ vitePort, sidecarOrigin, dev: command === 'serve', config })],
+    define: { __ASSET_VERSIONS__: JSON.stringify(assetVersions(resolve(ROOT, 'public'))) },
     build: { target: 'es2022', sourcemap: true, outDir: 'dist', emptyOutDir: true },
   };
 });
