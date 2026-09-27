@@ -12,6 +12,7 @@ import {
   drawFxScreen,
   drawFxWorld,
   noteWeapon,
+  numberLook,
   wormAnim,
   type FxDeps,
 } from '@/game/fx.ts';
@@ -28,8 +29,8 @@ function deps(): FxDeps {
 
 const TICK = 1000 / 60;
 
-function damage(wormId: string, amount: number, cause: 'blast' | 'fall' | 'hit' | 'melee' = 'hit'): GameEvent {
-  return { type: 'damage', wormId, amount, cause, x: 100, y: 100, dx: 1, dy: 0 };
+function damage(wormId: string, amount: number, cause: 'blast' | 'fall' | 'hit' | 'melee' = 'hit', lost = amount): GameEvent {
+  return { type: 'damage', wormId, amount, lost, cause, x: 100, y: 100, dx: 1, dy: 0 };
 }
 
 describe('fx: hits', () => {
@@ -57,6 +58,41 @@ describe('fx: hits', () => {
     advanceFx(fx, 1000, null, d);
     applyFxEvents(fx, [damage('w', 5)], d);
     expect(fx.numbers).toHaveLength(2);
+  });
+
+  it('a number still collecting a flurry stays in full view until the blows stop', () => {
+    // The super's cadence: sixteen blows 85 ms apart, then the finisher 290 ms after the last.
+    const fx = createFx();
+    const d = deps();
+    for (let hit = 0; hit < 16; hit += 1) {
+      applyFxEvents(fx, [damage('w', 3, 'melee')], d);
+      advanceFx(fx, 85, null, d);
+    }
+    advanceFx(fx, 290 - 85, null, d);
+    applyFxEvents(fx, [damage('w', 27, 'melee')], d);
+    expect(fx.numbers).toHaveLength(1);
+    const number = fx.numbers[0];
+    if (number === undefined) throw new Error('no number');
+    expect(number.amount).toBe(75);
+    expect(numberLook(number, fx.now).alpha).toBe(1);
+    // It then reads for a while and fades out, counted from the finisher.
+    advanceFx(fx, 1000, null, d);
+    expect(numberLook(number, fx.now).alpha).toBe(1);
+    advanceFx(fx, 600, null, d);
+    expect(fx.numbers).toHaveLength(0);
+  });
+
+  it('counts only the hp a blow took: a worm beaten past 0 bleeds without a number', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [damage('w', 50, 'blast', 10)], d);
+    expect(fx.numbers[0]?.amount).toBe(10);
+    const fresh = createFx();
+    const e = deps();
+    applyFxEvents(fresh, [damage('v', 3, 'melee', 0)], e);
+    expect(fresh.numbers).toHaveLength(0);
+    expect(goreCount(e.gore)).toBeGreaterThan(0);
+    expect(wormAnim(fresh, 'v')?.hurtMs).toBe(0);
   });
 
   it('a worm reduced to 0 hp bursts into chunks', () => {
@@ -113,6 +149,30 @@ describe('fx: weapons', () => {
     expect(wormAnim(fx, 'w')?.switchedMs).toBe(0);
   });
 
+  it('a thrown worm turns only by what it spun each tick, however late in the match', () => {
+    const fx = createFx();
+    fx.now = 120_000;
+    const d = deps();
+    const world = flatWorld({ width: 600, height: 400, floorY: 300 });
+    const worm = addWorm(world, { id: 'w', teamId: 'a', x: 100, y: 200 });
+    worm.motion = 'flying';
+    let last = 0;
+    for (let i = 0; i < 90; i += 1) {
+      // Slowing and turning over the arc: the speed changes on every tick.
+      worm.vx = 448 - i * 5;
+      worm.vy = -448 + i * 11;
+      advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+      const tumble = wormAnim(fx, 'w')?.tumble ?? 0;
+      expect(Math.abs(tumble - last)).toBeLessThanOrEqual((18 * TICK) / 1000 + 1e-9);
+      last = tumble;
+    }
+    expect(last).toBeGreaterThan(1);
+    // Down again: upright.
+    worm.motion = 'idle';
+    advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+    expect(wormAnim(fx, 'w')?.tumble).toBe(0);
+  });
+
   it('rockets trail smoke and a badly hurt worm drips', () => {
     const fx = createFx();
     const d = deps();
@@ -136,7 +196,7 @@ describe('fx: the super move', () => {
   it('names the move, counts the blows, calls the knockout and clears after the linger', () => {
     const fx = createFx();
     const d = deps();
-    applyFxEvents(fx, [{ type: 'comboStart', comboId: 9, attackerId: 'a', victimId: 'v', x: 0, y: 0 }], d);
+    applyFxEvents(fx, [{ type: 'comboStart', comboId: 9, weapon: 'ryuko_ranbu', attackerId: 'a', victimId: 'v', x: 0, y: 0 }], d);
     expect(fx.combo?.hits).toBe(0);
     expect(fx.screenFlash?.color).toBe('#ffffff');
     for (let hit = 1; hit <= 16; hit += 1) {
@@ -166,7 +226,7 @@ describe('fx: drawing', () => {
     applyFxEvents(
       fx,
       [
-        { type: 'comboStart', comboId: 1, attackerId: 'a', victimId: 'v', x: 0, y: 0 },
+        { type: 'comboStart', comboId: 1, weapon: 'ryuko_ranbu', attackerId: 'a', victimId: 'v', x: 0, y: 0 },
         { type: 'comboHit', comboId: 1, attackerId: 'a', victimId: 'v', hit: 3, finisher: false, ko: false, x: 0, y: 0, dx: 1, dy: 0 },
         { type: 'tracer', x: 0, y: 0, x1: 40, y1: 0, hit: 'worm' },
         { type: 'swing', wormId: 'a', weapon: 'fire_punch', x: 0, y: 0, facing: 1 },
@@ -179,7 +239,7 @@ describe('fx: drawing', () => {
     const camera = createCamera({ x: 0, y: 0 });
     drawFxWorld(ctx, fx, camera, { w: 800, h: 600 });
     drawFxWorld(ctx, fx, camera, { w: 800, h: 600 }, undefined, 1);
-    drawFxScreen(ctx, fx, { w: 800, h: 600 }, 'Ryuko Ranbu');
+    drawFxScreen(ctx, fx, { w: 800, h: 600 });
     const texts = ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
     expect(texts).toContain('RYUKO RANBU');
     expect(texts).toContain('3');

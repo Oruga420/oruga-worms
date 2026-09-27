@@ -11,6 +11,7 @@ import {
   gibBurst,
   goreCount,
   goreEnabledFromSearch,
+  MAX_RESTING_CHUNKS,
   splatterLens,
   updateGore,
   type GoreBit,
@@ -127,6 +128,17 @@ describe('gore: gibs', () => {
     for (const chunk of resting) carve(terrain, Math.round(chunk.x), Math.round(chunk.y) + 8, 12);
     updateGore(gore, TICK, terrain, createRng(1));
     expect(bits(gore).filter((b) => b.kind === 'chunk' && b.resting).length).toBeLessThan(resting.length);
+  });
+
+  it('over the cap only the extra pieces fade: the rest stay on the ground', () => {
+    const terrain = flatTerrain({ width: 1200, height: 300, floorY: 200, waterY: 290 });
+    const gore = createGore();
+    const rng = createRng(21);
+    let chunks = 0;
+    for (let i = 0; i < 6; i += 1) chunks += gibBurst(gore, { x: 150 + i * 180, y: 185, vx: 0, vy: 0, colorIndex: i % 4 }, rng);
+    expect(chunks).toBeGreaterThan(MAX_RESTING_CHUNKS);
+    run(gore, 8, terrain);
+    expect(bits(gore).filter((b) => b.kind === 'chunk' && b.resting)).toHaveLength(MAX_RESTING_CHUNKS);
   });
 
   it('casings bounce off without a drop of blood', () => {

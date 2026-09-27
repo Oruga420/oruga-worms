@@ -22,7 +22,8 @@ import { activeWormOf } from '../match/ledger.ts';
 import { WORM_HEIGHT, WORM_HALF_WIDTH } from '../sim/constants.ts';
 import type { SimWorld } from '../sim/world.ts';
 import { clamp, degToRad } from '../core/math.ts';
-import { seedFromString } from '../core/rng.ts';
+import { hash01, seedFromString } from '../core/rng.ts';
+import { ticksToMs } from '../config/units.ts';
 import type { AimState } from './aim.ts';
 import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
@@ -231,10 +232,8 @@ export function poseFor(input: PoseInput): WormPose {
   if (!worm.alive) return plain;
   if (worm.motion === 'drowning') return { ...plain, ...flash };
   if (worm.motion === 'flying') {
-    const speed = Math.hypot(worm.vx, worm.vy);
-    // Thrown worms tumble, faster the harder they were hit.
-    const spin = speed > 60 ? (timeMs / 1000) * Math.min(18, speed / 30) * (worm.vx >= 0 ? 1 : -1) : 0;
-    return { ...plain, ...flash, frame: 'knocked', rotation: spin };
+    // Thrown worms tumble, faster the harder they were hit; fx integrates the turn tick by tick.
+    return { ...plain, ...flash, frame: 'knocked', rotation: anim?.tumble ?? 0 };
   }
   if (worm.motion === 'jumping' && worm.vx * worm.facing < 0) {
     // A backflip: one full turn over the arc, backwards.
@@ -428,15 +427,6 @@ interface WormLook {
   /** Solid colour over the whole sprite (the super's silhouettes), overriding the pose's tint. */
   readonly silhouette?: string;
   readonly showTag: boolean;
-}
-
-/** Deterministic 0..1 from a seed and an index. */
-function hash01(seed: number, index: number): number {
-  let h = Math.imul(seed ^ Math.imul(index + 1, 0x9e3779b1), 0x85ebca6b);
-  h ^= h >>> 13;
-  h = Math.imul(h, 0xc2b2ae35);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
 }
 
 /**
@@ -969,7 +959,7 @@ function drawProjectile(ctx: Ctx2D, viewport: Size, camera: Camera, p: Projectil
   }
   // The fuse, counted down in whole seconds above the body, as the source game shows it.
   if (p.fuseTicks > 0) {
-    const seconds = Math.ceil(p.fuseTicks / 60);
+    const seconds = Math.ceil(ticksToMs(p.fuseTicks) / 1000);
     const ty = pos.y - (p.spec.radiusPx + 7) * z;
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'center';

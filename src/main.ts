@@ -780,7 +780,7 @@ function boot(): void {
             drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
             drawParticles(ctx, particles, view, viewport);
             drawLens(ctx, gore, viewport);
-            drawFxScreen(ctx, fx, viewport, WEAPONS.ryuko_ranbu.name);
+            drawFxScreen(ctx, fx, viewport);
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {

@@ -11,7 +11,8 @@
  * the bodies in place (hot path), like the rest of the sim.
  */
 
-import { MELEE_KNOCKBACK_SCALE, TICK_S, WORM_HEIGHT } from './constants.ts';
+import { msToTicks } from '../config/units.ts';
+import { MELEE_KNOCKBACK_SCALE, WORM_HEIGHT } from './constants.ts';
 import type { ComboBody, ComboStage, HitPoint, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 import type { ComboSpec } from '../weapons/types.ts';
@@ -47,7 +48,7 @@ const FINISHER_LIFT = 0.95;
 const NOBODY: ReadonlySet<string> = new Set();
 
 export function ticksFor(ms: number): number {
-  return Math.max(1, Math.round(ms / 1000 / TICK_S));
+  return Math.max(1, msToTicks(ms));
 }
 
 /** Total length of a landed combo in ticks: freeze, rush, flurry, the finisher tick and the pose. */
@@ -94,7 +95,7 @@ export function spawnCombo(world: SimWorld, params: SpawnComboParams): ComboBody
     alive: true,
   };
   world.combos.push(combo);
-  world.events.push({ type: 'comboStart', comboId: combo.id, attackerId: attacker.id, victimId: combo.victimId, x: attacker.x, y: attacker.y });
+  world.events.push({ type: 'comboStart', comboId: combo.id, weaponId: combo.weaponId, attackerId: attacker.id, victimId: combo.victimId, x: attacker.x, y: attacker.y });
   world.events.push({ type: 'sound', id: COMBO_SOUNDS.flash, x: attacker.x, y: attacker.y });
   return combo;
 }
@@ -165,6 +166,17 @@ function end(world: SimWorld, combo: ComboBody, attacker: WormBody | undefined, 
   // A combo cut short before its finisher still holds the victim: let it go.
   if (victim !== undefined && holdsVictim(combo.stage)) release(victim);
   world.events.push({ type: 'comboEnd', comboId: combo.id, attackerId: combo.attackerId, victimId: combo.victimId, hits: combo.hitsLanded });
+}
+
+/**
+ * Ends every live combo on the spot and lets both fighters go. For a match that ends mid fight (a
+ * surrender): the sim is not stepped after MatchEnd, so a combo left alive would never finish.
+ */
+export function cancelCombos(world: SimWorld): void {
+  for (const combo of world.combos) {
+    if (combo.alive) end(world, combo, wormById(world, combo.attackerId), wormById(world, combo.victimId));
+  }
+  world.combos = world.combos.filter((c) => c.alive);
 }
 
 function blowPoint(combo: ComboBody, victim: WormBody, finisher: boolean): HitPoint {

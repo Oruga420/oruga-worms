@@ -14,7 +14,7 @@
 
 import { TWO_PI, clamp } from '../core/math.ts';
 import { createPool, type Pool } from '../core/pool.ts';
-import type { Rng } from '../core/rng.ts';
+import { hash01, type Rng } from '../core/rng.ts';
 import { shakeOffset, type Camera } from '../engine/camera.ts';
 import type { Ctx2D, Size } from '../engine/canvas-types.ts';
 import { isSolid } from '../terrain/queries.ts';
@@ -504,19 +504,25 @@ function stepChunk(gore: GoreSystem, bit: GoreBit, dt: number, terrain: TerrainD
 }
 
 /** Keeps the ground from turning into a butcher's floor: the oldest resting chunks rot first. */
+/** Seconds a resting chunk takes to fade out at the end of its life. */
+const CHUNK_FADE_S = 1.5;
+
+/**
+ * Over the cap, the pieces nearest the end of their life start fading, just enough of them to get
+ * back under it. Pieces already fading do not count: they are on their way out, and counting them
+ * faded another batch every tick until the ground was bare.
+ */
 function capResting(gore: GoreSystem): void {
-  let resting = 0;
+  const lasting: GoreBit[] = [];
   gore.bits.forEach((bit) => {
-    if (bit.kind === 'chunk' && bit.resting) resting += 1;
+    if (bit.kind === 'chunk' && bit.resting && bit.life > CHUNK_FADE_S) lasting.push(bit);
   });
-  if (resting <= MAX_RESTING_CHUNKS) return;
-  let excess = resting - MAX_RESTING_CHUNKS;
-  gore.bits.forEach((bit) => {
-    if (excess > 0 && bit.kind === 'chunk' && bit.resting && bit.life > 1.5) {
-      bit.life = 1.5;
-      excess -= 1;
-    }
-  });
+  if (lasting.length <= MAX_RESTING_CHUNKS) return;
+  lasting.sort((a, b) => a.life - b.life);
+  for (let i = 0; i < lasting.length - MAX_RESTING_CHUNKS; i += 1) {
+    const bit = lasting[i];
+    if (bit !== undefined) bit.life = CHUNK_FADE_S;
+  }
 }
 
 function flushStains(gore: GoreSystem, terrain: TerrainData | null): void {
@@ -672,19 +678,10 @@ export function drawGore(ctx: Ctx2D, gore: GoreSystem, camera: Camera, viewport:
   });
   gore.bits.forEach((bit) => {
     if (bit.kind !== 'chunk' || (bit.resting && whiteout > 0.5)) return;
-    ctx.globalAlpha = bit.resting ? clamp(bit.life / 1.5, 0, 1) : 1;
+    ctx.globalAlpha = bit.resting ? clamp(bit.life / CHUNK_FADE_S, 0, 1) : 1;
     drawChunk(ctx, bit, bit.x * z + ox, bit.y * z + oy, z);
   });
   ctx.restore();
-}
-
-/** Deterministic 0..1 from a seed and an index, so a splat keeps its shape while it fades. */
-function hash01(seed: number, index: number): number {
-  let h = Math.imul(seed ^ Math.imul(index + 1, 0x9e3779b1), 0x85ebca6b);
-  h ^= h >>> 13;
-  h = Math.imul(h, 0xc2b2ae35);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
 }
 
 /** Screen space: blood on the camera lens, with drips running down. */

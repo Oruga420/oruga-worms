@@ -166,7 +166,7 @@ export type SimEvent =
   | { readonly type: 'tracer'; readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number; readonly hit: 'worm' | 'land' | 'none' }
   /** A melee swing left the worm's hands (fire punch, bat), hit or miss; presentation only. */
   | { readonly type: 'swing'; readonly wormId: string; readonly weaponId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
-  | { readonly type: 'comboStart'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  | { readonly type: 'comboStart'; readonly comboId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly at: HitPoint }
   | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number };
 

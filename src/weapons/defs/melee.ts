@@ -118,7 +118,8 @@ const RYUKO_RANBU: WeaponDef = defineWeapon({
   shotsPerTurn: 1,
   endsTurnOnFire: true,
   requiresTargetSelect: false,
-  crateWeight: 1,
+  /** One per worm, from the loadout only: a weapon crate never hands out another super. */
+  crateWeight: 0,
   /** What the heuristic and the panel read: the lock range, the whole beating and the final throw. */
   melee: {
     reachPx: RYUKO_RANGE_PX,
