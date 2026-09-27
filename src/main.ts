@@ -111,6 +111,8 @@ interface OrugasDebug {
   readonly teamControllers: () => readonly string[];
   /** Options card rect, so a test can check it stays on screen. */
   readonly optionsCard: () => { x: number; y: number; w: number; h: number } | null;
+  /** The action a clicked key row is waiting to rebind, armed on the tick after the click; null when none. */
+  readonly optionsListening: () => string | null;
   readonly pauseCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
   /** Sets one audio bus level, applies it to the mixer and persists it; false when nothing could be saved. */
   readonly setVolume: (target: string, level: number) => boolean;
@@ -852,6 +854,7 @@ function boot(): void {
       teamSetupCells: () => (teamSetupLayout === null ? [] : teamSetupLayout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h }))),
       teamControllers: () => controller.state().teams.map((team) => team.controller),
       optionsCard: () => optionsLayout?.card ?? null,
+      optionsListening: () => listeningFor,
       pauseCells: () => (pauseLayout === null ? [] : pauseLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
       setVolume: (target: string, level: number) => {
         if (!isAudioTarget(target)) return false;

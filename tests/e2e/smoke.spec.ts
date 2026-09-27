@@ -568,12 +568,15 @@ test('options from the pause overlay: a volume step and a key rebind survive a r
   await click(await cellById('optionsCells', 'vol:music:minus'));
   await expect.poll(() => page.evaluate(() => window.__orugas?.settings().audio.music ?? -1), { timeout: 2000 }).toBeCloseTo(0.9, 5);
 
-  // Rebind fire to F: click the row, press the key. Space is now free and F fires.
+  // Rebind fire to F: click the row, press the key. Space is now free and F fires. The click arms
+  // the rebind on the next tick, so wait for it: a key pressed before then is not a rebind.
   await click(await cellById('optionsCells', 'key:fire'));
+  await expect.poll(() => page.evaluate(() => window.__orugas?.optionsListening() ?? null), { timeout: 2000 }).toBe('fire');
   await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__orugas?.keybinds().fire.join(',') ?? ''), { timeout: 2000 }).toBe('KeyF');
   // A duplicate is refused: try to give jump the F key too; fire keeps it and jump is unchanged.
   await click(await cellById('optionsCells', 'key:jump'));
+  await expect.poll(() => page.evaluate(() => window.__orugas?.optionsListening() ?? null), { timeout: 2000 }).toBe('jump');
   await page.keyboard.press('f');
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => window.__orugas?.keybinds().jump.join(',') ?? '')).toBe('Enter');
