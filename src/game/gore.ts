@@ -87,6 +87,8 @@ export interface GoreBit {
   trail: number;
   /** Which stain batch a droplet paints with. */
   stain: number;
+  /** World px a droplet has flown: the farther it went, the less likely it stains. */
+  flown: number;
 }
 
 /** Blood thrown on the camera: screen space, it slides and fades. */
@@ -134,6 +136,7 @@ function createBit(): GoreBit {
     bounces: 0,
     trail: 0,
     stain: 0,
+    flown: 0,
   };
 }
 
@@ -141,6 +144,7 @@ function resetBit(bit: GoreBit): void {
   bit.life = 0;
   bit.resting = false;
   bit.trail = 0;
+  bit.flown = 0;
 }
 
 /** ?gore=0 (or off, false) in the page URL turns the blood and the gibs off; they are on by default. */
@@ -188,6 +192,7 @@ function spawnDrop(gore: GoreSystem, x: number, y: number, vx: number, vy: numbe
   bit.color = pick(BLOOD, rng);
   bit.stain = rng.nextInt(0, STAINS.length - 1);
   bit.resting = false;
+  bit.flown = 0;
   return true;
 }
 
@@ -372,20 +377,30 @@ function queueStain(gore: GoreSystem, batch: number, x: number, y: number, r: nu
   if (list !== undefined) list.push({ x, y, r });
 }
 
+/** How far from the wound a droplet stops staining the land for sure, world px. */
+export const STAIN_REACH_PX = 160;
+
 /**
- * A droplet splash: a main dot smeared along the way it was going, and flecks thrown ahead of it.
- * Many drops landing together pool into a stain, since every splash lands on the same land.
+ * The chance a landed droplet stains the land: most of those that fall close to the wound, few of
+ * those flung far. Every droplet used to stain, and a blast's hundreds of them, all landing on the
+ * surface line, traced the terrain's outline in red instead of leaving a splatter.
  */
-function splash(gore: GoreSystem, bit: GoreBit, x: number, y: number, speed: number): void {
+export function stainChance(flown: number): number {
+  const t = clamp(flown / STAIN_REACH_PX, 0, 1);
+  return 0.6 + (0.1 - 0.6) * t;
+}
+
+/**
+ * A droplet splash: a main dot, smeared along the way it was going and with flecks thrown ahead
+ * of it when it landed hard. Drops landing together pool into a stain around the wound.
+ */
+function splash(gore: GoreSystem, bit: GoreBit, x: number, y: number, speed: number, rng: Rng): void {
+  if (rng.next() >= stainChance(bit.flown)) return;
   const r = bit.size * (1.1 + Math.min(1.6, speed / 220));
   const along = bit.vx >= 0 ? 1 : -1;
   queueStain(gore, bit.stain, x, y, r);
-  queueStain(gore, bit.stain, x + along * r * 1.2, y + 0.4, r * 0.7);
-  if (speed > 120) {
-    const fleck = r * 0.45;
-    queueStain(gore, bit.stain, x + along * r * 2.6, y - r * 0.3, fleck);
-    queueStain(gore, bit.stain, x - along * r * 1.1, y + r * 0.6, fleck);
-  }
+  if (speed > 200) queueStain(gore, bit.stain, x + along * r * 1.2, y + 0.4, r * 0.7);
+  if (speed > 260) queueStain(gore, bit.stain, x + along * r * 2.6, y - r * 0.3, r * 0.45);
 }
 
 /** First solid pixel on the way from (x0, y0) to (x1, y1), sampled every 1.5 px, or null. */
@@ -405,7 +420,7 @@ function firstSolid(terrain: TerrainData, x0: number, y0: number, x1: number, y1
   return null;
 }
 
-function stepDrop(gore: GoreSystem, bit: GoreBit, dt: number, terrain: TerrainData | null): boolean {
+function stepDrop(gore: GoreSystem, bit: GoreBit, dt: number, terrain: TerrainData | null, rng: Rng): boolean {
   const drag = Math.max(0, 1 - 0.35 * dt);
   bit.vx *= drag;
   bit.vy = bit.vy * drag + GORE_GRAVITY * dt;
@@ -416,10 +431,11 @@ function stepDrop(gore: GoreSystem, bit: GoreBit, dt: number, terrain: TerrainDa
     if (nx < -20 || nx > terrain.width + 20 || ny > terrain.height + 20) return false;
     const hit = firstSolid(terrain, bit.x, bit.y, nx, ny);
     if (hit !== null) {
-      splash(gore, bit, hit.x, hit.y, Math.hypot(bit.vx, bit.vy));
+      splash(gore, bit, hit.x, hit.y, Math.hypot(bit.vx, bit.vy), rng);
       return false;
     }
   }
+  bit.flown += Math.hypot(nx - bit.x, ny - bit.y);
   bit.x = nx;
   bit.y = ny;
   return true;
@@ -541,7 +557,7 @@ export function updateGore(gore: GoreSystem, dt: number, terrain: TerrainData | 
     if (bit.life <= 0) return true;
     switch (bit.kind) {
       case 'drop':
-        return !stepDrop(gore, bit, step, terrain);
+        return !stepDrop(gore, bit, step, terrain, rng);
       case 'mist':
         stepMist(bit, step);
         return false;
@@ -685,14 +701,23 @@ export function drawGore(ctx: Ctx2D, gore: GoreSystem, camera: Camera, viewport:
 }
 
 /** Screen space: blood on the camera lens, with drips running down. */
+/**
+ * Lens blood is sized for a 720 px tall view: a phone's 390 px would be half covered by the same
+ * blobs, so they shrink with the shorter side of the screen.
+ */
+export function lensScale(viewport: Size): number {
+  return clamp(Math.min(viewport.w, viewport.h) / 720, 0.5, 1.25);
+}
+
 export function drawLens(ctx: Ctx2D, gore: GoreSystem, viewport: Size): void {
   if (gore.lens.length === 0) return;
+  const k = lensScale(viewport);
   ctx.save();
   for (const splat of gore.lens) {
     const fade = clamp(splat.life / splat.maxLife, 0, 1);
     const cx = splat.x * viewport.w;
     const cy = splat.y * viewport.h;
-    const r = splat.r;
+    const r = splat.r * k;
     ctx.globalAlpha = 0.66 * Math.sqrt(fade);
     ctx.fillStyle = '#6a0008';
     ctx.beginPath();
@@ -715,7 +740,7 @@ export function drawLens(ctx: Ctx2D, gore: GoreSystem, viewport: Size): void {
     for (let i = 0; i < drips; i += 1) {
       const dx = (hash01(splat.seed, 110 + i) - 0.5) * r;
       const w = r * (0.1 + hash01(splat.seed, 120 + i) * 0.1);
-      const run = splat.drip * (0.5 + hash01(splat.seed, 130 + i) * 0.5);
+      const run = splat.drip * k * (0.5 + hash01(splat.seed, 130 + i) * 0.5);
       ctx.fillRect(cx + dx - w / 2, cy + r * 0.3, w, run);
       ctx.beginPath();
       ctx.arc(cx + dx, cy + r * 0.3 + run, w * 0.75, 0, TWO_PI);

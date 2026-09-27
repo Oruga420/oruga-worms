@@ -631,7 +631,16 @@ function outlinedText(ctx: Ctx2D, text: string, x: number, y: number, fill: stri
 }
 
 /** Screen space overlays: the super's name card, the hit counter, K.O., MISS, flashes and the red edges. */
-export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size): void {
+export interface FxScreenOptions {
+  /**
+   * The phone layout: the touch D-pad holds the lower left and button rows the top and bottom
+   * right, so the hit counter moves up under the clock and the name card narrows and drops a bit.
+   */
+  readonly touch?: boolean;
+}
+
+export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: FxScreenOptions = {}): void {
+  const touch = options.touch === true;
   ctx.save();
   if (fx.redPulse !== null) {
     const t = (fx.now - fx.redPulse.at) / 600;
@@ -661,14 +670,16 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size): void {
       const t = since / SUPER_CARD_MS;
       const slide = t < 0.18 ? 1 - t / 0.18 : t > 0.82 ? -(t - 0.82) / 0.18 : 0;
       const x = viewport.w / 2 - slide * viewport.w * 0.8;
-      const y = viewport.h * 0.3;
+      const y = viewport.h * (touch ? 0.36 : 0.3);
+      const outer = viewport.w * (touch ? 0.3 : 0.42);
+      const inner = viewport.w * (touch ? 0.26 : 0.36);
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = '#b00010';
       ctx.beginPath();
-      ctx.moveTo(x - viewport.w * 0.42, y + 22);
-      ctx.lineTo(x + viewport.w * 0.36, y - 30);
-      ctx.lineTo(x + viewport.w * 0.42, y - 18);
-      ctx.lineTo(x - viewport.w * 0.36, y + 34);
+      ctx.moveTo(x - outer, y + 22);
+      ctx.lineTo(x + inner, y - 30);
+      ctx.lineTo(x + outer, y - 18);
+      ctx.lineTo(x - inner, y + 34);
       ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -682,8 +693,8 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size): void {
     }
     if (show.hits >= 2) {
       const pop = 1 + Math.max(0, 1 - (fx.now - show.lastHitAt) / 140) * 0.5;
-      const x = viewport.w * 0.07;
-      const y = viewport.h * 0.42;
+      const x = viewport.w * (touch ? 0.24 : 0.07);
+      const y = viewport.h * (touch ? 0.2 : 0.42);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `italic 900 ${Math.round(46 * pop)}px system-ui, sans-serif`;

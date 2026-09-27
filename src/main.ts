@@ -780,7 +780,7 @@ function boot(): void {
             drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
             drawParticles(ctx, particles, view, viewport);
             drawLens(ctx, gore, viewport);
-            drawFxScreen(ctx, fx, viewport);
+            drawFxScreen(ctx, fx, viewport, { touch: deviceMode === 'touch' });
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {

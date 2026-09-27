@@ -245,4 +245,31 @@ describe('fx: drawing', () => {
     expect(texts).toContain('3');
     expect(texts).toContain('-30');
   });
+
+  it('on a phone the hit counter sits under the clock, clear of the touch pad at the lower left', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(
+      fx,
+      [
+        { type: 'comboStart', comboId: 1, weapon: 'ryuko_ranbu', attackerId: 'a', victimId: 'v', x: 0, y: 0 },
+        { type: 'comboHit', comboId: 1, attackerId: 'a', victimId: 'v', hit: 7, finisher: false, ko: false, x: 0, y: 0, dx: 1, dy: 0 },
+      ],
+      d,
+    );
+    const counterAt = (touch: boolean, viewport: { w: number; h: number }): { x: number; y: number } => {
+      const ctx = createRecordingContext();
+      drawFxScreen(ctx, fx, viewport, { touch });
+      const drawn = ctx.calls.filter((c) => c.name === 'fillText' && c.args[0] === '7').at(-1);
+      return { x: Number(drawn?.args[1]), y: Number(drawn?.args[2]) };
+    };
+    // Desktop keeps it at the left edge, halfway down.
+    expect(counterAt(false, { w: 1280, h: 720 })).toMatchObject({ x: 1280 * 0.07, y: 720 * 0.42 });
+    // Landscape and portrait phones: above the pad (which starts ~40% down in landscape) and right of the team bars.
+    for (const viewport of [{ w: 844, h: 390 }, { w: 390, h: 844 }]) {
+      const at = counterAt(true, viewport);
+      expect(at.y).toBeLessThan(viewport.h * 0.25);
+      expect(at.x).toBeGreaterThan(Math.min(180, viewport.w * 0.2));
+    }
+  });
 });
