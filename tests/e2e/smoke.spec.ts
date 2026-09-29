@@ -488,6 +488,28 @@ test('mouse: dragging pans the camera without firing, a click fires a targeted w
   await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 4000 }).not.toBe('Active');
 });
 
+test('a returning player gets the new art: sprites and sounds load by versioned URL', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  // vercel.json serves /sprites and /audio immutable for a year, so a browser keeps whatever it
+  // cached under a URL. Replay such a cache: the plain atlas URL answers with a stale atlas that
+  // has no frames. The page must never ask for it, nor for any sprite or sound without its hash.
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/sprites/') || url.pathname.startsWith('/audio/')) requested.push(`${url.pathname}${url.search}`);
+  });
+  await page.route(
+    (url) => url.pathname === '/sprites/weapons/atlas.json' && url.search === '',
+    (route) => route.fulfill({ contentType: 'application/json', body: '{"frames":{}}' }),
+  );
+  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(27);
+  await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
+  expect(requested.some((r) => r.startsWith('/sprites/weapons/sheet.png?v='))).toBe(true);
+  expect(requested.filter((r) => !/\?v=[0-9a-f]{10}$/.test(r))).toEqual([]);
+});
+
 test('team setup: the weapon art ships, and switching Blues to human starts a two human match', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
@@ -546,12 +568,15 @@ test('options from the pause overlay: a volume step and a key rebind survive a r
   await click(await cellById('optionsCells', 'vol:music:minus'));
   await expect.poll(() => page.evaluate(() => window.__orugas?.settings().audio.music ?? -1), { timeout: 2000 }).toBeCloseTo(0.9, 5);
 
-  // Rebind fire to F: click the row, press the key. Space is now free and F fires.
+  // Rebind fire to F: click the row, press the key. Space is now free and F fires. The click arms
+  // the rebind on the next tick, so wait for it: a key pressed before then is not a rebind.
   await click(await cellById('optionsCells', 'key:fire'));
+  await expect.poll(() => page.evaluate(() => window.__orugas?.optionsListening() ?? null), { timeout: 2000 }).toBe('fire');
   await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__orugas?.keybinds().fire.join(',') ?? ''), { timeout: 2000 }).toBe('KeyF');
   // A duplicate is refused: try to give jump the F key too; fire keeps it and jump is unchanged.
   await click(await cellById('optionsCells', 'key:jump'));
+  await expect.poll(() => page.evaluate(() => window.__orugas?.optionsListening() ?? null), { timeout: 2000 }).toBe('jump');
   await page.keyboard.press('f');
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => window.__orugas?.keybinds().jump.join(',') ?? '')).toBe('Enter');

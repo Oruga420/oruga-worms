@@ -17,7 +17,7 @@ import { createRecordingContext } from '../ui/recording-context.ts';
 const WORM: WormVisual = { x: 100, y: 100, vx: 0, vy: 0, facing: 1, color: '#f00', name: 'W', hp: 100, active: false, motion: 'idle', alive: true, colorIndex: 0 };
 
 function anim(overrides: Partial<WormAnim> = {}): WormAnim {
-  return { hurtMs: Infinity, hurtAmount: 0, firedMs: Infinity, firedWeapon: null, swingMs: Infinity, landedMs: Infinity, landSpeed: 0, switchedMs: Infinity, ...overrides };
+  return { hurtMs: Infinity, hurtAmount: 0, firedMs: Infinity, firedWeapon: null, swingMs: Infinity, landedMs: Infinity, landSpeed: 0, switchedMs: Infinity, tumble: 0, ...overrides };
 }
 
 function combo(stage: ComboBody['stage'], stageTicks: number, hitsLanded = 0): ComboBody {
@@ -61,10 +61,12 @@ describe('poses', () => {
 
   it('tumbles when thrown and spins a full turn over a backflip', () => {
     const thrown = { ...WORM, motion: 'flying' as const, vx: 300, vy: -200 };
-    const a = poseFor({ worm: thrown, timeMs: 0 });
-    const b = poseFor({ worm: thrown, timeMs: 100 });
+    const a = poseFor({ worm: thrown, anim: anim({ tumble: 0.4 }), timeMs: 0 });
+    // The turn fx integrated, never the page clock: the same tumble at any time reads the same.
+    const b = poseFor({ worm: thrown, anim: anim({ tumble: 0.4 }), timeMs: 120_000 });
     expect(a.frame).toBe('knocked');
-    expect(b.rotation).not.toBe(a.rotation);
+    expect(a.rotation).toBe(0.4);
+    expect(b.rotation).toBe(0.4);
     const takeoff = poseFor({ worm: { ...WORM, motion: 'jumping', vx: -45, vy: -260 }, timeMs: 0 });
     const top = poseFor({ worm: { ...WORM, motion: 'jumping', vx: -45, vy: 0 }, timeMs: 0 });
     expect(takeoff.frame).toBe('backflip');

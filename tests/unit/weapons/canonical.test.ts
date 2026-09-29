@@ -181,6 +181,8 @@ describe('canonical numbers: the super move', () => {
     expect(def.combo?.rangePx).toBe(180);
     expect(def.ammo).toBe(1);
     expect(def.delayTurns).toBe(2);
+    // One per worm: never in a weapon crate.
+    expect(def.crateWeight).toBe(0);
     // The finisher throws harder upward than the bat, the same way along the rush.
     expect(def.combo?.finisherKnockback.x).toBeCloseTo(WEAPONS.baseball_bat.melee?.knockback.x ?? 0, 9);
     expect(def.combo?.finisherKnockback.y ?? 0).toBeGreaterThan(WEAPONS.baseball_bat.melee?.knockback.y ?? 0);

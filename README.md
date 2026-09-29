@@ -25,6 +25,7 @@ and start the match.
 | Jetpack lift | Hold Jump or ▲ |
 | Weapons, zoom, pause | Buttons at the top right |
 | Target teleport, girder, or strike | Select weapon, then tap the destination |
+| Super move (Ryuko Ranbu) | Pick it in Weapons, then press and release FIRE |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 

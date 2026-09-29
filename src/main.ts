@@ -23,6 +23,7 @@ import { createInputController } from './engine/input.ts';
 import { createParticleSystem, drawParticles, spawnExplosion } from './engine/particles.ts';
 import { createRenderer } from './engine/renderer.ts';
 import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
+import { assetUrl } from './engine/asset-url.ts';
 import { createCpuClient } from './ai/client.ts';
 import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
 import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
@@ -110,6 +111,8 @@ interface OrugasDebug {
   readonly teamControllers: () => readonly string[];
   /** Options card rect, so a test can check it stays on screen. */
   readonly optionsCard: () => { x: number; y: number; w: number; h: number } | null;
+  /** The action a clicked key row is waiting to rebind, armed on the tick after the click; null when none. */
+  readonly optionsListening: () => string | null;
   readonly pauseCells: () => readonly { id: string; x: number; y: number; w: number; h: number }[];
   /** Sets one audio bus level, applies it to the mixer and persists it; false when nothing could be saved. */
   readonly setVolume: (target: string, level: number) => boolean;
@@ -229,9 +232,11 @@ function boot(): void {
       // Private mode or blocked storage: the pick holds for this session only.
     }
   };
-  const mixer = createMixer(createBrowserMixerDeps());
+  // Sounds load by versioned URL like the sprites: the files are served immutable (asset-url.ts).
+  const browserMixerDeps = createBrowserMixerDeps();
+  const mixer = createMixer({ ...browserMixerDeps, fetchBytes: (url) => browserMixerDeps.fetchBytes(assetUrl(url)) });
   for (const target of AUDIO_TARGETS) mixer.setVolume(target, settings.audio[target]);
-  const soundReady = fetch('/audio/manifest.json')
+  const soundReady = fetch(assetUrl('/audio/manifest.json'))
     .then((response) => (response.ok ? response.json() : null))
     .then((json) => {
       if (json === null) return;
@@ -325,14 +330,14 @@ function boot(): void {
   const FREE_LOOK_HOLD_MS = 2500;
   void (async (): Promise<void> => {
     try {
-      const response = await fetch('/sprites/weapons/atlas.json');
+      const response = await fetch(assetUrl('/sprites/weapons/atlas.json'));
       if (!response.ok) return;
       const json: unknown = await response.json();
       const image = new Image();
       await new Promise<void>((done, fail) => {
         image.onload = () => done();
         image.onerror = () => fail(new Error('weapon sheet failed'));
-        image.src = '/sprites/weapons/sheet.png';
+        image.src = assetUrl('/sprites/weapons/sheet.png');
       });
       const atlas = loadAtlas(json, image);
       if (atlas.ok) {
@@ -353,14 +358,14 @@ function boot(): void {
     await Promise.all(
       roster.map(async (entry) => {
         try {
-          const response = await fetch(`/sprites/${entry.id}/atlas.json`);
+          const response = await fetch(assetUrl(`/sprites/${entry.id}/atlas.json`));
           if (!response.ok) return;
           const json: unknown = await response.json();
           const image = new Image();
           await new Promise<void>((done, fail) => {
             image.onload = () => done();
             image.onerror = () => fail(new Error(`sheet failed for ${entry.id}`));
-            image.src = `/sprites/${entry.id}/sheet.png`;
+            image.src = assetUrl(`/sprites/${entry.id}/sheet.png`);
           });
           const atlas = loadAtlas(json, image);
           if (atlas.ok) sprites.set(entry.team, { atlas: atlas.value, image });
@@ -775,7 +780,7 @@ function boot(): void {
             drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
             drawParticles(ctx, particles, view, viewport);
             drawLens(ctx, gore, viewport);
-            drawFxScreen(ctx, fx, viewport, WEAPONS.ryuko_ranbu.name);
+            drawFxScreen(ctx, fx, viewport, { touch: deviceMode === 'touch' });
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {
@@ -849,6 +854,7 @@ function boot(): void {
       teamSetupCells: () => (teamSetupLayout === null ? [] : teamSetupLayout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h }))),
       teamControllers: () => controller.state().teams.map((team) => team.controller),
       optionsCard: () => optionsLayout?.card ?? null,
+      optionsListening: () => listeningFor,
       pauseCells: () => (pauseLayout === null ? [] : pauseLayout.buttons.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }))),
       setVolume: (target: string, level: number) => {
         if (!isAudioTarget(target)) return false;

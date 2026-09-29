@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cinematicFor } from '@/game/cinematic.ts';
 import { createController, type Controller, type ControllerInput, type GameEvent } from '@/game/controller.ts';
 import { quickGame } from '@/game/setup.ts';
 import { activeTeamOf, activeWormOf } from '@/match/ledger.ts';
@@ -30,14 +31,14 @@ const IDLE: ControllerInput = Object.freeze({
  * A quick game moved past the super's scheme delay, so the opening human turn may use it; the
  * CPU team's worms can start hurt, so a beating is lethal on purpose.
  */
-function makeController(options: { readonly enemyHp?: number } = {}): Controller {
+function makeController(options: { readonly enemyHp?: number; readonly turn?: number } = {}): Controller {
   const game = quickGame(7, createFakeFactory().factory, { w: 1200, h: 500 });
   if (!game.ok) throw new Error(game.error.message);
   const base = game.value.state;
   const teams = base.teams.map((team, index) =>
     index === 0 || options.enemyHp === undefined ? team : { ...team, worms: team.worms.map((worm) => ({ ...worm, hp: options.enemyHp ?? worm.hp })) },
   );
-  const state: MatchState = { ...base, turn: 3, teams };
+  const state: MatchState = { ...base, turn: options.turn ?? 3, teams };
   return createController({ ...game.value, state }, { cpu: { client: null, registry: WEAPONS } });
 }
 
@@ -138,6 +139,36 @@ describe('controller: ryuko ranbu', () => {
     expect(gibIndex).toBeGreaterThan(finisherIndex);
     const finisher = events[finisherIndex];
     expect(finisher?.type === 'comboHit' && finisher.ko).toBe(true);
+    // The numbers count what the 40 hp could lose; the blows after 0 still land, for nothing.
+    const blows = events.filter((e) => e.type === 'damage' && e.wormId === victimId);
+    expect(blows.reduce((sum, e) => sum + (e.type === 'damage' ? e.lost : 0), 0)).toBe(40);
+    expect(blows.some((e) => e.type === 'damage' && e.amount > 0 && e.lost === 0)).toBe(true);
+    // Thrown by the finisher, it burst where it was hit: no whole worm sinks or lands afterwards.
+    const afterwards = events.slice(gibIndex + 1).filter((e) => (e.type === 'damage' || e.type === 'landed' || e.type === 'drown') && e.wormId === victimId);
+    expect(afterwards).toEqual([]);
+  });
+
+  it('a surrender mid beating ends the fight instead of holding the white screen over the end', () => {
+    const controller = makeController({ enemyHp: 40 });
+    tickUntil(controller, 'Active');
+    const { attackerId } = lineUp(controller);
+    fireSuper(controller);
+    for (let i = 0; i < 70; i += 1) controller.tick(IDLE);
+    expect(controller.world().combos.some((c) => c.alive && c.stage === 'flurry')).toBe(true);
+    controller.drainEvents();
+    const team = activeTeamOf(controller.state());
+    if (team === undefined) throw new Error('no active team');
+    // The attacker's own side gives up in the middle of the blows.
+    controller.surrender(team.id);
+    expect(controller.state().phase).toBe('MatchEnd');
+    const events = controller.drainEvents();
+    expect(controller.world().combos).toHaveLength(0);
+    expect(cinematicFor(controller.world().combos)).toMatchObject({ whiteout: 0, dim: 0, zoom: 1 });
+    expect(events.some((e) => e.type === 'comboEnd')).toBe(true);
+    // Its whole team bursts, the attacker the fight was holding included.
+    expect(events.some((e) => e.type === 'gib' && e.wormId === attackerId)).toBe(true);
+    controller.tick(IDLE);
+    expect(controller.world().combos).toHaveLength(0);
   });
 
   it('whiffs with nobody in reach and still ends the turn through the retreat', () => {
@@ -181,6 +212,53 @@ describe('controller: presentation events', () => {
       expect(hit.cause).toBe('hit');
       expect(Math.hypot(hit.dx, hit.dy)).toBeCloseTo(1, 6);
     }
+  });
+
+  it('an air strike comes from the sky: the worm shows no muzzle flash or recoil for it', () => {
+    const controller = makeController({ turn: 9 });
+    tickUntil(controller, 'Active');
+    controller.selectWeapon('air_strike');
+    expect(controller.selectedWeapon()).toBe('air_strike');
+    const active = activeWormOf(controller.state());
+    const body = active === undefined ? undefined : findWorm(controller.world(), active.id);
+    if (body === undefined) throw new Error('no active body');
+    controller.drainEvents();
+    controller.tick({ ...IDLE, pointerClicked: true, pointer: { x: body.x + 150, y: 40 } });
+    // The strike was called (the turn moved on), and the worm itself fired nothing.
+    expect(controller.state().phase).not.toBe('Active');
+    expect(controller.drainEvents().some((e) => e.type === 'fired')).toBe(false);
+  });
+
+  it('takes a burst worm out of the physics: it never lands, drowns or bleeds again', () => {
+    // The bat throws a 10 hp worm far: it bursts on the blow, and its body must stop right there.
+    const controller = makeController({ enemyHp: 10 });
+    tickUntil(controller, 'Active');
+    const { attackerId, victimId } = lineUp(controller);
+    const attacker = findWorm(controller.world(), attackerId);
+    const victim = findWorm(controller.world(), victimId);
+    if (attacker === undefined || victim === undefined) throw new Error('bodies missing');
+    // Within the bat's 20 px reach.
+    victim.x = attacker.x + attacker.facing * 14;
+    controller.selectWeapon('baseball_bat');
+    expect(controller.selectedWeapon()).toBe('baseball_bat');
+    while (controller.aim().angleDeg > 0.5) controller.tick({ ...IDLE, aimDelta: -1 });
+    controller.drainEvents();
+    controller.tick({ ...IDLE, fireHeld: true });
+    controller.tick({ ...IDLE, fireReleased: true });
+    const events: GameEvent[] = [...controller.drainEvents()];
+    expect(events.filter((e) => e.type === 'gib' && e.wormId === victimId)).toHaveLength(1);
+    // A 30 hp blow on a worm with 10 left: the blood gets the force, the number the 10.
+    expect(events.find((e) => e.type === 'damage' && e.wormId === victimId)).toMatchObject({ amount: WEAPONS.baseball_bat.melee?.damage, lost: 10 });
+    const body = findWorm(controller.world(), victimId);
+    expect(body).toMatchObject({ alive: false, motion: 'dead', vx: 0, vy: 0 });
+    const burstAt = { x: body?.x, y: body?.y };
+    tickUntil(controller, 'TurnEnd', events);
+    const gib = events.findIndex((e) => e.type === 'gib' && e.wormId === victimId);
+    const afterwards = events.slice(gib + 1).filter((e) => (e.type === 'damage' || e.type === 'landed' || e.type === 'drown') && e.wormId === victimId);
+    expect(afterwards).toEqual([]);
+    // Still where it burst: there is nothing for the camera to chase.
+    expect(findWorm(controller.world(), victimId)).toMatchObject(burstAt);
+    expect(hpOf(controller.state(), victimId)).toBe(0);
   });
 
   it('bursts every worm of a team that surrenders, and never twice', () => {

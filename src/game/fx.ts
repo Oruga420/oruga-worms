@@ -21,7 +21,7 @@ import { alphaCurve, type Particle, type ParticleSystem } from '../engine/partic
 import { drawSprite } from '../engine/sprite.ts';
 import { WORM_HEIGHT } from '../sim/constants.ts';
 import type { SimWorld } from '../sim/world.ts';
-import { WEAPONS } from '../weapons/registry.ts';
+import { WEAPONS, getWeapon, isWeaponId } from '../weapons/registry.ts';
 import type { WeaponId } from '../weapons/types.ts';
 import type { GameEvent } from './controller.ts';
 import { bloodBurst, dripFrom, ejectCasing, gibBurst, splatterLens, type GoreSystem } from './gore.ts';
@@ -49,6 +49,8 @@ export interface WormFxTimers {
   landSpeed: number;
   switchedAt: number;
   weapon: WeaponId | null;
+  /** Radians turned since the worm was thrown, integrated tick by tick; 0 once it is down. */
+  tumble: number;
 }
 
 /** What the renderer needs to pose one worm: ms since each beat, Infinity when it never happened. */
@@ -61,6 +63,8 @@ export interface WormAnim {
   readonly landedMs: number;
   readonly landSpeed: number;
   readonly switchedMs: number;
+  /** How far a thrown worm has turned, radians. */
+  readonly tumble: number;
 }
 
 export interface DamageNumber {
@@ -118,6 +122,8 @@ export interface Sinker {
 
 export interface ComboShow {
   readonly comboId: number;
+  /** The super being played, for its name card. */
+  readonly weapon: string;
   readonly attackerId: string;
   readonly victimId: string | null;
   readonly startedAt: number;
@@ -151,7 +157,7 @@ export function createFx(): FxState {
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
   let timers = fx.worms.get(wormId);
   if (timers === undefined) {
-    timers = { hurtAt: -Infinity, hurtAmount: 0, firedAt: -Infinity, firedWeapon: null, swingAt: -Infinity, landedAt: -Infinity, landSpeed: 0, switchedAt: -Infinity, weapon: null };
+    timers = { hurtAt: -Infinity, hurtAmount: 0, firedAt: -Infinity, firedWeapon: null, swingAt: -Infinity, landedAt: -Infinity, landSpeed: 0, switchedAt: -Infinity, weapon: null, tumble: 0 };
     fx.worms.set(wormId, timers);
   }
   return timers;
@@ -169,7 +175,14 @@ export function wormAnim(fx: FxState, wormId: string): WormAnim | undefined {
     landedMs: fx.now - t.landedAt,
     landSpeed: t.landSpeed,
     switchedMs: fx.now - t.switchedAt,
+    tumble: t.tumble,
   };
+}
+
+/** Turn rate of a thrown worm, rad/s: faster the harder it was hit, none below a lob. */
+export function tumbleRate(vx: number, vy: number): number {
+  const speed = Math.hypot(vx, vy);
+  return speed > 60 ? Math.min(18, speed / 30) * (vx >= 0 ? 1 : -1) : 0;
 }
 
 /** The active worm's held weapon; a change pops the new one in the hand. */
@@ -259,12 +272,15 @@ function onDamage(fx: FxState, e: Extract<GameEvent, { type: 'damage' }>, deps: 
   const t = timersOf(fx, e.wormId);
   t.hurtAt = fx.now;
   t.hurtAmount = e.amount;
-  const merge = fx.numbers.find((n) => n.wormId === e.wormId && fx.now - n.lastAt < NUMBER_MERGE_MS);
-  if (merge !== undefined) {
-    merge.amount += e.amount;
-    merge.lastAt = fx.now;
-  } else {
-    fx.numbers.push({ wormId: e.wormId, amount: e.amount, x: e.x, y: e.y, bornAt: fx.now, lastAt: fx.now });
+  // The number counts the hp really lost: a blow on a worm already at 0 bleeds but adds nothing.
+  if (e.lost > 0) {
+    const merge = fx.numbers.find((n) => n.wormId === e.wormId && fx.now - n.lastAt < NUMBER_MERGE_MS);
+    if (merge !== undefined) {
+      merge.amount += e.lost;
+      merge.lastAt = fx.now;
+    } else {
+      fx.numbers.push({ wormId: e.wormId, amount: e.lost, x: e.x, y: e.y, bornAt: fx.now, lastAt: fx.now });
+    }
   }
   bloodBurst(deps.gore, { x: e.x, y: e.y, dx: e.dx, dy: e.dy, amount: e.amount, cause: e.cause }, deps.rng);
   if (e.amount >= 25 && deps.onScreen(e.x, e.y)) {
@@ -283,7 +299,7 @@ function onExplosion(fx: FxState, e: Extract<GameEvent, { type: 'explosion' }>):
 
 function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comboHit' | 'comboEnd' }>, deps: FxDeps): void {
   if (e.type === 'comboStart') {
-    fx.combo = { comboId: e.comboId, attackerId: e.attackerId, victimId: e.victimId, startedAt: fx.now, hits: 0, lastHitAt: -Infinity, finisherAt: null, ko: false, endedAt: null };
+    fx.combo = { comboId: e.comboId, weapon: e.weapon, attackerId: e.attackerId, victimId: e.victimId, startedAt: fx.now, hits: 0, lastHitAt: -Infinity, finisherAt: null, ko: false, endedAt: null };
     fx.screenFlash = { at: fx.now, strength: 0.95, color: '#ffffff', ms: 260 };
     return;
   }
@@ -361,6 +377,16 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
   }
 }
 
+/**
+ * How far a damage number has floated up (0 to 1, from its first hit) and how visible it is. It
+ * fades on the clock of its last hit, so a number still collecting a flurry stays readable.
+ */
+export function numberLook(number: DamageNumber, now: number): { readonly rise: number; readonly alpha: number } {
+  const rise = clamp((now - number.bornAt) / NUMBER_MS, 0, 1);
+  const quiet = clamp((now - number.lastAt) / NUMBER_MS, 0, 1);
+  return { rise, alpha: quiet < 0.75 ? 1 : 1 - (quiet - 0.75) / 0.25 };
+}
+
 function prune<T extends { readonly bornAt: number }>(list: T[], now: number, ms: number): void {
   for (let i = list.length - 1; i >= 0; i -= 1) {
     const item = list[i];
@@ -388,6 +414,14 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
     }
     const dt = dtMs / 1000;
     for (const body of scene.world.worms) {
+      // Thrown worms tumble by what they turned this tick, so a change of speed never jumps the angle.
+      if (body.alive && body.motion === 'flying') timersOf(fx, body.id).tumble += tumbleRate(body.vx, body.vy) * dt;
+      else {
+        const timers = fx.worms.get(body.id);
+        if (timers !== undefined) timers.tumble = 0;
+      }
+    }
+    for (const body of scene.world.worms) {
       if (!body.alive || body.motion === 'drowning') continue;
       const hp = scene.hpOf(body.id);
       if (hp <= 0) continue;
@@ -401,7 +435,10 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
   prune(fx.rings, fx.now, RING_MS);
   prune(fx.swings, fx.now, SWING_MS);
-  prune(fx.numbers, fx.now, NUMBER_MS + 400);
+  for (let i = fx.numbers.length - 1; i >= 0; i -= 1) {
+    const number = fx.numbers[i];
+    if (number !== undefined && fx.now - number.lastAt > NUMBER_MS) fx.numbers.splice(i, 1);
+  }
   prune(fx.sinkers, fx.now, SINK_MS);
   if (fx.combo !== null && fx.combo.endedAt !== null && fx.now - fx.combo.endedAt > Math.max(COMBO_HUD_LINGER_MS, fx.combo.ko ? KO_MS : 0)) fx.combo = null;
   if (fx.screenFlash !== null && fx.now - fx.screenFlash.at > fx.screenFlash.ms) fx.screenFlash = null;
@@ -570,14 +607,13 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const number of fx.numbers) {
-    const age = fx.now - number.bornAt;
-    const t = clamp(age / NUMBER_MS, 0, 1);
+    const { rise, alpha } = numberLook(number, fx.now);
     const pop = 1 + Math.max(0, 1 - (fx.now - number.lastAt) / 180) * 0.45;
     const size = Math.round(clamp(11 + number.amount * 0.18, 12, 26) * pop);
     ctx.font = `bold ${size}px system-ui, sans-serif`;
-    ctx.globalAlpha = t < 0.75 ? 1 : 1 - (t - 0.75) / 0.25;
+    ctx.globalAlpha = alpha;
     const x = sx(number.x);
-    const y = sy(number.y) - 24 - t * 26;
+    const y = sy(number.y) - 24 - rise * 26;
     const text = `-${Math.round(number.amount)}`;
     ctx.fillStyle = '#1a0000';
     ctx.fillText(text, x + 1.5, y + 1.5);
@@ -595,7 +631,16 @@ function outlinedText(ctx: Ctx2D, text: string, x: number, y: number, fill: stri
 }
 
 /** Screen space overlays: the super's name card, the hit counter, K.O., MISS, flashes and the red edges. */
-export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, superName: string): void {
+export interface FxScreenOptions {
+  /**
+   * The phone layout: the touch D-pad holds the lower left and button rows the top and bottom
+   * right, so the hit counter moves up under the clock and the name card narrows and drops a bit.
+   */
+  readonly touch?: boolean;
+}
+
+export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: FxScreenOptions = {}): void {
+  const touch = options.touch === true;
   ctx.save();
   if (fx.redPulse !== null) {
     const t = (fx.now - fx.redPulse.at) / 600;
@@ -625,28 +670,31 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, superName:
       const t = since / SUPER_CARD_MS;
       const slide = t < 0.18 ? 1 - t / 0.18 : t > 0.82 ? -(t - 0.82) / 0.18 : 0;
       const x = viewport.w / 2 - slide * viewport.w * 0.8;
-      const y = viewport.h * 0.3;
+      const y = viewport.h * (touch ? 0.36 : 0.3);
+      const outer = viewport.w * (touch ? 0.3 : 0.42);
+      const inner = viewport.w * (touch ? 0.26 : 0.36);
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = '#b00010';
       ctx.beginPath();
-      ctx.moveTo(x - viewport.w * 0.42, y + 22);
-      ctx.lineTo(x + viewport.w * 0.36, y - 30);
-      ctx.lineTo(x + viewport.w * 0.42, y - 18);
-      ctx.lineTo(x - viewport.w * 0.36, y + 34);
+      ctx.moveTo(x - outer, y + 22);
+      ctx.lineTo(x + inner, y - 30);
+      ctx.lineTo(x + outer, y - 18);
+      ctx.lineTo(x - inner, y + 34);
       ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `italic 900 ${Math.round(clamp(viewport.w / 14, 30, 72))}px system-ui, sans-serif`;
-      outlinedText(ctx, superName.toUpperCase(), x, y, '#ffe14a', '#1a0000', 3);
+      const name = isWeaponId(show.weapon) ? getWeapon(show.weapon).name : '';
+      outlinedText(ctx, name.toUpperCase(), x, y, '#ffe14a', '#1a0000', 3);
       ctx.font = `bold ${Math.round(clamp(viewport.w / 60, 11, 18))}px system-ui, sans-serif`;
       outlinedText(ctx, 'SUPER DESPERATION MOVE', x, y + 38, '#ffffff', '#1a0000', 2);
     }
     if (show.hits >= 2) {
       const pop = 1 + Math.max(0, 1 - (fx.now - show.lastHitAt) / 140) * 0.5;
-      const x = viewport.w * 0.07;
-      const y = viewport.h * 0.42;
+      const x = viewport.w * (touch ? 0.24 : 0.07);
+      const y = viewport.h * (touch ? 0.2 : 0.42);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `italic 900 ${Math.round(46 * pop)}px system-ui, sans-serif`;

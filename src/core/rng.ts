@@ -37,6 +37,18 @@ export function seedFromString(text: string): number {
   return hash >>> 0;
 }
 
+/**
+ * A deterministic 0..1 from a seed and an index, with no generator state: the same shape every
+ * frame for things drawn from a seed (a worm's wounds, a lens splat as it fades).
+ */
+export function hash01(seed: number, index: number): number {
+  let h = Math.imul(seed ^ Math.imul(index + 1, 0x9e3779b1), 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
 /** Mixes a parent seed with a salt so sub streams do not correlate with the parent. */
 export function mixSeed(seed: number, salt: number): number {
   let h = (seed ^ Math.imul(salt + 0x9e3779b9, 0x85ebca6b)) >>> 0;

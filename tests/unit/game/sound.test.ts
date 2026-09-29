@@ -94,9 +94,9 @@ describe('handleEvents', () => {
     const { mixer, played } = fakeMixer();
     const director = createSoundDirector({ mixer, has: ALL, random: () => 0.5, panAt: () => 0 });
     director.handleEvents([
-      { type: 'damage', wormId: 'w', amount: 30, cause: 'melee', x: 0, y: 0, dx: 1, dy: 0 },
-      { type: 'damage', wormId: 'w', amount: 5, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
-      { type: 'damage', wormId: 'w', amount: 25, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
+      { type: 'damage', wormId: 'w', amount: 30, lost: 30, cause: 'melee', x: 0, y: 0, dx: 1, dy: 0 },
+      { type: 'damage', wormId: 'w', amount: 5, lost: 5, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
+      { type: 'damage', wormId: 'w', amount: 25, lost: 25, cause: 'hit', x: 0, y: 0, dx: 1, dy: 0 },
     ]);
     expect(played.map((p) => p.id)).toEqual(['wrm_hurt_grunt_2']);
   });

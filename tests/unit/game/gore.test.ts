@@ -11,7 +11,11 @@ import {
   gibBurst,
   goreCount,
   goreEnabledFromSearch,
+  lensScale,
+  MAX_RESTING_CHUNKS,
   splatterLens,
+  STAIN_REACH_PX,
+  stainChance,
   updateGore,
   type GoreBit,
   type GoreSystem,
@@ -65,6 +69,21 @@ describe('gore: blood', () => {
     expect(bits(gore).filter((b) => b.kind === 'drop')).toHaveLength(0);
     expect(gore.stains).toBeGreaterThan(0);
     expect(stainRects(terrain)).toBe(gore.stains);
+  });
+
+  it('stains the land around the wound, not a red line along the whole surface', () => {
+    // Close drops usually stain, far flung ones rarely: a splatter with gaps, not an outline.
+    expect(stainChance(0)).toBeCloseTo(0.6, 6);
+    expect(stainChance(STAIN_REACH_PX)).toBeCloseTo(0.1, 6);
+    expect(stainChance(STAIN_REACH_PX * 3)).toBeCloseTo(0.1, 6);
+    const terrain = flatTerrain({ width: 1200, height: 300, floorY: 200, waterY: 290 });
+    const gore = createGore();
+    bloodBurst(gore, { x: 600, y: 170, dx: 1, dy: -0.3, amount: 60, cause: 'blast' }, createRng(6));
+    const drops = bits(gore).filter((b) => b.kind === 'drop').length;
+    run(gore, 4, terrain);
+    // Not every droplet leaves a mark on the land any more.
+    expect(gore.stains).toBeGreaterThan(0);
+    expect(gore.stains).toBeLessThan(drops);
   });
 
   it('loses the drops that reach the water without staining anything', () => {
@@ -129,6 +148,17 @@ describe('gore: gibs', () => {
     expect(bits(gore).filter((b) => b.kind === 'chunk' && b.resting).length).toBeLessThan(resting.length);
   });
 
+  it('over the cap only the extra pieces fade: the rest stay on the ground', () => {
+    const terrain = flatTerrain({ width: 1200, height: 300, floorY: 200, waterY: 290 });
+    const gore = createGore();
+    const rng = createRng(21);
+    let chunks = 0;
+    for (let i = 0; i < 6; i += 1) chunks += gibBurst(gore, { x: 150 + i * 180, y: 185, vx: 0, vy: 0, colorIndex: i % 4 }, rng);
+    expect(chunks).toBeGreaterThan(MAX_RESTING_CHUNKS);
+    run(gore, 8, terrain);
+    expect(bits(gore).filter((b) => b.kind === 'chunk' && b.resting)).toHaveLength(MAX_RESTING_CHUNKS);
+  });
+
   it('casings bounce off without a drop of blood', () => {
     const terrain = flatTerrain({ width: 400, height: 300, floorY: 200, waterY: 290 });
     const gore = createGore();
@@ -157,6 +187,20 @@ describe('gore: switches and screen', () => {
     splatterLens(gore, 4, 1, createRng(1));
     expect(goreCount(gore)).toBe(0);
     expect(gore.lens).toHaveLength(0);
+  });
+
+  it('lens blood is sized for the screen: smaller on a phone than on a monitor', () => {
+    expect(lensScale({ w: 1280, h: 720 })).toBe(1);
+    expect(lensScale({ w: 844, h: 390 })).toBeCloseTo(390 / 720, 6);
+    expect(lensScale({ w: 390, h: 844 })).toBeCloseTo(390 / 720, 6);
+    const firstBlob = (viewport: { w: number; h: number }): number => {
+      const gore = createGore();
+      splatterLens(gore, 1, 1, createRng(8));
+      const ctx = createRecordingContext();
+      drawLens(ctx, gore, viewport);
+      return Number(ctx.calls.find((c) => c.name === 'arc')?.args[2]);
+    };
+    expect(firstBlob({ w: 844, h: 390 })).toBeCloseTo(firstBlob({ w: 1280, h: 720 }) * (390 / 720), 6);
   });
 
   it('lens blood runs down and dries up', () => {
