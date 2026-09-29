@@ -1,9 +1,9 @@
 /**
  * Camera director: when a shot is in the air the camera rides the projectile, then holds on the
  * impact point for a beat so the hit and the damage are readable, then hands control back to the
- * active worm. A super move frames the fight, a beam its worm while it charges and then the whole
- * beam, and a worm thrown through the air is followed until it lands. Pure, so the timings and the
- * hand back are unit tested.
+ * active worm. A super move frames the fight, a beam its worm while it charges and then the worm
+ * with the beam running across the screen, and a worm thrown through the air is followed until it
+ * lands. Pure, so the timings and the hand back are unit tested.
  *
  * Two details drive the design:
  * - Dead projectiles are filtered out of `world.projectiles` on the same step they explode, so the
@@ -15,6 +15,7 @@
  */
 
 import { holdsVictim } from '../sim/combo.ts';
+import type { BeamBody } from '../sim/types.ts';
 import type { SimWorld } from '../sim/world.ts';
 
 /** Smoothing while chasing ammo. Well under the camera's 150 ms default so the shell stays framed. */
@@ -23,6 +24,12 @@ export const PROJECTILE_TAU_MS = 60;
 export const COMBO_TAU_MS = 45;
 /** Smoothing on a beam: loose enough that the swing from the worm to the beam reads as a pan. */
 export const BEAM_TAU_MS = 90;
+/**
+ * How far along a firing beam the camera sits, as a share of the distance from the centre of the
+ * view to its edge in the beam's direction. At a half the worm stays well inside the frame, clear
+ * of the touch controls, and the beam runs from it across the rest of the screen.
+ */
+export const BEAM_FRAME_SHARE = 0.5;
 /** A knocked worm this fast is worth watching fly (world px per second). */
 export const FLYER_MIN_SPEED = 160;
 /** Smoothing while sitting on the impact, slightly looser so the settle is not abrupt. */
@@ -50,6 +57,12 @@ export const INITIAL_DIRECTOR: CameraDirector = Object.freeze({
   holdMs: 0,
 });
 
+/** Half the view's width and height in world px, at the camera's zoom. */
+export interface ViewExtent {
+  readonly halfW: number;
+  readonly halfH: number;
+}
+
 export interface CameraAim {
   readonly director: CameraDirector;
   /** Point to follow, or null to mean "keep following the active worm". */
@@ -58,10 +71,21 @@ export interface CameraAim {
 }
 
 /**
+ * Where to look at a firing beam: its middle, pulled back towards the worm as far as it takes to
+ * keep the worm in the view. A 640 px beam is wider than the screen, so framing its middle put the
+ * worm and both ends out of the picture. Without a view, the middle.
+ */
+function beamFrame(beam: BeamBody, view: ViewExtent | undefined): { readonly x: number; readonly y: number } {
+  const toEdge = view === undefined ? Infinity : Math.min(view.halfW / Math.max(1e-6, Math.abs(beam.dx)), view.halfH / Math.max(1e-6, Math.abs(beam.dy)));
+  const along = Math.min(beam.length / 2, BEAM_FRAME_SHARE * toEdge);
+  return { x: beam.x0 + beam.dx * along, y: beam.y0 + beam.dy * along };
+}
+
+/**
  * Advances the director one tick. Returns the point the camera should follow, or null when the
  * caller should fall back to the active worm.
  */
-export function updateCameraTarget(director: CameraDirector, world: SimWorld, dtMs: number): CameraAim {
+export function updateCameraTarget(director: CameraDirector, world: SimWorld, dtMs: number, view?: ViewExtent): CameraAim {
   // Anything the player released and is watching travel: shells, and the sheep, which is a body of
   // its own. Body ids come from one counter, so "newest" is well defined across both lists.
   const ridable: readonly { readonly id: number; readonly x: number; readonly y: number }[] = [...world.projectiles, ...(world.sheep ?? []).filter((s) => s.alive)];
@@ -97,13 +121,13 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
     }
   }
 
-  // A beam: its worm while the energy gathers, then the middle of the beam, so all of it is in view.
+  // A beam: its worm while the energy gathers, then the worm and as much of the beam as fits.
   const beam = (world.beams ?? []).find((b) => b.alive);
   if (beam !== undefined) {
     const attacker = (world.worms ?? []).find((w) => w.id === beam.attackerId);
     const focus =
       beam.stage === 'charge' ? (attacker === undefined ? { x: beam.x0, y: beam.y0 } : { x: attacker.x, y: attacker.y - 8 })
-      : { x: beam.x0 + (beam.dx * beam.length) / 2, y: beam.y0 + (beam.dy * beam.length) / 2 };
+      : beamFrame(beam, view);
     return { director: { focus: 'beam', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: BEAM_TAU_MS };
   }
 

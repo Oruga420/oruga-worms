@@ -4,6 +4,7 @@ import { createCamera } from '@/engine/camera.ts';
 import { createParticleSystem } from '@/engine/particles.ts';
 import type { GameEvent } from '@/game/controller.ts';
 import {
+  BEAM_SHOUT_MS,
   COMBO_HUD_LINGER_MS,
   TRACER_MS,
   advanceFx,
@@ -271,5 +272,45 @@ describe('fx: drawing', () => {
       expect(at.y).toBeLessThan(viewport.h * 0.25);
       expect(at.x).toBeGreaterThan(Math.min(180, viewport.w * 0.2));
     }
+  });
+});
+
+describe('fx: the beam', () => {
+  const start: GameEvent = { type: 'beamStart', beamId: 4, weapon: 'kamehameha', attackerId: 'a', x: 0, y: 0, dx: 1, dy: 0 };
+  const release: GameEvent = { type: 'beamFire', beamId: 4, attackerId: 'a', x: 0, y: 0, dx: 1, dy: 0 };
+  const end: GameEvent = { type: 'beamEnd', beamId: 4, attackerId: 'a', hits: 1 };
+  const said = (fx: ReturnType<typeof createFx>): string[] => {
+    const ctx = createRecordingContext();
+    drawFxScreen(ctx, fx, { w: 1280, h: 720 });
+    return ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+  };
+
+  it('chants a syllable a quarter of the charge, then shouts with a flash as it fires', () => {
+    const fx = createFx();
+    const d = deps();
+    const charge = WEAPONS.kamehameha.beam!.chargeMs;
+    applyFxEvents(fx, [start], d);
+    expect(said(fx)).toContain('KA...');
+    advanceFx(fx, charge * 0.26, null, d);
+    expect(said(fx)).toContain('KA... ME...');
+    advanceFx(fx, charge * 0.5, null, d);
+    expect(said(fx)).toContain('KA... ME... HA... ME...');
+    applyFxEvents(fx, [release], d);
+    expect(fx.screenFlash).not.toBeNull();
+    expect(d.particles.count()).toBeGreaterThan(0);
+    expect(said(fx)).toContain('HA!!!');
+    expect(said(fx).some((t) => t.startsWith('KA'))).toBe(false);
+    advanceFx(fx, BEAM_SHOUT_MS + 10, null, d);
+    expect(said(fx)).not.toContain('HA!!!');
+    applyFxEvents(fx, [end], d);
+    advanceFx(fx, 20, null, d);
+    expect(fx.beam).toBeNull();
+  });
+
+  it('a beam cut off mid charge says nothing more', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, end], d);
+    expect(said(fx).some((t) => t.startsWith('KA') || t === 'HA!!!')).toBe(false);
   });
 });

@@ -4,11 +4,15 @@
  * turns the screen white, the flurry keeps it white with a flicker on every blow while the
  * fighters show as silhouettes, the finisher flashes it fully white, and the recovery lets the
  * world come back. A whiffed rush gets the freeze and the pull in, never the white screen.
+ *
+ * A beam super gets its own: the world darkens and the camera closes in on the worm while the ki
+ * gathers, then it pulls back as the beam leaves the hands, and the dark lifts as the beam fades.
  */
 
 import { clamp } from '../core/math.ts';
+import { beamProgress } from '../sim/beam.ts';
 import { stageProgress, ticksFor } from '../sim/combo.ts';
-import type { ComboBody } from '../sim/types.ts';
+import type { BeamBody, ComboBody } from '../sim/types.ts';
 
 export interface Cinematic {
   /** 0..1 white over the world, the fighters in black on top. */
@@ -33,9 +37,30 @@ function ease(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
-export function cinematicFor(combos: readonly ComboBody[]): Cinematic {
+/** How close the camera gets on a worm charging a beam, and how far out it goes for the beam. */
+const CHARGE_ZOOM = 1.35;
+const BEAM_ZOOM = 0.95;
+
+function beamCinematic(beam: BeamBody): Cinematic {
+  const p = beamProgress(beam);
+  switch (beam.stage) {
+    case 'charge':
+      return { whiteout: 0, dim: 0.5 * ease(p * 1.5), zoom: 1 + (CHARGE_ZOOM - 1) * ease(p), aura: ease(p * 1.5) };
+    case 'fire':
+      return { whiteout: 0, dim: 0.5 - 0.1 * p, zoom: CHARGE_ZOOM + (BEAM_ZOOM - CHARGE_ZOOM) * ease(p * 1.6), aura: 1 };
+    case 'hold':
+      return { whiteout: 0, dim: 0.4, zoom: BEAM_ZOOM, aura: 0.8 };
+    case 'fade':
+      return { whiteout: 0, dim: 0.4 * (1 - p), zoom: BEAM_ZOOM + (1 - BEAM_ZOOM) * ease(p), aura: 0.8 * (1 - p) };
+  }
+}
+
+export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = []): Cinematic {
   const combo = combos.find((c) => c.alive);
-  if (combo === undefined) return NO_CINEMATIC;
+  if (combo === undefined) {
+    const beam = beams.find((b) => b.alive);
+    return beam === undefined ? NO_CINEMATIC : beamCinematic(beam);
+  }
   const p = stageProgress(combo);
   const landed = combo.victimId !== null;
   switch (combo.stage) {
