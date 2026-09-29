@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BlastSpec, ClusterSpec, ComboSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -142,6 +142,40 @@ export interface ComboBody {
   alive: boolean;
 }
 
+/**
+ * A beam super in progress (sim/beam.ts). The attacker is held from the charge to the end of the
+ * fade: the worm controller does not step it, the beam keeps it where it stood.
+ */
+export type BeamStage = 'charge' | 'fire' | 'hold' | 'fade';
+
+export interface BeamBody {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly attackerId: string;
+  readonly ownerTeamId: string;
+  readonly spec: BeamSpec;
+  stage: BeamStage;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  /** Where the beam leaves the hands, and its unit direction. */
+  readonly x0: number;
+  readonly y0: number;
+  readonly dx: number;
+  readonly dy: number;
+  /** Where the attacker stands while the beam plays. */
+  readonly holdX: number;
+  readonly holdY: number;
+  readonly facing: 1 | -1;
+  /** How far the head has got from (x0, y0), world px, and how far it can go: its reach, or the world's edge. */
+  length: number;
+  readonly maxLength: number;
+  /** How far along the beam the tunnel has been bored, world px. */
+  carved: number;
+  /** Worms the beam has hit: each takes it once. */
+  readonly hit: string[];
+  alive: boolean;
+}
+
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
   readonly x: number;
@@ -168,7 +202,12 @@ export type SimEvent =
   | { readonly type: 'swing'; readonly wormId: string; readonly weaponId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
   | { readonly type: 'comboStart'; readonly comboId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly at: HitPoint }
-  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number };
+  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number }
+  /** A beam super starts charging at (x, y), the hands, aimed along (dx, dy). */
+  | { readonly type: 'beamStart'; readonly beamId: number; readonly weaponId: string; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  /** The charge is spent: the beam leaves the hands. */
+  | { readonly type: 'beamFire'; readonly beamId: number; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  | { readonly type: 'beamEnd'; readonly beamId: number; readonly attackerId: string; readonly hits: number };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

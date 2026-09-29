@@ -1,8 +1,9 @@
 /**
  * Camera director: when a shot is in the air the camera rides the projectile, then holds on the
  * impact point for a beat so the hit and the damage are readable, then hands control back to the
- * active worm. A super move frames the fight, and a worm thrown through the air is followed until
- * it lands. Pure, so the timings and the hand back are unit tested.
+ * active worm. A super move frames the fight, a beam its worm while it charges and then the whole
+ * beam, and a worm thrown through the air is followed until it lands. Pure, so the timings and the
+ * hand back are unit tested.
  *
  * Two details drive the design:
  * - Dead projectiles are filtered out of `world.projectiles` on the same step they explode, so the
@@ -20,6 +21,8 @@ import type { SimWorld } from '../sim/world.ts';
 export const PROJECTILE_TAU_MS = 60;
 /** Smoothing on a super move: tight, the fight is the whole picture. */
 export const COMBO_TAU_MS = 45;
+/** Smoothing on a beam: loose enough that the swing from the worm to the beam reads as a pan. */
+export const BEAM_TAU_MS = 90;
 /** A knocked worm this fast is worth watching fly (world px per second). */
 export const FLYER_MIN_SPEED = 160;
 /** Smoothing while sitting on the impact, slightly looser so the settle is not abrupt. */
@@ -27,7 +30,7 @@ export const IMPACT_TAU_MS = 120;
 /** How long the camera stays on the impact point before returning to the active worm. */
 export const IMPACT_HOLD_MS = 900;
 
-export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'flyer';
+export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'beam' | 'flyer';
 
 export interface CameraDirector {
   readonly focus: CameraFocus;
@@ -94,6 +97,16 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
     }
   }
 
+  // A beam: its worm while the energy gathers, then the middle of the beam, so all of it is in view.
+  const beam = (world.beams ?? []).find((b) => b.alive);
+  if (beam !== undefined) {
+    const attacker = (world.worms ?? []).find((w) => w.id === beam.attackerId);
+    const focus =
+      beam.stage === 'charge' ? (attacker === undefined ? { x: beam.x0, y: beam.y0 } : { x: attacker.x, y: attacker.y - 8 })
+      : { x: beam.x0 + (beam.dx * beam.length) / 2, y: beam.y0 + (beam.dy * beam.length) / 2 };
+    return { director: { focus: 'beam', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: BEAM_TAU_MS };
+  }
+
   // A worm thrown by a blast or a blow: follow it until it lands, as the source game does.
   let flyer: { readonly x: number; readonly y: number; readonly speed: number } | null = null;
   for (const worm of world.worms ?? []) {
@@ -107,7 +120,7 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
 
   // The shell we were riding is gone: it detonated, timed out or left the map. Sit on where it was.
   // The same for a finished fight or a worm that has landed.
-  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'flyer') {
+  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'beam' || director.focus === 'flyer') {
     return {
       director: { ...director, focus: 'impact', projectileId: null, holdMs: IMPACT_HOLD_MS },
       target: { x: director.x, y: director.y },

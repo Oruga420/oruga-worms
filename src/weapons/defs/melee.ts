@@ -7,11 +7,11 @@
 import type { WeaponDef, WeaponId } from '../types.ts';
 import {
   INFINITE_AMMO,
-  SOURCE_GRAVITY_PX_PER_FRAME_SQ,
   defineWeapon,
   heldFrame,
   iconFrame,
   sourceSpeed,
+  speedForRange45,
 } from './shared.ts';
 
 /** Detailed_Weapon_Settings: bat at 3 stars, hit distance measured at 45 degrees. */
@@ -26,14 +26,6 @@ const FIRE_PUNCH_CARVE_RADIUS_PX = 12;
 /** Fire punch push, source px per frame: high and short arc (v1 tuning). */
 const FIRE_PUNCH_PUSH_X = 4;
 const FIRE_PUNCH_PUSH_Y = 12;
-
-/**
- * Launch speed that lands a body rangePx away at 45 degrees under the source gravity:
- * R = v^2 / g, so v = sqrt(R g) in px per frame, then through units.ts.
- */
-function speedForRange45(rangePx: number): number {
-  return sourceSpeed(Math.sqrt(rangePx * SOURCE_GRAVITY_PX_PER_FRAME_SQ));
-}
 
 const BAT_LAUNCH_SPEED = speedForRange45(BAT_THROW_RANGE_PX);
 const BAT_COMPONENT = BAT_LAUNCH_SPEED * Math.SQRT1_2;

@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 27 panel slots: 22 combat weapons plus 5 utilities, in panel order. */
+/** The 28 panel slots: 23 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -23,6 +23,7 @@ export const PANEL_WEAPON_IDS = [
   'uzi',
   'minigun',
   'sonic_blast',
+  'kamehameha',
   'fire_punch',
   'baseball_bat',
   'ryuko_ranbu',
@@ -119,6 +120,8 @@ export interface WeaponDef {
   readonly melee?: MeleeSpec;
   /** A MELEE row that plays out as a super move over several ticks (Ryuko Ranbu). */
   readonly combo?: ComboSpec;
+  /** A HITSCAN row fired as a charged energy beam over several ticks (Kamehameha). */
+  readonly beam?: BeamSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -284,6 +287,34 @@ export interface ComboSpec {
   readonly finisherKnockback: { readonly x: number; readonly y: number };
   /** The pose held on the finisher before the shot closes. */
   readonly recoverMs: number;
+}
+
+/**
+ * A beam super (Kamehameha): a charge while the energy gathers in the worm's hands, then a beam
+ * whose head races along the aim, bores a tunnel through the land and hits every worm it touches
+ * once, and a blast where it ends. A FIELD on a HITSCAN row, as the combo is on a melee row: the
+ * row's hitscan block states the reach and the damage the CPU and the panel read; this block is
+ * the timeline the sim plays (sim/beam.ts). Durations are ms, rounded to ticks by the sim.
+ */
+export interface BeamSpec {
+  /** The charge before the beam ("Ka... me... ha... me..."). */
+  readonly chargeMs: number;
+  /** How fast the beam's head travels, world px per second. */
+  readonly speedPxPerS: number;
+  /** Beam length from the hands, world px. */
+  readonly rangePx: number;
+  /** Radius of the beam and of the tunnel it bores, world px. */
+  readonly radiusPx: number;
+  /** Damage to every worm the beam touches, once per worm. */
+  readonly damage: number;
+  /** The throw of a worm it hits, px per second: along the beam, and upward. */
+  readonly push: number;
+  readonly lift: number;
+  /** The full beam holds this long once its head stops, then fades. */
+  readonly holdMs: number;
+  readonly fadeMs: number;
+  /** Where the beam ends at full reach, it bursts. */
+  readonly tipBlast: BlastSpec;
 }
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

@@ -78,3 +78,24 @@ describe('camera director', () => {
     expect(aim.director.projectileId).toBe(31);
   });
 });
+
+describe('camera director: the beam', () => {
+  const beamWorld = (stage: 'charge' | 'fire', length: number, alive = true): SimWorld =>
+    ({
+      projectiles: [],
+      worms: [{ id: 'hero', x: 300, y: 349 }],
+      beams: [{ attackerId: 'hero', stage, x0: 306, y0: 339, dx: 1, dy: 0, length, alive }],
+    }) as unknown as SimWorld;
+
+  it('frames the worm while it charges, then the whole beam, then sits where it was', () => {
+    const charging = updateCameraTarget(INITIAL_DIRECTOR, beamWorld('charge', 0), TICK);
+    expect(charging.director.focus).toBe('beam');
+    expect(charging.target).toEqual({ x: 300, y: 341 });
+    const firing = updateCameraTarget(charging.director, beamWorld('fire', 400), TICK);
+    // The middle of the beam, so both ends are in view.
+    expect(firing.target).toEqual({ x: 506, y: 339 });
+    const after = updateCameraTarget(firing.director, beamWorld('fire', 400, false), TICK);
+    expect(after.director.focus).toBe('impact');
+    expect(after.target).toEqual({ x: 506, y: 339 });
+  });
+});

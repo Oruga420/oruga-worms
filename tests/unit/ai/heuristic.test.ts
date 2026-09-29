@@ -84,6 +84,37 @@ describe('decideHeuristic: the super move', () => {
   });
 });
 
+describe('decideHeuristic: the kamehameha', () => {
+  const ammo = [
+    { weapon: 'bazooka' as WeaponId, count: -1 },
+    { weapon: 'kamehameha' as WeaponId, count: 1 },
+  ];
+
+  it('fires the beam through a wall at two enemies in a line behind it', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 380, y: 299, hp: 100, alive: true },
+      { id: 'b2', teamId: 'blue', x: 470, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 380, y: 299, hp: 100 }, { id: 'b2', team: 'blue', x: 470, y: 299, hp: 100 }] });
+    const mask = flatMask(req.world.w, req.world.h, 300);
+    for (let y = 150; y < 300; y += 1) setSpan(mask, y, 280, 290, SOLID);
+    const decision = decideHeuristic({ request: req, registry: WEAPONS, mask, worms });
+    expect(decision.weapon).toBe('kamehameha');
+    expect(Math.abs(decision.aimAngleDeg)).toBeLessThanOrEqual(4);
+  });
+
+  it('never beams through a team mate to reach an enemy', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'r2', teamId: 'red', x: 300, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 420, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 420, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(req, worms)).weapon).not.toBe('kamehameha');
+  });
+});
+
 describe('decideHeuristic', () => {
   it('aims a bazooka toward the enemy and reports a legal response', () => {
     const decision = decideHeuristic(input(request(), flatWorms));

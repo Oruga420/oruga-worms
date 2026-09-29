@@ -274,3 +274,72 @@ describe('controller: presentation events', () => {
     expect(controller.drainEvents().filter((e) => e.type === 'gib')).toHaveLength(0);
   });
 });
+
+describe('controller: kamehameha', () => {
+  /**
+   * Picks the beam, lets the target settle where it landed and aims at its middle, as a player
+   * would, then fires: a press and a release of the fire key.
+   */
+  function fireBeam(controller: Controller, targetId?: string): GameEvent[] {
+    controller.selectWeapon('kamehameha');
+    expect(controller.selectedWeapon()).toBe('kamehameha');
+    const world = controller.world();
+    const target = targetId === undefined ? undefined : findWorm(world, targetId);
+    // lineUp drops it at the attacker's height; on a slope it falls to the ground below first.
+    if (target !== undefined) for (let i = 0; i < 90; i += 1) controller.tick(IDLE);
+    const attacker = findWorm(world, activeWormOf(controller.state())?.id ?? '');
+    const wanted =
+      target === undefined || attacker === undefined ? 0 : (Math.atan2(attacker.y - 9.6 - (target.y - 8), Math.abs(target.x - attacker.x - attacker.facing * 6)) * 180) / Math.PI;
+    for (let i = 0; i < 200 && Math.abs(controller.aim().angleDeg - wanted) > 0.6; i += 1) controller.tick({ ...IDLE, aimDelta: controller.aim().angleDeg > wanted ? -1 : 1 });
+    controller.drainEvents();
+    controller.tick({ ...IDLE, fireHeld: true });
+    controller.tick({ ...IDLE, fireReleased: true });
+    return controller.drainEvents();
+  }
+
+  it('is refused before its scheme delay has elapsed', () => {
+    const controller = makeController({ turn: 1 });
+    tickUntil(controller, 'Active');
+    controller.selectWeapon('kamehameha');
+    expect(controller.selectedWeapon()).not.toBe('kamehameha');
+  });
+
+  it('holds the shot open through the charge and the beam, books the hit, then moves on', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    const { victimId } = lineUp(controller);
+    const before = hpOf(controller.state(), victimId);
+    const fired = fireBeam(controller, victimId);
+    // No muzzle flash at the press: the beam brings its own when it leaves the hands.
+    expect(fired.some((e) => e.type === 'fired')).toBe(false);
+    expect(fired.some((e) => e.type === 'beamStart')).toBe(true);
+    expect(controller.state().phase).toBe('Firing');
+    // Still Firing a second into the charge: the reducer has not been told the shot is over.
+    for (let i = 0; i < 60; i += 1) controller.tick(IDLE);
+    expect(controller.state().phase).toBe('Firing');
+    expect(controller.world().beams).toHaveLength(1);
+    const events: GameEvent[] = [];
+    tickUntil(controller, 'TurnEnd', events);
+    expect(events.some((e) => e.type === 'beamFire')).toBe(true);
+    expect(events.some((e) => e.type === 'beamEnd')).toBe(true);
+    expect(before - hpOf(controller.state(), victimId)).toBeGreaterThanOrEqual(Math.min(before, WEAPONS.kamehameha.beam!.damage));
+    expect(controller.state().log.some((entry) => entry.kind === 'damage' && entry.text.includes(`takes ${WEAPONS.kamehameha.beam!.damage}`))).toBe(true);
+    expect(controller.state().log.some((entry) => entry.kind === 'retreat')).toBe(true);
+  });
+
+  it('a surrender mid beam ends it and lets the worm go', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    lineUp(controller);
+    fireBeam(controller);
+    for (let i = 0; i < 30; i += 1) controller.tick(IDLE);
+    expect(controller.world().beams.some((b) => b.alive && b.stage === 'charge')).toBe(true);
+    controller.drainEvents();
+    const team = activeTeamOf(controller.state());
+    if (team === undefined) throw new Error('no active team');
+    controller.surrender(team.id);
+    expect(controller.state().phase).toBe('MatchEnd');
+    expect(controller.world().beams).toHaveLength(0);
+    expect(controller.drainEvents().some((e) => e.type === 'beamEnd')).toBe(true);
+  });
+});

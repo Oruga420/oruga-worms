@@ -1,7 +1,7 @@
 /**
  * Firearm rows of the ultraplan rev 2 roster: handgun, shotgun, uzi, minigun and the sonic blast
  * gun are HITSCAN; the longbow is a fixed power PROJECTILE that does not carve (its arrows embed
- * in the landscape).
+ * in the landscape). The Kamehameha, a charged energy beam, is a HITSCAN row with a beam block.
  */
 
 import { WORLD_SIZE_MAX } from '../../config/constants.ts';
@@ -9,6 +9,7 @@ import type { HitscanSpec, WeaponDef, WeaponId } from '../types.ts';
 import {
   INFINITE_AMMO,
   MAX_LAUNCH_SPEED,
+  blast,
   contactProjectile,
   craterRadiusPx,
   defineWeapon,
@@ -16,6 +17,7 @@ import {
   iconFrame,
   sourceFramesToMs,
   sourceSpeed,
+  speedForRange45,
 } from './shared.ts';
 
 /** Bullets fly until they hit something: the ray covers the largest supported world. */
@@ -237,11 +239,67 @@ const SONIC_BLAST: WeaponDef = defineWeapon({
   sfx: { fire: 'wpn_holy_blast' },
 });
 
+/** The beam reaches a third of the map and bores through whatever land is in the way. */
+const KAMEHAMEHA_RANGE_PX = 640;
+/** Wider than a worm is tall (16 px): the tunnel it leaves is one a worm can walk through. */
+const KAMEHAMEHA_RADIUS_PX = 10;
+const KAMEHAMEHA_DAMAGE = 45;
+/** A worm the beam hits flies about 300 px, carried along the beam and lifted off its feet. */
+const KAMEHAMEHA_THROW = speedForRange45(300);
+
+const KAMEHAMEHA: WeaponDef = defineWeapon({
+  id: 'kamehameha',
+  name: 'Kamehameha',
+  kind: 'HITSCAN',
+  category: 'firearm',
+  icon: iconFrame('kamehameha'),
+  /** Fired from the bare hands: the energy ball is the only thing the worm holds. */
+  heldSprite: null,
+  ammo: 1,
+  /** A super needs time to build: never before the third turn. */
+  delayTurns: 3,
+  charged: false,
+  maxPower: 0,
+  windAffected: false,
+  gravityScale: 1,
+  shotsPerTurn: 1,
+  endsTurnOnFire: true,
+  requiresTargetSelect: false,
+  /** One per worm, from the loadout only: a weapon crate never hands out another super. */
+  crateWeight: 0,
+  /** What the heuristic and the panel read: the aim line, the reach and the hit on every worm on it. */
+  hitscan: {
+    pellets: 1,
+    spreadDeg: 0,
+    damagePerPellet: KAMEHAMEHA_DAMAGE,
+    rangePx: KAMEHAMEHA_RANGE_PX,
+    carveRadiusPx: KAMEHAMEHA_RADIUS_PX,
+    burstCount: 1,
+    burstIntervalMs: 0,
+    recoil: 0,
+    aimWhileFiring: false,
+  },
+  beam: {
+    chargeMs: 1500,
+    speedPxPerS: 2200,
+    rangePx: KAMEHAMEHA_RANGE_PX,
+    radiusPx: KAMEHAMEHA_RADIUS_PX,
+    damage: KAMEHAMEHA_DAMAGE,
+    push: KAMEHAMEHA_THROW * 0.8,
+    lift: KAMEHAMEHA_THROW * 0.5,
+    holdMs: 450,
+    fadeMs: 350,
+    tipBlast: blast(90, 35, 10, 'big'),
+  },
+  sfx: { fire: 'ui_power_charge', impact: 'exp_large' },
+});
+
 export const FIREARMS = Object.freeze({
   handgun: HANDGUN,
   shotgun: SHOTGUN,
   uzi: UZI,
   minigun: MINIGUN,
   sonic_blast: SONIC_BLAST,
+  kamehameha: KAMEHAMEHA,
   longbow: LONGBOW,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;
