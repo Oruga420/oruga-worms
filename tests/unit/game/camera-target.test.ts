@@ -78,3 +78,38 @@ describe('camera director', () => {
     expect(aim.director.projectileId).toBe(31);
   });
 });
+
+describe('camera director: the beam', () => {
+  const beamWorld = (stage: 'charge' | 'fire', length: number, alive = true, dx = 1, dy = 0): SimWorld =>
+    ({
+      projectiles: [],
+      worms: [{ id: 'hero', x: 300, y: 349 }],
+      beams: [{ attackerId: 'hero', stage, x0: 306, y0: 339, dx, dy, length, alive }],
+    }) as unknown as SimWorld;
+  /** A 1280 by 720 screen at the default zoom of 2.5. */
+  const desktop = { halfW: 256, halfH: 144 };
+
+  it('frames the worm while it charges, then the beam, then sits where it was', () => {
+    const charging = updateCameraTarget(INITIAL_DIRECTOR, beamWorld('charge', 0), TICK, desktop);
+    expect(charging.director.focus).toBe('beam');
+    expect(charging.target).toEqual({ x: 300, y: 341 });
+    // A short beam fits: its middle.
+    const firing = updateCameraTarget(charging.director, beamWorld('fire', 200), TICK, desktop);
+    expect(firing.target).toEqual({ x: 406, y: 339 });
+    const after = updateCameraTarget(firing.director, beamWorld('fire', 200, false), TICK, desktop);
+    expect(after.director.focus).toBe('impact');
+    expect(after.target).toEqual({ x: 406, y: 339 });
+  });
+
+  it('keeps the worm in the picture when the beam is wider than the screen', () => {
+    const firing = updateCameraTarget(INITIAL_DIRECTOR, beamWorld('fire', 640), TICK, desktop);
+    // Half way from the centre to the edge: the worm well inside, the beam across the rest.
+    expect(firing.target).toEqual({ x: 434, y: 339 });
+    expect(Math.abs(300 - (firing.target?.x ?? Infinity))).toBeLessThan(desktop.halfW * 0.6);
+    // Straight up, the screen is shorter than it is wide.
+    const up = updateCameraTarget(INITIAL_DIRECTOR, beamWorld('fire', 640, true, 0, -1), TICK, desktop);
+    expect(up.target).toEqual({ x: 306, y: 267 });
+    // With no view to fit, the middle of the beam.
+    expect(updateCameraTarget(INITIAL_DIRECTOR, beamWorld('fire', 640), TICK).target).toEqual({ x: 626, y: 339 });
+  });
+});

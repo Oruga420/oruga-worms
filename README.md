@@ -1,6 +1,6 @@
 ﻿# Oruga Worms
 
-A browser artillery game with destructible terrain, 27 weapons and utilities, animated worms,
+A browser artillery game with destructible terrain, 28 weapons and utilities, animated worms,
 local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2D.
 
 **Content warning:** the game shows cartoon blood and gore (blood sprays, stains, and worms bursting
@@ -26,11 +26,18 @@ and start the match.
 | Weapons, zoom, pause | Buttons at the top right |
 | Target teleport, girder, or strike | Select weapon, then tap the destination |
 | Super move (Ryuko Ranbu) | Pick it in Weapons, then press and release FIRE |
+| Kamehameha | Pick it in Weapons, aim with ▲ ▼, then press and release FIRE |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **Kamehameha**, a beam super (one per worm, unlocked from turn 3). Aim it like a gun and fire:
+  the worm cups a ball of ki in its hands while it chants KA... ME... HA... ME..., then shouts HA!!!,
+  the screen flashes and the beam leaves. It races 640 px along the aim, bores a tunnel through the
+  land and hits every worm on the line once, friends included: 45 damage and a throw along the beam.
+  Where it ends it blows up (a 90 px crater). The CPU fires it too: it picks the line through the
+  most enemies, and a teammate on the line counts double against it.
 - **Ryuko Ranbu**, a Kyokugen style super move (melee row, one per worm, unlocked from turn 2). It
   locks onto the nearest enemy in plain sight within 180 px (a red LOCK ON marker shows who), then
   the screen darkens while the attacker powers up, it dashes in, and the screen goes white, the two
@@ -84,6 +91,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Target teleport, girder, or strike | Select weapon, then click the destination |
 | Zoom / pan camera | Mouse wheel / drag |
 | Super move (Ryuko Ranbu) | Select it in the inventory, then press and release Space |
+| Kamehameha | Select it in the inventory, aim with Up/Down, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -117,8 +125,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
 - `src/sim`, `src/terrain`: physics and destructible terrain.
 - `src/weapons`: weapon definitions and behavior dispatch.
 - `src/game`, `src/engine`: controller, rendering, animation cues (`fx.ts`), gore (`gore.ts`), the
-  super move's camera work (`cinematic.ts`), input, sound, and HUD.
-- `src/sim/combo.ts`, `src/weapons/behaviors/combo.ts`: the super move's timeline and target lock.
+  supers' camera work (`cinematic.ts`), input, sound, and HUD.
+- `src/sim/combo.ts`, `src/weapons/behaviors/combo.ts`: the Ryuko Ranbu's timeline and target lock.
+- `src/sim/beam.ts`, `src/weapons/behaviors/beam.ts`: the Kamehameha's charge, flight, tunnel and hits.
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

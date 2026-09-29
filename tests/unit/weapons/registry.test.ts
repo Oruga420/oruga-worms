@@ -5,9 +5,10 @@ import type { WeaponDef, WeaponId } from '@/weapons/types.ts';
 import { CPU_WEAPON_META } from '../../../sidecar/weapon-meta.ts';
 
 /**
- * The 27 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
- * cannon, napalm gun, sonic blast gun and the Ryuko Ranbu super move. Spelled out rather than
- * derived so a lost or reordered id fails here instead of silently changing what F1..F9 select.
+ * The 28 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
+ * cannon, napalm gun, sonic blast gun and the two supers, Ryuko Ranbu and the Kamehameha. Spelled
+ * out rather than derived so a lost or reordered id fails here instead of silently changing what
+ * F1..F9 select.
  */
 const SIDECAR_IDS = [
   'bazooka',
@@ -25,6 +26,7 @@ const SIDECAR_IDS = [
   'uzi',
   'minigun',
   'sonic_blast',
+  'kamehameha',
   'fire_punch',
   'baseball_bat',
   'ryuko_ranbu',
@@ -53,10 +55,10 @@ function isDeepFrozen(value: unknown, path = 'root'): string[] {
 }
 
 describe('weapon registry: ids', () => {
-  it('has exactly the 27 sidecar ids in panel order', () => {
+  it('has exactly the 28 sidecar ids in panel order', () => {
     expect(WEAPON_IDS).toEqual(SIDECAR_IDS);
-    expect(WEAPON_IDS).toHaveLength(27);
-    expect(PANEL_SLOTS).toBe(27);
+    expect(WEAPON_IDS).toHaveLength(28);
+    expect(PANEL_SLOTS).toBe(28);
     expect(WEAPON_IDS).toEqual(PANEL_WEAPON_IDS);
   });
 
@@ -69,10 +71,16 @@ describe('weapon registry: ids', () => {
     for (const id of WEAPON_IDS) expect(WEAPONS[id].id).toBe(id);
   });
 
-  it('splits into 22 combat weapons and 5 utilities', () => {
+  it('splits into 23 combat weapons and 5 utilities', () => {
     const utilities = WEAPON_IDS.filter((id) => WEAPONS[id].kind === 'UTILITY');
     expect(utilities).toEqual(UTILITY_IDS);
-    expect(WEAPON_IDS.length - utilities.length).toBe(22);
+    expect(WEAPON_IDS.length - utilities.length).toBe(23);
+  });
+
+  it('keeps the beam block to the one beam super, on a hitscan row', () => {
+    const beams = WEAPON_IDS.filter((id) => WEAPONS[id].beam !== undefined);
+    expect(beams).toEqual(['kamehameha']);
+    expect(WEAPONS.kamehameha.kind).toBe('HITSCAN');
   });
 
   it('keeps the combo block to the one super move, on a melee row', () => {
@@ -126,9 +134,9 @@ describe('weapon registry: data rows', () => {
     }
   });
 
-  it('draws no held sprite for the air strike and the utilities only', () => {
+  it('draws no held sprite for the bare handed Kamehameha, the air strike and the utilities only', () => {
     const withoutHeld = WEAPON_IDS.filter((id) => WEAPONS[id].heldSprite === null);
-    expect(withoutHeld).toEqual(['air_strike', ...UTILITY_IDS]);
+    expect(withoutHeld).toEqual(['kamehameha', 'air_strike', ...UTILITY_IDS]);
   });
 
   it('gives every weapon a non empty display name and a fire cue', () => {

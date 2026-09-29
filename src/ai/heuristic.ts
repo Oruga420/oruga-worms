@@ -7,7 +7,7 @@
  * can never make the CPU play worse than this floor.
  */
 
-import { GRAVITY_PX_PER_S2 } from '../sim/constants.ts';
+import { GRAVITY_PX_PER_S2, WORM_HALF_WIDTH, WORM_HEIGHT } from '../sim/constants.ts';
 import { clamp } from '../core/math.ts';
 import type { CpuDifficulty, CpuTurnRequest, CpuTurnResponse } from './contract.ts';
 import { CPU_TURN_SCHEMA } from './contract.ts';
@@ -144,6 +144,45 @@ function evaluateCombo(input: HeuristicInput, def: WeaponDef, from: WormPoint, f
   return { weapon: def.id, angleDeg: 0, power: 1, score, confidence: clamp(score / Math.max(1, total), 0, 1) };
 }
 
+/** A beam is thin: sweep the aim finer than a shell's. */
+const BEAM_ANGLE_STEP = 2;
+
+/**
+ * A beam goes through the land, so no line of sight is needed: every aim is scored by the worms
+ * on its line, the way the sim's beam decides whom it touches, enemies less friends (twice). The
+ * burst at the tip is a bonus the CPU does not count on.
+ */
+function evaluateBeam(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const beam = def.beam;
+  if (beam === undefined) return null;
+  const activeTeam = input.request.active.team;
+  const reach = beam.radiusPx + WORM_HALF_WIDTH;
+  const x0 = from.x + facing * 6;
+  const y0 = from.y - WORM_HEIGHT * 0.6;
+  let best: Candidate | null = null;
+  for (let angle = ANGLE_MIN; angle <= ANGLE_MAX; angle += BEAM_ANGLE_STEP) {
+    const a = degToRad(angle);
+    const dx = Math.cos(a) * facing;
+    const dy = -Math.sin(a);
+    let enemy = 0;
+    let friendly = 0;
+    for (const worm of input.worms) {
+      if (!worm.alive || worm.id === from.id || worm.y >= input.request.waterY) continue;
+      const cx = worm.x;
+      const cy = worm.y - WORM_HEIGHT / 2;
+      const along = (cx - x0) * dx + (cy - y0) * dy;
+      if (along < 0 || along > beam.rangePx + reach) continue;
+      if (Math.abs((cx - x0) * dy - (cy - y0) * dx) > reach) continue;
+      const dealt = Math.min(beam.damage, worm.hp);
+      if (worm.teamId === activeTeam) friendly += dealt * 2;
+      else enemy += dealt;
+    }
+    const score = enemy - friendly;
+    if (enemy > 0 && (best === null || score > best.score)) best = { weapon: def.id, angleDeg: angle, power: 1, score, confidence: clamp(enemy / Math.max(1, beam.damage), 0, 1) };
+  }
+  return best;
+}
+
 /** Air strike and homing: aim at the enemy with the most hp on a roughly open sky. */
 function evaluateTargeted(input: HeuristicInput, def: WeaponDef): Candidate | null {
   let best: Candidate | null = null;
@@ -169,6 +208,7 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
       let candidate: Candidate | null = null;
       if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') candidate = evaluateBallistic(input, def, from, facing, env);
       else if (def.combo !== undefined) candidate = evaluateCombo(input, def, from, facing);
+      else if (def.beam !== undefined) candidate = evaluateBeam(input, def, from, facing);
       else if (def.kind === 'HITSCAN' || def.kind === 'MELEE') candidate = evaluateDirect(input, def, from);
       else if (def.kind === 'TARGETED' && def.strike !== undefined) candidate = evaluateTargeted(input, def);
       if (candidate !== null && (best === null || candidate.score > best.score)) best = candidate;

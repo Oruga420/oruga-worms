@@ -4,12 +4,12 @@ import { CHILD_WEAPON_IDS, PANEL_SLOT_COUNT, PANEL_WEAPON_IDS, WATER_BEHAVIORS }
 const UTILITY_IDS = ['parachute', 'jetpack', 'teleport', 'girder', 'skip_go'] as const;
 
 describe('weapon ids', () => {
-  it('has 27 panel slots: 22 combat weapons plus 5 utilities', () => {
-    expect(PANEL_SLOT_COUNT).toBe(27);
-    expect(PANEL_WEAPON_IDS).toHaveLength(27);
+  it('has 28 panel slots: 23 combat weapons plus 5 utilities', () => {
+    expect(PANEL_SLOT_COUNT).toBe(28);
+    expect(PANEL_WEAPON_IDS).toHaveLength(28);
     const utilities = PANEL_WEAPON_IDS.filter((id) => (UTILITY_IDS as readonly string[]).includes(id));
     expect(utilities).toHaveLength(5);
-    expect(PANEL_WEAPON_IDS.length - utilities.length).toBe(22);
+    expect(PANEL_WEAPON_IDS.length - utilities.length).toBe(23);
   });
 
   it('keeps every id unique and never lets a child id into the panel', () => {

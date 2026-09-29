@@ -1,11 +1,11 @@
 /**
  * Registry invariants (architecture.md section D), run at boot and in the tests: every kind has
- * its spec block, a combo only rides a melee row, fuses are consistent, cluster children never
- * cluster again and never name a registry weapon, sprites are named, every number is finite and
- * non negative (ammo may be -1), infinite weapons never drop from crates, multi shot weapons do
- * not end the turn early, charged weapons have a launch speed, keys match ids, the panel is
- * complete, and the sidecar metadata table (sidecar/weapon-meta.ts) agrees on target selection
- * and fuse options so the two sources cannot drift.
+ * its spec block, a combo only rides a melee row and a beam a hitscan row, fuses are consistent,
+ * cluster children never cluster again and never name a registry weapon, sprites are named, every
+ * number is finite and non negative (ammo may be -1), infinite weapons never drop from crates,
+ * multi shot weapons do not end the turn early, charged weapons have a launch speed, keys match
+ * ids, the panel is complete, and the sidecar metadata table (sidecar/weapon-meta.ts) agrees on
+ * target selection and fuse options so the two sources cannot drift.
  */
 
 import { err, ok, type Result } from '../core/result.ts';
@@ -63,6 +63,10 @@ function checkKindSpecs(id: string, def: WeaponDef, out: string[]): void {
     if (def.kind !== 'MELEE') out.push(`${id}: a combo block belongs on a MELEE row, not ${def.kind}`);
     if (!Number.isInteger(def.combo.hits) || def.combo.hits < 1) out.push(`${id}: combo.hits must be a positive integer`);
     if (!(def.combo.rangePx > 0)) out.push(`${id}: combo.rangePx must be positive`);
+  }
+  if (def.beam !== undefined) {
+    if (def.kind !== 'HITSCAN') out.push(`${id}: a beam block belongs on a HITSCAN row, not ${def.kind}`);
+    if (!(def.beam.rangePx > 0) || !(def.beam.radiusPx > 0) || !(def.beam.speedPxPerS > 0)) out.push(`${id}: beam.rangePx, radiusPx and speedPxPerS must be positive`);
   }
 }
 

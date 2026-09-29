@@ -70,8 +70,9 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   minigun: 0,
   fire_punch: -1,
   baseball_bat: 1,
-  // The super move: one per worm, locked for the opening turn by its scheme delay.
+  // The super moves: one of each per worm, locked for the opening turns by their scheme delays.
   ryuko_ranbu: 1,
+  kamehameha: 1,
   dynamite: 1,
   mine: 2,
   sheep: 1,

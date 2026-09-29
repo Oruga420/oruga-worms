@@ -29,11 +29,12 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { ComboBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import { beamProgress } from '../sim/beam.ts';
 import { holdsVictim, ticksFor } from '../sim/combo.ts';
 import { sweep } from '../sim/collision.ts';
 import { getWeapon } from '../weapons/registry.ts';
-import type { WeaponId } from '../weapons/types.ts';
+import type { BeamSpec, WeaponId } from '../weapons/types.ts';
 import { lockTarget } from '../weapons/behaviors/combo.ts';
 import { GAME_CONFIG } from '../config/game-config.ts';
 import type { WormAnim } from './fx.ts';
@@ -166,6 +167,8 @@ export interface PoseInput {
   readonly worm: WormVisual;
   readonly anim?: WormAnim | undefined;
   readonly fight?: FightRole | undefined;
+  /** The beam this worm is firing, charge to fade. */
+  readonly beam?: BeamBody | undefined;
   /** The weapon the worm is aiming, when it is the active worm on its turn. */
   readonly aiming?: WeaponId | null;
   /** The match is over and this worm's team won. */
@@ -215,6 +218,18 @@ function fightPose(input: PoseInput, fight: FightRole): WormPose {
   return { ...base, frame: combo.stage === 'finisher' ? 'knocked' : 'hurt' };
 }
 
+/** A worm firing a beam: drawn back and trembling while it charges, thrust back when it fires. */
+function beamPose(input: PoseInput, beam: BeamBody): WormPose {
+  const base: WormPose = { frame: 'hold_throw', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
+  const p = beamProgress(beam);
+  if (beam.stage === 'charge') {
+    const tremble = Math.sin(input.timeMs / 22) * 0.7 * p;
+    return { ...base, offsetX: -beam.facing * 1.2 * p + tremble, stretchX: 1 + 0.03 * p, stretchY: 1 - 0.04 * p };
+  }
+  const push = beam.stage === 'fade' ? 1 - p : 1;
+  return { ...base, frame: 'fire_recoil', offsetX: (-beam.facing * 1.8 + Math.sin(input.timeMs / 16) * 0.4) * push };
+}
+
 /**
  * The pose of one worm this frame: its motion, the presentation cues and a super move, in that
  * order of precedence from the bottom up (a fight beats everything, a flight beats a flinch).
@@ -222,6 +237,7 @@ function fightPose(input: PoseInput, fight: FightRole): WormPose {
 export function poseFor(input: PoseInput): WormPose {
   const { worm, anim, timeMs } = input;
   if (input.fight !== undefined) return fightPose(input, input.fight);
+  if (input.beam !== undefined) return beamPose(input, input.beam);
   const plain: WormPose = { frame: wormFrameId(worm, timeMs), rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
   // The hit flash rides on whatever the body is doing: white for a moment, then red, fading.
   const hurtMs = anim?.hurtMs ?? Infinity;
@@ -994,15 +1010,23 @@ function drawMine(ctx: Ctx2D, viewport: Size, camera: Camera, mine: SimWorld['mi
   }
 }
 
+interface AuraPalette {
+  readonly layers: readonly [string, string, string];
+  readonly tongue: string;
+}
+
+/** The fighting spirit of a rush super, and the blue ki of a beam. */
+const FIRE_AURA: AuraPalette = { layers: ['#ff6a00', '#ffb000', '#fff0a0'], tongue: '#ff8c1a' };
+const KI_AURA: AuraPalette = { layers: ['#0a5cff', '#3fb4ff', '#dff7ff'], tongue: '#56c8ff' };
+
 /** The ki flaring around a worm gathering a super: glowing layers and flickering tongues of flame. */
-function drawAura(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, strength: number, timeMs: number): void {
+function drawAura(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, strength: number, timeMs: number, palette: AuraPalette = FIRE_AURA): void {
   if (strength <= 0) return;
   const z = camera.zoom;
   const c = worldToScreen(camera, viewport, { x: worm.x, y: worm.y - WORM_HEIGHT / 2 });
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const layers = ['#ff6a00', '#ffb000', '#fff0a0'] as const;
-  layers.forEach((color, i) => {
+  palette.layers.forEach((color, i) => {
     const pulse = 1 + Math.sin(timeMs / 70 + i * 1.3) * 0.08;
     ctx.globalAlpha = strength * (0.42 - i * 0.1);
     ctx.fillStyle = color;
@@ -1010,7 +1034,7 @@ function drawAura(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, 
     ctx.fill();
   });
   ctx.globalAlpha = strength * 0.55;
-  ctx.fillStyle = '#ff8c1a';
+  ctx.fillStyle = palette.tongue;
   for (let i = 0; i < 11; i += 1) {
     const a = -Math.PI / 2 + (i - 5) * 0.27;
     const len = (12 + Math.abs(Math.sin(timeMs / 45 + i * 1.7)) * 12) * z;
@@ -1064,6 +1088,8 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   for (const team of model.state.teams) for (const worm of team.worms) infoById.set(worm.id, { hp: worm.hp, color: teamColor(team.colorIndex), name: worm.name, colorIndex: team.colorIndex, teamId: team.id });
   const winnerTeam = phase === 'MatchEnd' ? model.state.teams.find((team) => team.worms.some((worm) => worm.alive))?.id : undefined;
   const fights = fightRoles(model.world.combos ?? []);
+  const beamers = new Map<string, BeamBody>();
+  for (const beam of model.world.beams ?? []) if (beam.alive) beamers.set(beam.attackerId, beam);
   const aimingPhase = phase === 'Active' || phase === 'Firing';
   const visuals = new Map<string, { visual: WormVisual; pose: WormPose; wounds: number }>();
 
@@ -1079,6 +1105,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       worm: visual,
       anim: model.anim?.(body.id),
       fight,
+      beam: beamers.get(body.id),
       aiming: body.id === activeId && phase === 'Active' && model.weapon !== undefined ? model.weapon : null,
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
@@ -1099,10 +1126,11 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
 
   const activeBody = activeId === undefined ? undefined : model.world.worms.find((b) => b.id === activeId);
-  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id)) {
+  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id)) {
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
-      if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
+      if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
+      else if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
       else if (def.kind === 'HITSCAN') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs);
       else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx);
     }
@@ -1147,7 +1175,15 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       if (fight.role === 'attacker') drawAura(ctx, viewport, camera, entry.visual, clamp(model.aura ?? 0, 0, 1), model.timeMs);
       drawWorm(ctx, viewport, camera, entry.visual, { pose: entry.pose, wounds: entry.wounds, showTag: false }, model.timeMs, model.sprites, model.scratch);
     }
+    for (const id of beamers.keys()) {
+      const entry = visuals.get(id);
+      if (entry === undefined) continue;
+      drawAura(ctx, viewport, camera, entry.visual, clamp(model.aura ?? 0, 0, 1), model.timeMs, KI_AURA);
+      drawWorm(ctx, viewport, camera, entry.visual, { pose: entry.pose, wounds: entry.wounds, showTag: false }, model.timeMs, model.sprites, model.scratch);
+    }
   }
+  // The beam glows over it all, the dimmed world included.
+  for (const beam of beamers.values()) drawBeam(ctx, viewport, camera, beam, model.timeMs);
 
   // The super move's white screen: the world washes out, the fighters stay on it in black.
   const whiteout = clamp(model.whiteout ?? 0, 0, 1);
@@ -1173,6 +1209,109 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     }
     ctx.restore();
   }
+}
+
+/** Glow layers of a beam and its energy ball, outside in: deep blue, light blue, a white core. */
+const BEAM_LAYERS: readonly { readonly color: string; readonly alpha: number; readonly width: number }[] = Object.freeze([
+  { color: '#1760ff', alpha: 0.35, width: 2.6 },
+  { color: '#62c8ff', alpha: 0.7, width: 1.7 },
+  { color: '#ffffff', alpha: 0.95, width: 0.8 },
+]);
+
+/** A filled band of width w from a to b; the canvas has no line caps here, the balls round the ends. */
+function band(ctx: Ctx2D, a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }, w: number): void {
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const nx = (-(b.y - a.y) / len) * (w / 2);
+  const ny = ((b.x - a.x) / len) * (w / 2);
+  ctx.beginPath();
+  ctx.moveTo(a.x + nx, a.y + ny);
+  ctx.lineTo(b.x + nx, b.y + ny);
+  ctx.lineTo(b.x - nx, b.y - ny);
+  ctx.lineTo(a.x - nx, a.y - ny);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function energyBall(ctx: Ctx2D, x: number, y: number, r: number, alpha: number): void {
+  for (const layer of BEAM_LAYERS) {
+    ctx.globalAlpha = layer.alpha * alpha;
+    ctx.fillStyle = layer.color;
+    ctx.beginPath();
+    ctx.arc(x, y, r * (0.4 + layer.width * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * A beam super: the ball of energy gathering in the hands with sparks crackling round it, then the
+ * beam itself, glow on glow over a white core, pulsing, with a ball at each end; it thins out as it
+ * fades. Screen space, drawn over the dimmed world.
+ */
+function drawBeam(ctx: Ctx2D, viewport: Size, camera: Camera, beam: BeamBody, timeMs: number): void {
+  const z = camera.zoom;
+  const p = beamProgress(beam);
+  const hands = worldToScreen(camera, viewport, { x: beam.x0, y: beam.y0 });
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (beam.stage === 'charge') {
+    // It grows to about the aura's size: the worm must still show behind its own ball of ki.
+    const r = (1.8 + 5.2 * p) * z * (1 + Math.sin(timeMs / 35) * 0.08);
+    energyBall(ctx, hands.x, hands.y, r, 1);
+    ctx.strokeStyle = '#c8f4ff';
+    ctx.lineWidth = Math.max(1, 0.7 * z);
+    ctx.globalAlpha = 0.85;
+    const frame = Math.floor(timeMs / 50);
+    const sparks = 2 + Math.floor(p * 6);
+    for (let i = 0; i < sparks; i += 1) {
+      const a = hash01(frame, i) * Math.PI * 2;
+      const d0 = r * 1.1;
+      const d1 = r * (1.8 + hash01(frame, i + 20) * 1.4);
+      const kink = a + (hash01(frame, i + 40) - 0.5) * 0.9;
+      const dm = (d0 + d1) / 2;
+      ctx.beginPath();
+      ctx.moveTo(hands.x + Math.cos(a) * d0, hands.y + Math.sin(a) * d0);
+      ctx.lineTo(hands.x + Math.cos(kink) * dm, hands.y + Math.sin(kink) * dm);
+      ctx.lineTo(hands.x + Math.cos(a) * d1, hands.y + Math.sin(a) * d1);
+      ctx.stroke();
+    }
+  } else {
+    const fade = beam.stage === 'fade' ? 1 - p : 1;
+    const head = worldToScreen(camera, viewport, { x: beam.x0 + beam.dx * beam.length, y: beam.y0 + beam.dy * beam.length });
+    const w = beam.spec.radiusPx * z * fade * (1 + Math.sin(timeMs / 28) * 0.1);
+    if (w > 0.3) {
+      for (const layer of BEAM_LAYERS) {
+        ctx.globalAlpha = layer.alpha * Math.min(1, fade * 1.5);
+        ctx.fillStyle = layer.color;
+        band(ctx, hands, head, w * layer.width);
+      }
+      energyBall(ctx, hands.x, hands.y, w * 1.25, fade);
+      energyBall(ctx, head.x, head.y, w * (beam.stage === 'fire' ? 1.6 : 1.1), fade);
+    }
+  }
+  ctx.restore();
+}
+
+/** Where a beam would go: straight through the land to its full reach, as wide as it will be. */
+function drawBeamPath(ctx: Ctx2D, viewport: Size, camera: Camera, body: { readonly x: number; readonly y: number; readonly facing: 1 | -1 }, angleDeg: number, spec: BeamSpec, timeMs: number): void {
+  const z = camera.zoom;
+  const dir = aimDirection(angleDeg, body.facing);
+  const hands = { x: body.x + body.facing * 6, y: body.y - WORM_HEIGHT * 0.6 };
+  const from = worldToScreen(camera, viewport, hands);
+  const to = worldToScreen(camera, viewport, { x: hands.x + dir.x * spec.rangePx, y: hands.y + dir.y * spec.rangePx });
+  ctx.save();
+  ctx.globalAlpha = 0.13;
+  ctx.fillStyle = '#4ab8ff';
+  band(ctx, from, to, spec.radiusPx * 2 * z);
+  // A dotted centre line drifting outward, the way the beam will go.
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = '#c8f4ff';
+  const len = Math.hypot(to.x - from.x, to.y - from.y);
+  const gap = 10 * z;
+  for (let d = (timeMs / 20) % gap; d < len; d += gap) {
+    const t = d / len;
+    ctx.fillRect(from.x + (to.x - from.x) * t - z, from.y + (to.y - from.y) * t - z, 2 * z, 2 * z);
+  }
+  ctx.restore();
 }
 
 /**

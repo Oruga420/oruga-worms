@@ -63,6 +63,14 @@ export function sourceSpeed(pxPerFrame: number): number {
   return pxPerSourceFrameToPxPerSecond(pxPerFrame);
 }
 
+/**
+ * Launch speed that lands a body rangePx away at 45 degrees under the source gravity:
+ * R = v^2 / g, so v = sqrt(R g) in px per frame, then through units.ts.
+ */
+export function speedForRange45(rangePx: number): number {
+  return sourceSpeed(Math.sqrt(rangePx * SOURCE_GRAVITY_PX_PER_FRAME_SQ));
+}
+
 /** A duration in source logic frames to ms (uzi fires every 6 frames, minigun every 3). */
 export function sourceFramesToMs(frames: number): number {
   return ticksToMs(sourceFramesToTicks(frames));

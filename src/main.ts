@@ -65,6 +65,8 @@ import { WEAPONS, WEAPON_IDS } from './weapons/registry.ts';
 import { solidCount } from './terrain/terrain.ts';
 import { firstSolidBelow } from './terrain/queries.ts';
 import { findWorm as findBody } from './sim/world.ts';
+import { WORM_HEIGHT } from './sim/constants.ts';
+import { muzzlePoint } from './weapons/behaviors/types.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
 import { fire } from './weapons/fire.ts';
@@ -147,6 +149,10 @@ interface OrugasDebug {
   readonly goreCount: () => { bits: number; lens: number; stains: number };
   /** Live super moves in the sim. */
   readonly combos: () => number;
+  /** Beam supers still playing. */
+  readonly beams: () => number;
+  /** Degrees the crosshair sits above the line from the muzzle to that worm's centre (below is negative); null when either is missing. */
+  readonly aimOffBy: (id: string) => number | null;
 }
 
 declare global {
@@ -677,6 +683,7 @@ function boot(): void {
             if (event.type === 'comboHit') camera = shake(camera, event.finisher ? 9 : 2.4);
             else if (event.type === 'gib') camera = shake(camera, 5);
             else if (event.type === 'comboStart') camera = shake(camera, 2);
+            else if (event.type === 'beamFire') camera = shake(camera, 10);
             if (event.type === 'explosion') {
               // The fireworks scale with the weapon: a dynamite stick (blast tier 'big') used to get
               // the same intensity and shake as a grenade, which is what "the TNT effect sucks"
@@ -700,7 +707,7 @@ function boot(): void {
           // Ride the shot while it is in the air, hold on the impact, then back to the worm. While
           // the player is dragging the view (and for a beat after) the follow stands aside; a shot
           // in the air always wins, so the ride is never missed.
-          const aim = updateCameraTarget(cameraDirector, controller.world(), TICK_MS_CAMERA);
+          const aim = updateCameraTarget(cameraDirector, controller.world(), TICK_MS_CAMERA, { halfW: viewport.w / camera.zoom / 2, halfH: viewport.h / camera.zoom / 2 });
           cameraDirector = aim.director;
           const freeLook = performance.now() < freeLookUntilMs && aim.director.focus === 'worm';
           if (aim.target !== null) {
@@ -728,8 +735,9 @@ function boot(): void {
         const selected = controller.selectedWeapon();
         const activeBody = controller.world().worms.find((body) => body.id === activeWormOf(state)?.id);
         const targeting = WEAPONS[selected].requiresTargetSelect && activeTeamOf(state)?.controller === 'human' && !panelOpen && !paused;
-        // The super move's camera work: the freeze dims and pulls in, the beating turns the screen white.
-        const cine = cinematicFor(controller.world().combos);
+        // The supers' camera work: the freeze dims and pulls in, the beating turns the screen white,
+        // a beam darkens the world while it charges and pulls back as it fires.
+        const cine = cinematicFor(controller.world().combos, controller.world().beams);
         const view: Camera = cine.zoom === 1 ? camera : { ...camera, zoom: camera.zoom * cine.zoom };
         const model = {
           state,
@@ -977,6 +985,17 @@ function boot(): void {
       },
       goreCount: () => ({ bits: gore.bits.activeCount(), lens: gore.lens.length, stains: gore.stains }),
       combos: () => controller.world().combos.length,
+      beams: () => controller.world().beams.length,
+      aimOffBy: (id: string) => {
+        const world = controller.world();
+        const active = activeWormOf(controller.state());
+        const body = active === undefined ? undefined : findBody(world, active.id);
+        const target = world.worms.find((worm) => worm.id === id);
+        if (body === undefined || target === undefined) return null;
+        const muzzle = muzzlePoint(body);
+        const wanted = (Math.atan2(muzzle.y - (target.y - WORM_HEIGHT / 2), (target.x - muzzle.x) * body.facing) * 180) / Math.PI;
+        return controller.aim().angleDeg - wanted;
+      },
       // Surrender every team but the first one still alive, so the match reaches a real MatchEnd.
       forceWin: () => {
         const teams = controller.state().teams;

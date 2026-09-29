@@ -10,6 +10,7 @@ import { sweep } from '../../sim/collision.ts';
 import { KNOCKBACK_SCALE, WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
 import { carve } from '../../terrain/terrain.ts';
 import type { HitscanSpec } from '../types.ts';
+import { fireBeam } from './beam.ts';
 import { aimDirection, endsAfter, muzzlePoint, type FireContext, type FireResult } from './types.ts';
 
 /** Particle burst radius for a bullet landing, world px: readable, never mistaken for a blast. */
@@ -76,6 +77,8 @@ function firePellet(ctx: FireContext, hitscan: HitscanSpec, jitterDeg: number): 
 }
 
 export function fireHitscan(ctx: FireContext): FireResult {
+  // A beam super rides a hitscan row: it charges and plays out over time instead.
+  if (ctx.def.beam !== undefined) return fireBeam(ctx);
   const hitscan = ctx.def.hitscan;
   if (hitscan === undefined) return endsAfter(0);
   const muzzle = muzzlePoint(ctx.worm);

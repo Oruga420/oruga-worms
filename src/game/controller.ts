@@ -11,6 +11,7 @@
 import { validateUtilityTarget } from '../weapons/behaviors/utility.ts';
 import { TICK_MS } from '../config/units.ts';
 import { TICK_S, WALK_SPEED_PX_PER_S, WORM_HEIGHT } from '../sim/constants.ts';
+import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { reduce } from '../match/machine.ts';
 import type { MatchEvent } from '../match/events.ts';
@@ -81,6 +82,9 @@ export type GameEvent =
   | { readonly type: 'landed'; readonly wormId: string; readonly x: number; readonly y: number; readonly speed: number }
   | { readonly type: 'drown'; readonly wormId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
   | { readonly type: 'comboStart'; readonly comboId: number; readonly weapon: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  | { readonly type: 'beamStart'; readonly beamId: number; readonly weapon: string; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  | { readonly type: 'beamFire'; readonly beamId: number; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  | { readonly type: 'beamEnd'; readonly beamId: number; readonly attackerId: string; readonly hits: number }
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
   | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number };
@@ -300,6 +304,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
         events.push({ type: 'comboEnd', comboId: e.comboId, attackerId: e.attackerId, victimId: e.victimId, hits: e.hits, x: body?.x ?? 0, y: body?.y ?? 0 });
         return;
       }
+      case 'beamStart':
+        events.push({ type: 'beamStart', beamId: e.beamId, weapon: e.weaponId, attackerId: e.attackerId, x: e.x, y: e.y, dx: e.dx, dy: e.dy });
+        return;
+      case 'beamFire':
+        events.push({ type: 'beamFire', beamId: e.beamId, attackerId: e.attackerId, x: e.x, y: e.y, dx: e.dx, dy: e.dy });
+        return;
+      case 'beamEnd':
+        events.push({ type: 'beamEnd', beamId: e.beamId, attackerId: e.attackerId, hits: e.hits });
+        return;
       default:
         return;
     }
@@ -335,13 +348,14 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   /**
-   * The match ended while a super move played (a surrender): the sim is not stepped at MatchEnd,
-   * so the fight ends here. Both fighters are let go, a held worm at 0 hp bursts, and the white
-   * screen does not hold over the end screen forever.
+   * The match ended while a super move or a beam played (a surrender): the sim is not stepped at
+   * MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp bursts, and the white
+   * screen or the beam does not hold over the end screen forever.
    */
   const endFightsAtMatchEnd = (): void => {
-    if (state.phase !== 'MatchEnd' || !world.combos.some((c) => c.alive)) return;
+    if (state.phase !== 'MatchEnd' || !(world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive))) return;
     cancelCombos(world);
+    cancelBeams(world);
     drainSimAfterFire();
   };
 
@@ -419,8 +433,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const announceShot = (body: { readonly id: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }, weapon: WeaponId, angleDeg: number): void => {
     const def = getWeapon(weapon);
     // Nothing leaves the worm's hands for a utility, a super move or an air strike (it comes from
-    // the sky), so there is no muzzle flash, smoke or recoil to show.
-    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined) return;
+    // the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
+    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined) return;
     events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
   };
 
@@ -432,7 +446,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       pending.sequence = null;
       return;
     }
-    if (world.combos.some((combo) => combo.alive)) return;
+    if (world.combos.some((combo) => combo.alive) || world.beams.some((beam) => beam.alive)) return;
     pending.sequence = null;
     const activeWorm = activeWormOf(state);
     const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);

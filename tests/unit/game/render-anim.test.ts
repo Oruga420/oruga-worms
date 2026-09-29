@@ -10,7 +10,7 @@ import type { ImageSource } from '@/engine/canvas-types.ts';
 import type { MatchState } from '@/match/state.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
-import type { ComboBody } from '@/sim/types.ts';
+import type { BeamBody, ComboBody } from '@/sim/types.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 import { createRecordingContext } from '../ui/recording-context.ts';
 
@@ -182,5 +182,40 @@ describe('drawGame: animation layers', () => {
     expect(white.calls.filter((c) => c.name === 'fillRect').length).toBeGreaterThan(plain.calls.filter((c) => c.name === 'fillRect').length);
     // Both fighters drawn twice: once in colour, once as silhouettes on the white.
     expect(white.calls.filter((c) => c.name === 'fill').length).toBeGreaterThan(plain.calls.filter((c) => c.name === 'fill').length);
+  });
+});
+
+describe('kamehameha', () => {
+  function beamBody(stage: BeamBody['stage'], stageTicks: number, length = 0): BeamBody {
+    return { id: 9, weaponId: 'kamehameha', attackerId: 'a', ownerTeamId: 't', spec: WEAPONS.kamehameha.beam!, stage, stageTicks, x0: 106, y0: 90, dx: 1, dy: 0, holdX: 100, holdY: 100, facing: 1, length, maxLength: 640, carved: 0, hit: [], alive: true };
+  }
+
+  it('draws back while it charges and recoils once the beam is out', () => {
+    expect(poseFor({ worm: WORM, beam: beamBody('charge', 40), timeMs: 0 }).frame).toBe('hold_throw');
+    const firing = poseFor({ worm: WORM, beam: beamBody('fire', 3, 200), timeMs: 0 });
+    expect(firing.frame).toBe('fire_recoil');
+    // Thrust back against the way it faces.
+    expect(firing.offsetX).toBeLessThan(0);
+  });
+
+  it('draws the ball of ki while charging and the beam once it is out', () => {
+    const game = scene();
+    const shooter = game.world.worms[0];
+    if (shooter === undefined) throw new Error('no worm');
+    fire(game.world, shooter, WEAPONS.kamehameha, { angleDeg: 0, power: 1 });
+    const live = game.world.beams[0];
+    if (live === undefined) throw new Error('no beam');
+    const draw = (): ReturnType<typeof createRecordingContext> => {
+      const ctx = createRecordingContext();
+      drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: 600, y: 250 }), { state: game.state, world: game.world, aim: INITIAL_AIM, timeMs: 0, dim: 0.4, aura: 1 });
+      return ctx;
+    };
+    const charging = draw();
+    expect(charging.calls.some((c) => c.name === 'arc')).toBe(true);
+    live.stage = 'fire';
+    live.length = 300;
+    const firing = draw();
+    // The beam's bands: more filled paths than while it only charged.
+    expect(firing.calls.filter((c) => c.name === 'fill').length).toBeGreaterThan(charging.calls.filter((c) => c.name === 'fill').length);
   });
 });

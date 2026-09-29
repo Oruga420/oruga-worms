@@ -120,6 +120,15 @@ export interface Sinker {
   readonly bornAt: number;
 }
 
+/** A beam super on screen: its chant while it charges and the shout when it fires. */
+export interface BeamShow {
+  readonly beamId: number;
+  readonly weapon: string;
+  readonly startedAt: number;
+  firedAt: number | null;
+  endedAt: number | null;
+}
+
 export interface ComboShow {
   readonly comboId: number;
   /** The super being played, for its name card. */
@@ -144,6 +153,7 @@ export interface FxState {
   readonly swings: Swing[];
   readonly sinkers: Sinker[];
   combo: ComboShow | null;
+  beam: BeamShow | null;
   /** A full screen flash: white for the super, colour and strength per event. */
   screenFlash: { readonly at: number; readonly strength: number; readonly color: string; readonly ms: number } | null;
   /** Red at the screen's edges after a heavy hit. */
@@ -151,7 +161,7 @@ export interface FxState {
 }
 
 export function createFx(): FxState {
-  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, screenFlash: null, redPulse: null };
+  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, screenFlash: null, redPulse: null };
 }
 
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
@@ -371,6 +381,22 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'comboEnd':
         onCombo(fx, e, deps);
         break;
+      case 'beamStart':
+        fx.beam = { beamId: e.beamId, weapon: e.weapon, startedAt: fx.now, firedAt: null, endedAt: null };
+        break;
+      case 'beamFire':
+        if (fx.beam !== null && fx.beam.beamId === e.beamId) fx.beam.firedAt = fx.now;
+        fx.screenFlash = { at: fx.now, strength: 0.85, color: '#dff6ff', ms: 240 };
+        // The release: a burst of ki out of the hands, mostly along the beam.
+        for (let i = 0; i < 18; i += 1) {
+          const a = Math.atan2(e.dy, e.dx) + deps.rng.nextFloat(-1.1, 1.1);
+          const speed = deps.rng.nextFloat(120, 420);
+          deps.particles.spawn((p) => initSpark(p, e.x, e.y, Math.cos(a) * speed, Math.sin(a) * speed, deps.rng, i % 3 === 0 ? '#ffffff' : '#7fd4ff', 0.35));
+        }
+        break;
+      case 'beamEnd':
+        if (fx.beam !== null && fx.beam.beamId === e.beamId) fx.beam.endedAt = fx.now;
+        break;
       default:
         break;
     }
@@ -430,6 +456,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
       if (hurt > 0.4 && deps.rng.next() < (hurt - 0.4) * 5 * dt) dripFrom(deps.gore, body.x, body.y - WORM_HEIGHT * 0.5, deps.rng);
     }
     emitTrails(scene.world, deps);
+    emitKi(scene.world, deps);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
@@ -441,6 +468,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   }
   prune(fx.sinkers, fx.now, SINK_MS);
   if (fx.combo !== null && fx.combo.endedAt !== null && fx.now - fx.combo.endedAt > Math.max(COMBO_HUD_LINGER_MS, fx.combo.ko ? KO_MS : 0)) fx.combo = null;
+  if (fx.beam !== null && fx.beam.endedAt !== null && fx.now - Math.max(fx.beam.endedAt, (fx.beam.firedAt ?? 0) + BEAM_SHOUT_MS) > 0) fx.beam = null;
   if (fx.screenFlash !== null && fx.now - fx.screenFlash.at > fx.screenFlash.ms) fx.screenFlash = null;
   if (fx.redPulse !== null && fx.now - fx.redPulse.at > 600) fx.redPulse = null;
 }
@@ -623,6 +651,65 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
   ctx.restore();
 }
 
+/** How long the "HA!!!" stays on screen once the beam leaves the hands. */
+export const BEAM_SHOUT_MS = 900;
+const CHANT = ['KA', 'ME', 'HA', 'ME'] as const;
+
+/**
+ * The chant while a beam charges, a syllable per quarter of the charge ("KA... ME... HA... ME..."),
+ * then the shout as it fires. On a phone both sit lower and the chant smaller, clear of the buttons.
+ */
+function drawBeamShout(ctx: Ctx2D, fx: FxState, show: BeamShow, viewport: Size, touch: boolean): void {
+  const chargeMs = (isWeaponId(show.weapon) ? getWeapon(show.weapon).beam?.chargeMs : undefined) ?? 1500;
+  const x = viewport.w / 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (show.firedAt === null) {
+    // A beam cut off mid charge (a surrender) says nothing more.
+    if (show.endedAt !== null) return;
+    const since = fx.now - show.startedAt;
+    const said = clamp(Math.floor((since / chargeMs) * CHANT.length) + 1, 1, CHANT.length);
+    const newest = since - ((said - 1) * chargeMs) / CHANT.length;
+    const pop = 1 + Math.max(0, 1 - newest / 150) * 0.12;
+    const size = Math.round((touch ? clamp(viewport.w / 20, 20, 44) : clamp(viewport.w / 16, 22, 56)) * pop);
+    ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
+    outlinedText(ctx, `${CHANT.slice(0, said).join('... ')}...`, x, viewport.h * (touch ? 0.36 : 0.3), '#dff7ff', '#06264f', 3);
+    return;
+  }
+  const t = (fx.now - show.firedAt) / BEAM_SHOUT_MS;
+  if (t >= 1) return;
+  const grow = 1 + Math.max(0, 0.2 - t) * 2.5;
+  ctx.globalAlpha = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+  ctx.font = `italic 900 ${Math.round(clamp(viewport.w / 8, 54, 140) * grow)}px system-ui, sans-serif`;
+  outlinedText(ctx, 'HA!!!', x, viewport.h * (touch ? 0.42 : 0.32), '#ffffff', '#0a3d91', 5);
+  ctx.globalAlpha = 1;
+}
+
+/** Ki drawn in from all around a charging beam, and sparks thrown off the sides of a live one. */
+function emitKi(world: SimWorld, deps: FxDeps): void {
+  for (const beam of world.beams ?? []) {
+    if (!beam.alive) continue;
+    if (beam.stage === 'charge') {
+      for (let i = 0; i < 2; i += 1) {
+        const a = deps.rng.nextFloat(0, TWO_PI);
+        const d = deps.rng.nextFloat(22, 44);
+        const x = beam.x0 + Math.cos(a) * d;
+        const y = beam.y0 + Math.sin(a) * d;
+        deps.particles.spawn((p) => initSpark(p, x, y, (beam.x0 - x) * 3.6, (beam.y0 - y) * 3.6, deps.rng, '#9fe2ff', 0.26));
+      }
+    } else if (beam.stage === 'fire' || beam.stage === 'hold') {
+      const t = deps.rng.nextFloat(0, beam.length);
+      const side = deps.rng.next() < 0.5 ? -1 : 1;
+      const nx = -beam.dy * side;
+      const ny = beam.dx * side;
+      const x = beam.x0 + beam.dx * t + nx * beam.spec.radiusPx;
+      const y = beam.y0 + beam.dy * t + ny * beam.spec.radiusPx;
+      const out = deps.rng.nextFloat(60, 170);
+      deps.particles.spawn((p) => initSpark(p, x, y, nx * out + beam.dx * 90, ny * out + beam.dy * 90, deps.rng, '#bff0ff', 0.3));
+    }
+  }
+}
+
 function outlinedText(ctx: Ctx2D, text: string, x: number, y: number, fill: string, outline: string, offset: number): void {
   ctx.fillStyle = outline;
   for (const [dx, dy] of [[-offset, 0], [offset, 0], [0, -offset], [0, offset], [offset, offset]] as const) ctx.fillText(text, x + dx, y + dy);
@@ -725,6 +812,7 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: F
     }
     ctx.globalAlpha = 1;
   }
+  if (fx.beam !== null) drawBeamShout(ctx, fx, fx.beam, viewport, touch);
 
   if (fx.screenFlash !== null) {
     const t = (fx.now - fx.screenFlash.at) / fx.screenFlash.ms;
