@@ -8,10 +8,11 @@
 
 import { angleOf, fromAngle } from '../core/math.ts';
 import type { BlastSpec, ClusterSpec, ProjectileSpec } from '../weapons/types.ts';
-import { REST_SPEED_PX_PER_S, REST_TICKS, TICK_S, WORM_HALF_WIDTH, WORM_HEIGHT } from './constants.ts';
+import { REST_SPEED_PX_PER_S, REST_TICKS, TICK_S } from './constants.ts';
+import { wormHalfWidth, wormHeight, wormMiddleY } from './worm-size.ts';
 import { explode } from './explosion.ts';
 import { applyForces, bounce, speedOf, sweepMove } from './integrator.ts';
-import type { ProjectileBody, ProjectileKind } from './types.ts';
+import type { ProjectileBody, ProjectileKind, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 
 export interface SpawnProjectileParams {
@@ -153,10 +154,12 @@ function isContactProjectile(p: ProjectileBody): boolean {
  * hitbox? Slab test against the box, so a fast shell (10 px a tick) cannot tunnel through a worm 9
  * px wide, which is exactly what a per tick point test allowed.
  */
-function segmentWormEntry(x0: number, y0: number, x1: number, y1: number, radius: number, wormX: number, wormFeetY: number): number | null {
-  const minX = wormX - WORM_HALF_WIDTH - radius;
-  const maxX = wormX + WORM_HALF_WIDTH + radius;
-  const minY = wormFeetY - WORM_HEIGHT - radius;
+function segmentWormEntry(x0: number, y0: number, x1: number, y1: number, radius: number, worm: WormBody): number | null {
+  const half = wormHalfWidth(worm);
+  const minX = worm.x - half - radius;
+  const maxX = worm.x + half + radius;
+  const minY = worm.y - wormHeight(worm) - radius;
+  const wormFeetY = worm.y;
   const maxY = wormFeetY + radius;
   const dx = x1 - x0;
   const dy = y1 - y0;
@@ -190,10 +193,10 @@ function wormInPath(world: SimWorld, p: ProjectileBody, fromX: number, fromY: nu
   for (const worm of world.worms) {
     if (!worm.alive) continue;
     if (worm.id === p.ownerWormId && p.ageTicks <= MUZZLE_GRACE_TICKS) continue;
-    const entry = segmentWormEntry(fromX, fromY, p.x, p.y, p.spec.radiusPx, worm.x, worm.y);
+    const entry = segmentWormEntry(fromX, fromY, p.x, p.y, p.spec.radiusPx, worm);
     if (entry !== null && entry < nearestEntry) {
       nearestEntry = entry;
-      nearest = { x: worm.x, y: worm.y - WORM_HEIGHT / 2 };
+      nearest = { x: worm.x, y: wormMiddleY(worm) };
     }
   }
   return nearest;

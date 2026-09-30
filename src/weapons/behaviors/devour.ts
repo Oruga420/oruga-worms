@@ -8,6 +8,7 @@
 
 import { sweep } from '../../sim/collision.ts';
 import { WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
+import { wormMiddleY } from '../../sim/worm-size.ts';
 import { spawnDevour } from '../../sim/devour.ts';
 import { lockTarget } from './combo.ts';
 import { endsAfter, type FireContext, type FireResult } from './types.ts';
@@ -20,7 +21,7 @@ export function fireDevour(ctx: FireContext): FireResult {
   world.events.push({ type: 'sound', id: def.sfx.fire, x: worm.x, y: worm.y });
   if (victim !== null) {
     const facing: 1 | -1 = victim.x > worm.x ? 1 : victim.x < worm.x ? -1 : worm.facing;
-    spawnDevour(world, { weaponId: def.id, eater: worm, victim, spec, facing, reachX: victim.x, reachY: victim.y - WORM_HEIGHT / 2 });
+    spawnDevour(world, { weaponId: def.id, eater: worm, victim, spec, facing, reachX: victim.x, reachY: wormMiddleY(victim) });
     return { endsTurn: true, shotsRemaining: 0, sequence: true };
   }
   // Whiff: the arm shoots out at chest height and stops short of the first wall.

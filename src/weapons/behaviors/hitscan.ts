@@ -7,7 +7,8 @@
 
 import { vec2 } from '../../core/math.ts';
 import { sweep } from '../../sim/collision.ts';
-import { KNOCKBACK_SCALE, WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
+import { KNOCKBACK_SCALE } from '../../sim/constants.ts';
+import { wormHalfWidth, wormMiddleY } from '../../sim/worm-size.ts';
 import { carve } from '../../terrain/terrain.ts';
 import type { HitscanSpec } from '../types.ts';
 import { fireBeam } from './beam.ts';
@@ -17,20 +18,20 @@ import { aimDirection, endsAfter, muzzlePoint, type FireContext, type FireResult
 /** Particle burst radius for a bullet landing, world px: readable, never mistaken for a blast. */
 const IMPACT_FX_RADIUS_PX = 6;
 
-/** First worm whose hitbox the ray from (ox, oy) toward (dx, dy) crosses within range. */
-function firstWormAlong(ctx: FireContext, ox: number, oy: number, dx: number, dy: number, range: number): { id: string; teamId: string; x: number; y: number } | null {
-  let best: { id: string; teamId: string; x: number; y: number } | null = null;
+/** First worm whose hitbox the ray from (ox, oy) toward (dx, dy) crosses within range; a Saibaman is a smaller target. */
+function firstWormAlong(ctx: FireContext, ox: number, oy: number, dx: number, dy: number, range: number): { id: string; teamId: string; x: number; y: number; middleY: number } | null {
+  let best: { id: string; teamId: string; x: number; y: number; middleY: number } | null = null;
   let bestT = range;
   for (const worm of ctx.world.worms) {
     if (!worm.alive || worm.id === ctx.worm.id) continue;
     const cx = worm.x;
-    const cy = worm.y - WORM_HEIGHT / 2;
+    const cy = wormMiddleY(worm);
     const t = (cx - ox) * dx + (cy - oy) * dy;
     if (t < 0 || t > bestT) continue;
     const px = ox + dx * t;
     const py = oy + dy * t;
-    if (Math.hypot(px - cx, py - cy) <= WORM_HALF_WIDTH + 2) {
-      best = { id: worm.id, teamId: worm.teamId, x: worm.x, y: worm.y };
+    if (Math.hypot(px - cx, py - cy) <= wormHalfWidth(worm) + 2) {
+      best = { id: worm.id, teamId: worm.teamId, x: worm.x, y: worm.y, middleY: cy };
       bestT = t;
     }
   }
@@ -44,7 +45,7 @@ function firePellet(ctx: FireContext, hitscan: HitscanSpec, jitterDeg: number): 
   const wall = sweep(ctx.world.terrain.mask, muzzle.x, muzzle.y, muzzle.x + dir.x * hitscan.rangePx, muzzle.y + dir.y * hitscan.rangePx, 0);
   const wallT = wall.hit === null ? hitscan.rangePx : Math.hypot(wall.x - muzzle.x, wall.y - muzzle.y);
   if (worm !== null) {
-    const wormT = (worm.x - muzzle.x) * dir.x + (worm.y - WORM_HEIGHT / 2 - muzzle.y) * dir.y;
+    const wormT = (worm.x - muzzle.x) * dir.x + (worm.middleY - muzzle.y) * dir.y;
     if (wormT <= wallT) {
       const at = { x: muzzle.x + dir.x * wormT, y: muzzle.y + dir.y * wormT, dx: dir.x, dy: dir.y };
       ctx.world.events.push({ type: 'damage', wormId: worm.id, amount: hitscan.damagePerPellet, sourceTeamId: ctx.worm.teamId, sourceWormId: ctx.worm.id, cause: 'hit', at });

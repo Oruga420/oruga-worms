@@ -208,3 +208,24 @@ describe('camera director: the freezer', () => {
     expect(after.target).toEqual({ x: 500, y: 349 - 8 - 36 });
   });
 });
+
+describe('camera director: the saibaman seed', () => {
+  const SPEC = WEAPONS.saibaman.sprout!;
+  const seedWorld = (stage: 'plant' | 'grow' | 'recover', extra: Record<string, unknown> = {}, worms: readonly Record<string, unknown>[] = [{ id: 'hero', x: 300, y: 349, alive: true }]): SimWorld =>
+    ({
+      projectiles: [],
+      worms,
+      sprouts: [{ planterId: 'hero', stage, stageTicks: 5, spec: SPEC, holdX: 300, holdY: 349, facing: 1, spotX: 322, spotY: 349, fertile: true, cracks: 0, sproutId: null, alive: true, ...extra }],
+    }) as unknown as SimWorld;
+
+  it('frames the ground between the planter and the seed, then the Saibaman as it leaps, and holds where it was', () => {
+    const planting = updateCameraTarget(INITIAL_DIRECTOR, seedWorld('plant'), TICK);
+    expect(planting.director.focus).toBe('sprout');
+    expect(planting.target).toEqual({ x: 311, y: 349 - 16 * 0.6 });
+    const leaping = updateCameraTarget(planting.director, seedWorld('recover', { sproutId: 'saiba' }, [{ id: 'hero', x: 300, y: 349, alive: true }, { id: 'saiba', x: 322, y: 310, alive: true }]), TICK);
+    expect(leaping.target).toEqual({ x: 322, y: 310 - 8 });
+    const after = updateCameraTarget(leaping.director, seedWorld('recover', { sproutId: 'saiba', alive: false }), TICK);
+    expect(after.director.focus).toBe('impact');
+    expect(after.target).toEqual({ x: 322, y: 302 });
+  });
+});

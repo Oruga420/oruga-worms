@@ -8,7 +8,8 @@
  * tradeoff of a scoring heuristic. The real shot, fired through the sim, is what actually plays.
  */
 
-import { GRAVITY_PX_PER_S2, TICK_S, WORM_HEIGHT } from '../sim/constants.ts';
+import { GRAVITY_PX_PER_S2, REST_SPEED_PX_PER_S, TICK_S } from '../sim/constants.ts';
+import { wormMiddleY } from '../sim/worm-size.ts';
 import { blastDamage } from '../sim/damage.ts';
 import { discBlocked, sweep } from '../sim/collision.ts';
 import type { TerrainMask } from '../terrain/mask.ts';
@@ -55,6 +56,7 @@ export function simulateShot(shot: ShotSpec, env: TrajectoryEnv): Impact | null 
   let vy = shot.vy;
   const maxTicks = Math.min(1200, Math.max(1, Math.round(shot.maxLifetimeMs / 1000 / TICK_S)));
   const fuseTicks = shot.fuseMs === null ? -1 : Math.max(1, Math.round(shot.fuseMs / 1000 / TICK_S));
+  const restSpeed = Math.max(REST_SPEED_PX_PER_S, gravity * shot.gravityScale * TICK_S * 2);
   for (let t = 1; t <= maxTicks; t += 1) {
     vy += gravity * shot.gravityScale * TICK_S;
     if (shot.windAffected) vx += env.wind * gravity * TICK_S;
@@ -70,6 +72,10 @@ export function simulateShot(shot: ShotSpec, env: TrajectoryEnv): Impact | null 
         vy = (vy - 2 * along * n.y) * shot.bounce;
         x = hit.x + n.x;
         y = hit.y + n.y;
+        // Settled on the ground: it goes off right here when the fuse ends. Marching it tick by tick
+        // to the fuse, resting, was most of the CPU's thinking time (a grenade sat there 2 s). At
+        // rest it still picks up a tick of gravity and bounces it off, so that is the floor.
+        if (Math.hypot(vx, vy) < restSpeed) return { x, y, ticks: fuseTicks, reason: 'fuse' };
         continue;
       }
       return { x: hit.x, y: hit.y, ticks: t, reason: 'contact' };
@@ -97,6 +103,8 @@ export interface WormPoint {
   readonly y: number;
   readonly hp: number;
   readonly alive: boolean;
+  /** 1 for a worm (when absent), 0.5 for a Saibaman. */
+  readonly size?: number;
 }
 
 export interface BlastEstimate {
@@ -110,7 +118,7 @@ export function estimateBlast(bx: number, by: number, radiusPx: number, maxDamag
   let total = 0;
   for (const worm of worms) {
     if (!worm.alive) continue;
-    const distance = Math.hypot(worm.x - bx, worm.y - WORM_HEIGHT / 2 - by);
+    const distance = Math.hypot(worm.x - bx, wormMiddleY(worm) - by);
     const raw = blastDamage(maxDamage, distance, radiusPx);
     const dealt = Math.min(raw, worm.hp);
     if (dealt > 0) {

@@ -44,7 +44,7 @@ describe('game config', () => {
     expect(GAME_CONFIG.wind).toEqual({ steps: 21, maxFractionOfGravity: 1.19 });
     // Crate kind weights preserve the configured weapon/health/utility proportions; the original 6.7/3.3/3.3
     // made one fall every seven or eight turns and read as "crates never fall".
-    expect(GAME_CONFIG.crates).toEqual({ weaponPct: 20, healthPct: 8, utilityPct: 8, maxOnMap: 5, healthAmount: 25, dropEveryTurns: 3 });
+    expect(GAME_CONFIG.crates).toEqual({ weaponPct: 20, healthPct: 8, utilityPct: 8, powerPct: 18, maxOnMap: 5, healthAmount: 25, dropEveryTurns: 3 });
     expect(GAME_CONFIG.movement).toEqual({ stepsPerTurn: 10, stepPx: 32, jumpStepCost: 2 });
     expect(GAME_CONFIG.resolve).toEqual({ inactivityMs: 8_000, absoluteMs: 45_000 });
     expect(GAME_CONFIG.mines).toEqual({ placedFuseMs: 3_000, mapFuseMinMs: 0, mapFuseMaxMs: 3_000, dudChance: 0 });

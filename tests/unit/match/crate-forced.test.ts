@@ -12,7 +12,7 @@ import type { MatchState } from '@/match/state.ts';
  */
 const NO_RANDOM_CRATES: MatchConfig = {
   ...GAME_CONFIG,
-  crates: { ...GAME_CONFIG.crates, weaponPct: 0, healthPct: 0, utilityPct: 0, dropEveryTurns: 3 },
+  crates: { ...GAME_CONFIG.crates, weaponPct: 0, healthPct: 0, utilityPct: 0, powerPct: 0, dropEveryTurns: 3 },
 };
 
 const SETUP: MatchSetup = {

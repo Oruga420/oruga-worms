@@ -5,6 +5,8 @@ import { createParticleSystem } from '@/engine/particles.ts';
 import type { GameEvent } from '@/game/controller.ts';
 import {
   BEAM_SHOUT_MS,
+  CACKLE_TICKS,
+  CALLOUT_MS,
   COMBO_HUD_LINGER_MS,
   DEVOURED_MS,
   DRUM_CALL_MS,
@@ -23,8 +25,9 @@ import {
   type FxDeps,
 } from '@/game/fx.ts';
 import { createGore, goreCount, type GoreBit } from '@/game/gore.ts';
+import { spawnCrate } from '@/sim/crate.ts';
 import { LAUGH_TICK } from '@/sim/hex.ts';
-import { addWorm } from '@/sim/world.ts';
+import { addWorm, stepWorld } from '@/sim/world.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { flatWorld } from '../sim/fixture.ts';
@@ -545,5 +548,122 @@ describe('fx: the freezer', () => {
     hex.stageTicks = LAUGH_TICK;
     advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
     expect(fx.pops.map((p) => p.text)).toContain('HO HO HO!');
+  });
+});
+
+describe('fx: crates and power orbs', () => {
+  const opened = (crate: 'weapon' | 'health' | 'power', weapon: 'kamehameha' | 'bazooka' | null, healed = 0): GameEvent =>
+    ({ type: 'crateOpened', wormId: 'w', crate, weapon, healed, x: 200, y: 180 });
+
+  it('a power orb goes off in gold and rises +1 KAMEHAMEHA! over the worm, long enough to read', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [opened('power', 'kamehameha')], d);
+    const callout = fx.pops.find((p) => p.text === '+1 KAMEHAMEHA!');
+    expect(callout).toBeDefined();
+    expect(callout?.ms).toBe(CALLOUT_MS);
+    expect(callout?.y).toBeLessThan(180);
+    expect(fx.rings.length).toBeGreaterThanOrEqual(2);
+    expect(fx.screenFlash).not.toBeNull();
+    expect(d.particles.count()).toBeGreaterThan(20);
+    // Still up past a plain pop's life, gone after its own.
+    for (let t = 0; t < POP_MS + 100; t += TICK) advanceFx(fx, TICK, null, d);
+    expect(fx.pops.map((p) => p.text)).toContain('+1 KAMEHAMEHA!');
+    for (let t = 0; t < CALLOUT_MS; t += TICK) advanceFx(fx, TICK, null, d);
+    expect(fx.pops.map((p) => p.text)).not.toContain('+1 KAMEHAMEHA!');
+  });
+
+  it('a weapon crate names its weapon and a health crate its hp, without the gold', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [opened('weapon', 'bazooka'), opened('health', null, 25)], d);
+    expect(fx.pops.map((p) => p.text)).toEqual(['+1 BAZOOKA', '+25']);
+    expect(fx.screenFlash).toBeNull();
+    const ctx = createRecordingContext();
+    drawFxWorld(ctx, fx, createCamera({ x: 0, y: 0 }), { w: 800, h: 600 });
+    const texts = ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+    expect(texts).toContain('+1 BAZOOKA');
+    expect(texts).toContain('+25');
+  });
+
+  it('a power orb sheds gold sparkles as it falls and where it rests; a plain crate sheds none', () => {
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    const scene = { world, hpOf: () => 100, maxHp: 100 };
+    const plain = deps();
+    const quiet = createFx();
+    spawnCrate(world, 'weapon', 300);
+    for (let i = 0; i < 30; i += 1) advanceFx(quiet, TICK, scene, plain);
+    expect(plain.particles.count()).toBe(0);
+    const d = deps();
+    const fx = createFx();
+    const orb = spawnCrate(world, 'power', 200);
+    orb.y = 80;
+    for (let i = 0; i < 30; i += 1) advanceFx(fx, TICK, scene, d);
+    const falling = d.particles.count();
+    expect(falling).toBeGreaterThan(10);
+    orb.y = 199;
+    orb.landed = true;
+    const resting = deps();
+    for (let i = 0; i < 30; i += 1) advanceFx(fx, TICK, scene, resting);
+    expect(resting.particles.count()).toBeGreaterThan(0);
+    expect(resting.particles.count()).toBeLessThan(falling);
+  });
+});
+
+describe('fx: the saibaman seed', () => {
+  const beat = (kind: 'plant' | 'crack' | 'pop' | 'wither', n = 0): GameEvent => ({ type: 'sproutBeat', sproutId: 3, planterId: 'a', beat: kind, n, x: 250, y: 199, facing: 1 });
+
+  it('throws up earth as the seed goes in and at every crack, more each time, with green light', () => {
+    const counts = [beat('plant'), beat('crack', 1), beat('crack', 3)].map((e) => {
+      const d = deps();
+      applyFxEvents(createFx(), [e], d);
+      return d.particles.count();
+    });
+    expect(counts[0]).toBeGreaterThan(0);
+    expect(counts[2]).toBeGreaterThan(counts[1] ?? 0);
+  });
+
+  it('calls out ¡SAIBAMAN! as it leaps, long enough to read, and NO ROOM! when the seed wilts', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [beat('pop')], d);
+    const name = fx.pops.find((p) => p.text === '¡SAIBAMAN!');
+    expect(name?.ms).toBe(CALLOUT_MS);
+    expect(fx.rings.length).toBeGreaterThanOrEqual(2);
+    expect(d.particles.count()).toBeGreaterThan(30);
+    const wilt = createFx();
+    applyFxEvents(wilt, [beat('wither')], deps());
+    expect(wilt.pops.map((p) => p.text)).toEqual(['NO ROOM!']);
+  });
+
+  it('cackles KEKEKE! twice over where the Saibaman comes down, once it is out', () => {
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    const planter = addWorm(world, { id: 'a-worm-1', teamId: 'a', x: 200, y: 199 });
+    fire(world, planter, WEAPONS.saibaman, { angleDeg: 0, power: 1 });
+    const fx = createFx();
+    const d = deps();
+    const said = (): string[] => fx.pops.map((p) => p.text);
+    let cackles = 0;
+    for (let i = 0; i < 400 && world.sprouts.length > 0; i += 1) {
+      stepWorld(world);
+      advanceFx(fx, TICK, { world, hpOf: () => 50, maxHp: 100 }, d);
+      cackles = Math.max(cackles, said().filter((t) => t === 'KEKEKE!').length);
+    }
+    expect(cackles).toBe(CACKLE_TICKS.length);
+    const spotY = 199;
+    for (const p of fx.pops.filter((q) => q.text === 'KEKEKE!')) expect(p.y).toBeLessThan(spotY);
+  });
+
+  it('bleeds a Saibaman by its own health: whole at 50 of 50, dripping at 15', () => {
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    addWorm(world, { id: 's', teamId: 'a', x: 200, y: 199, size: 0.5 });
+    const drips = (hp: number): number => {
+      const d = deps();
+      const fx = createFx();
+      for (let i = 0; i < 240; i += 1) advanceFx(fx, TICK, { world, hpOf: () => hp, maxHp: 100, maxHpOf: () => 50 }, d);
+      return goreCount(d.gore);
+    };
+    expect(drips(50)).toBe(0);
+    expect(drips(15)).toBeGreaterThan(0);
   });
 });

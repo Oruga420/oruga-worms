@@ -9,6 +9,7 @@
 
 import { sweep } from '../../sim/collision.ts';
 import { WORM_HEIGHT } from '../../sim/constants.ts';
+import { wormMiddleY } from '../../sim/worm-size.ts';
 import { spawnHex } from '../../sim/hex.ts';
 import { lockTarget } from './combo.ts';
 import { endsAfter, type FireContext, type FireResult } from './types.ts';
@@ -21,7 +22,7 @@ export function fireHex(ctx: FireContext): FireResult {
   world.events.push({ type: 'sound', id: def.sfx.fire, x: worm.x, y: worm.y });
   if (victim !== null) {
     const facing: 1 | -1 = victim.x > worm.x ? 1 : victim.x < worm.x ? -1 : worm.facing;
-    spawnHex(world, { weaponId: def.id, attacker: worm, victim, spec, facing, targetX: victim.x, targetY: victim.y - WORM_HEIGHT / 2 });
+    spawnHex(world, { weaponId: def.id, attacker: worm, victim, spec, facing, targetX: victim.x, targetY: wormMiddleY(victim) });
     return { endsTurn: true, shotsRemaining: 0, sequence: true };
   }
   // Whiff: the light flies straight ahead at chest height and goes out at the first wall.

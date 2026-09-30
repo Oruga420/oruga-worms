@@ -6,7 +6,7 @@
  * Who sends what:
  * - the loop: TimerTick every frame, BannerDone when a presentation phase finished showing;
  * - the sim: FireStarted, FireCompleted, RetreatDone, ActivityPing, DamageApplied, WormDied,
- *   WormDrowned, AllBodiesAtRest, CrateLanded, CratePicked, CrateDestroyed;
+ *   WormDrowned, WormSpawned, AllBodiesAtRest, CrateLanded, CratePicked, CrateDestroyed;
  * - the input layer or the CPU: SkipTurn, Surrender;
  * - replays: WindRolled, to pin the wind instead of drawing it from the match rng.
  */
@@ -78,6 +78,17 @@ export interface WormDrownedEvent {
   readonly wormId: string;
 }
 
+/** A new worm joined a team mid match: a Saibaman out of the ground (sim/sprout.ts). */
+export interface WormSpawnedEvent {
+  readonly type: 'WormSpawned';
+  readonly wormId: string;
+  readonly teamId: string;
+  /** Its health as a share of a worm's (config wormHp). */
+  readonly hpShare: number;
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface AllBodiesAtRestEvent {
   readonly type: 'AllBodiesAtRest';
 }
@@ -129,6 +140,7 @@ export type MatchEvent =
   | DamageAppliedEvent
   | WormDiedEvent
   | WormDrownedEvent
+  | WormSpawnedEvent
   | AllBodiesAtRestEvent
   | CrateLandedEvent
   | CratePickedEvent
@@ -149,6 +161,7 @@ export const MATCH_EVENT_TYPES: readonly MatchEventType[] = Object.freeze([
   'DamageApplied',
   'WormDied',
   'WormDrowned',
+  'WormSpawned',
   'AllBodiesAtRest',
   'CrateLanded',
   'CratePicked',

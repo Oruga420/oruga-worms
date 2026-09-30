@@ -10,20 +10,22 @@
 
 import { validateUtilityTarget } from '../weapons/behaviors/utility.ts';
 import { TICK_MS } from '../config/units.ts';
-import { TICK_S, WALK_SPEED_PX_PER_S, WORM_HEIGHT } from '../sim/constants.ts';
+import { TICK_S, WALK_SPEED_PX_PER_S } from '../sim/constants.ts';
+import { wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
 import { cancelHexes, heldByHexes } from '../sim/hex.ts';
+import { cancelSprouts } from '../sim/sprout.ts';
 import { reduce } from '../match/machine.ts';
-import type { MatchEvent } from '../match/events.ts';
-import type { MatchState } from '../match/state.ts';
-import { activeTeamOf, activeWormOf } from '../match/ledger.ts';
+import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
+import type { CrateType, MatchState } from '../match/state.ts';
+import { activeTeamOf, activeWormOf, findWorm as findWormState } from '../match/ledger.ts';
 import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
 import { stepWorld } from '../sim/world.ts';
-import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type WormIntent } from '../sim/types.ts';
+import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type SproutBeat, type WormIntent } from '../sim/types.ts';
 import { pickCrateColumn, spawnCrate } from '../sim/crate.ts';
 import { detonate } from '../sim/projectile.ts';
 import { detonateSheep } from '../sim/sheep.ts';
@@ -95,9 +97,18 @@ export type GameEvent =
   /** A beat of the Freezer; colorIndex is the victim's team colour, for the pieces the burst throws. */
   | { readonly type: 'hexBeat'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: HexBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
   | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean }
+  /** A Saibaman seed goes in at (x, y); colorIndex is the planter's team colour. */
+  | { readonly type: 'sproutStart'; readonly sproutId: number; readonly planterId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
+  | { readonly type: 'sproutBeat'; readonly sproutId: number; readonly planterId: string; readonly beat: SproutBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'sproutEnd'; readonly sproutId: number; readonly planterId: string; readonly wormId: string | null }
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
-  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number };
+  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number }
+  /**
+   * A worm opened a crate: the weapon it got (a super, out of a power orb) or the hp it healed,
+   * for the callout over its head. (x, y) is the top of the worm.
+   */
+  | { readonly type: 'crateOpened'; readonly wormId: string; readonly crate: CrateType; readonly weapon: WeaponId | null; readonly healed: number; readonly x: number; readonly y: number };
 
 export interface Controller {
   tick(input: ControllerInput): void;
@@ -128,6 +139,8 @@ interface Pending {
   /** Queued human or CPU walk intents to feed before firing. */
   walk: WormIntent[];
   fireAfterWalk: FireAim | null;
+  /** Which way the CPU's worm faces to fire, set once the walk is over (walking turns it the way it goes). */
+  fireFacing: 1 | -1;
   fireWeapon: WeaponId | null;
   cpuRequested: boolean;
   /** The CPU decision has come back (with or without a plan), so standing still is not "waiting". */
@@ -176,7 +189,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   let bannerMs = BANNER_MS;
   let cpuBusy = false;
   const events: GameEvent[] = [];
-  const pending: Pending = { walk: [], fireAfterWalk: null, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
+  const pending: Pending = { walk: [], fireAfterWalk: null, fireFacing: 1, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
   // Worms whose last hp already went to gore (a burst) or to the water, so each dies exactly once.
   const goneWorms = new Set<string>();
 
@@ -255,10 +268,30 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const hpLeft = new Map<string, number>();
     for (const e of simEvents) if (e.type === 'damage' && !hpLeft.has(e.wormId)) hpLeft.set(e.wormId, hpOf(e.wormId));
     // The ledger first, so a blow's event already knows whether it was the knockout.
-    for (const matchEvent of translateSimEvents(simEvents)) apply(matchEvent);
+    for (const matchEvent of translateSimEvents(simEvents)) {
+      if (matchEvent.type === 'CratePicked') openCrate(matchEvent);
+      else apply(matchEvent);
+    }
     for (const e of simEvents) presentSimEvent(e, hpLeft);
     syncMatchToSim(state, world);
     observeCasualties();
+  };
+
+  /**
+   * A crate taken: into the ledger, which rolls what it holds, then what the worm got over its
+   * head. The prize is read back from the ammo and the hp the ledger changed, so the callout says
+   * exactly what the rules gave.
+   */
+  const openCrate = (event: CratePickedEvent): void => {
+    const before = findWormState(state, event.wormId)?.worm;
+    apply(event);
+    const after = findWormState(state, event.wormId)?.worm;
+    const body = findBody(world, event.wormId);
+    if (before === undefined || after === undefined || body === undefined) return;
+    const weapon = WEAPON_IDS.find((id) => (after.ammo[id] ?? 0) > (before.ammo[id] ?? 0)) ?? null;
+    const healed = Math.max(0, after.hp - before.hp);
+    if (weapon === null && healed === 0) return;
+    events.push({ type: 'crateOpened', wormId: event.wormId, crate: event.crate, weapon, healed, x: body.x, y: body.y - wormHeight(body) });
   };
 
   const colorIndexOf = (wormId: string): number => {
@@ -279,7 +312,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         return;
       case 'damage': {
         const body = findBody(world, e.wormId);
-        const at = e.at ?? (body === undefined ? null : { x: body.x, y: body.y - WORM_HEIGHT / 2, dx: 0, dy: -1 });
+        const at = e.at ?? (body === undefined ? null : { x: body.x, y: wormMiddleY(body), dx: 0, dy: -1 });
         const left = hpLeft.get(e.wormId) ?? 0;
         const lost = Number.isFinite(e.amount) && e.amount > 0 ? Math.min(e.amount, left) : 0;
         hpLeft.set(e.wormId, left - lost);
@@ -343,6 +376,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
       case 'hexEnd':
         events.push({ type: 'hexEnd', hexId: e.hexId, attackerId: e.attackerId, victimId: e.victimId, burst: e.burst });
         return;
+      case 'sproutStart':
+        events.push({ type: 'sproutStart', sproutId: e.sproutId, planterId: e.planterId, x: e.x, y: e.y, facing: e.facing, colorIndex: colorIndexOf(e.planterId) });
+        return;
+      case 'sproutBeat':
+        events.push({ type: 'sproutBeat', sproutId: e.sproutId, planterId: e.planterId, beat: e.beat, n: e.n, x: e.x, y: e.y, facing: e.facing });
+        return;
+      case 'sproutEnd':
+        events.push({ type: 'sproutEnd', sproutId: e.sproutId, planterId: e.planterId, wormId: e.wormId });
+        return;
       default:
         return;
     }
@@ -365,7 +407,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         goneWorms.add(worm.id);
         const body = findBody(world, worm.id);
         if (body === undefined || body.motion === 'drowning') continue;
-        events.push({ type: 'gib', wormId: worm.id, x: body.x, y: body.y - WORM_HEIGHT / 2, vx: body.vx, vy: body.vy, colorIndex: team.colorIndex });
+        events.push({ type: 'gib', wormId: worm.id, x: body.x, y: wormMiddleY(body), vx: body.vx, vy: body.vy, colorIndex: team.colorIndex });
         // The body goes with the burst. Left in the physics it flew on unseen: the camera chased
         // it, it landed or drowned in front of the player, and it could trip a mine or take a crate.
         body.alive = false;
@@ -381,17 +423,23 @@ export function createController(game: Game, options: ControllerOptions): Contro
     applySimEvents(world.events.splice(0, world.events.length));
   };
 
+  /** A super move, a beam, Gear 5, the Freezer or a Saibaman seed is still playing out in the sim. */
+  const sequencePlaying = (): boolean =>
+    world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive) || world.sprouts.some((s) => s.alive);
+
   /**
-   * The match ended while a super move, a beam, Gear 5 or the Freezer played (a surrender): the sim
-   * is not stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp bursts,
-   * and the white screen, the beam, the meal or the swelling does not hold over the end screen forever.
+   * The match ended while a super move, a beam, Gear 5, the Freezer or a seed played (a surrender):
+   * the sim is not stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp
+   * bursts, and the white screen, the beam, the meal or the swelling does not hold over the end
+   * screen forever.
    */
   const endFightsAtMatchEnd = (): void => {
-    if (state.phase !== 'MatchEnd' || !(world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive))) return;
+    if (state.phase !== 'MatchEnd' || !sequencePlaying()) return;
     cancelCombos(world);
     cancelBeams(world);
     cancelDevours(world);
     cancelHexes(world);
+    cancelSprouts(world);
     drainSimAfterFire();
   };
 
@@ -468,13 +516,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
   /** The muzzle flash, recoil and casing of a shot: a presentation beat, nothing the sim reads. */
   const announceShot = (body: { readonly id: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }, weapon: WeaponId, angleDeg: number): void => {
     const def = getWeapon(weapon);
-    // Nothing leaves the worm's hands for a utility, a super move or an air strike (it comes from
-    // the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
-    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined) return;
+    // Nothing leaves the worm's hands for a utility, a super move, a seed or an air strike (it comes
+    // from the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
+    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined) return;
     events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
   };
 
-  /** Closes a super move's shot once the sim has played the combo, the beam, the meal or the burst out. */
+  /** Closes a super move's shot once the sim has played the combo, the beam, the meal, the burst or the sprouting out. */
   const stepSequence = (): void => {
     const weapon = pending.sequence;
     if (weapon === null) return;
@@ -482,7 +530,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       pending.sequence = null;
       return;
     }
-    if (world.combos.some((combo) => combo.alive) || world.beams.some((beam) => beam.alive) || world.devours.some((devour) => devour.alive) || world.hexes.some((hex) => hex.alive)) return;
+    if (sequencePlaying()) return;
     pending.sequence = null;
     const activeWorm = activeWormOf(state);
     const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);
@@ -545,7 +593,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const buildSnapshot = (): SnapshotInput => {
     const active = activeWormOf(state);
     const team = activeTeamOf(state);
-    const worms = world.worms.map((b) => ({ id: b.id, teamId: b.teamId, x: b.x, y: b.y, hp: hpOf(b.id), alive: b.alive && hpOf(b.id) > 0 }));
+    const worms = world.worms.map((b) => ({ id: b.id, teamId: b.teamId, x: b.x, y: b.y, hp: hpOf(b.id), alive: b.alive && hpOf(b.id) > 0, size: b.size }));
     return {
       matchId: `match-${state.seed}`,
       turn: state.turn,
@@ -577,9 +625,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
     cpuBusy = true;
     void decideCpuTurn(buildSnapshot(), options.cpu, cpuState).then((decision) => {
       const plan = buildPlan(decision.response);
-      const body = activeWormOf(state);
-      const simBody = body === undefined ? undefined : findBody(world, body.id);
-      if (simBody !== undefined) simBody.facing = plan.facing;
+      // The worm turns to its target once it is done walking: set now, the walk would turn it back.
+      pending.fireFacing = plan.facing;
       const walk = plan.steps.filter((s) => s.kind === 'move').flatMap((s) => (s.kind === 'move' ? Array.from({ length: s.ticks }, () => s.intent) : []));
       // The request carried the budget and the sanitizer clamped to it; this cap is the last line
       // of defence so the queue never holds a walk the sim would cut short (backlog 4.4).
@@ -675,6 +722,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
           if (pending.refireTicks > 0) pending.refireTicks -= 1;
           if (pending.walk.length === 0 && pending.fireAfterWalk !== null && pending.fireWeapon !== null && !cpuBusy && pending.refireTicks === 0) {
             const weapon = pending.fireWeapon;
+            const cpuWorm = activeWormOf(state);
+            const cpuBody = cpuWorm === undefined ? undefined : findBody(world, cpuWorm.id);
+            if (cpuBody !== undefined) cpuBody.facing = pending.fireFacing;
             aim = setAngle(aim, pending.fireAfterWalk.angleDeg);
             startShot(weapon, pending.fireAfterWalk);
             // A two barrel weapon brings the reducer back to Active with a shot still owed: keep

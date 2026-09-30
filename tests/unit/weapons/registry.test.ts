@@ -5,9 +5,9 @@ import type { WeaponDef, WeaponId } from '@/weapons/types.ts';
 import { CPU_WEAPON_META } from '../../../sidecar/weapon-meta.ts';
 
 /**
- * The 30 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
- * cannon, napalm gun, sonic blast gun and the four supers, Ryuko Ranbu, the Kamehameha, the
- * Freezer and Gear 5.
+ * The 31 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
+ * cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the
+ * Freezer and Gear 5, and the Saibaman seed.
  * Spelled out rather than derived so a lost or reordered id fails here instead of silently
  * changing what F1..F9 select.
  */
@@ -36,6 +36,7 @@ const SIDECAR_IDS = [
   'dynamite',
   'mine',
   'sheep',
+  'saibaman',
   'air_strike',
   'parachute',
   'jetpack',
@@ -58,10 +59,10 @@ function isDeepFrozen(value: unknown, path = 'root'): string[] {
 }
 
 describe('weapon registry: ids', () => {
-  it('has exactly the 30 sidecar ids in panel order', () => {
+  it('has exactly the 31 sidecar ids in panel order', () => {
     expect(WEAPON_IDS).toEqual(SIDECAR_IDS);
-    expect(WEAPON_IDS).toHaveLength(30);
-    expect(PANEL_SLOTS).toBe(30);
+    expect(WEAPON_IDS).toHaveLength(31);
+    expect(PANEL_SLOTS).toBe(31);
     expect(WEAPON_IDS).toEqual(PANEL_WEAPON_IDS);
   });
 
@@ -74,10 +75,21 @@ describe('weapon registry: ids', () => {
     for (const id of WEAPON_IDS) expect(WEAPONS[id].id).toBe(id);
   });
 
-  it('splits into 25 combat weapons and 5 utilities', () => {
+  it('splits into 26 combat weapons and 5 utilities', () => {
     const utilities = WEAPON_IDS.filter((id) => WEAPONS[id].kind === 'UTILITY');
     expect(utilities).toEqual(UTILITY_IDS);
-    expect(WEAPON_IDS.length - utilities.length).toBe(25);
+    expect(WEAPON_IDS.length - utilities.length).toBe(26);
+  });
+
+  it('keeps the sprout block to the one seed, on a placed row, at half a worm', () => {
+    const sprouts = WEAPON_IDS.filter((id) => WEAPONS[id].sprout !== undefined);
+    expect(sprouts).toEqual(['saibaman']);
+    expect(WEAPONS.saibaman.kind).toBe('PLACED');
+    expect(WEAPONS.saibaman.sprout?.size).toBe(0.5);
+    expect(WEAPONS.saibaman.sprout?.hpShare).toBe(0.5);
+    // One per worm, never out of a weapon crate: the power orb is what brings another.
+    expect(WEAPONS.saibaman.ammo).toBe(1);
+    expect(WEAPONS.saibaman.crateWeight).toBe(0);
   });
 
   it('keeps the beam block to the one beam super, on a hitscan row', () => {
@@ -149,9 +161,9 @@ describe('weapon registry: data rows', () => {
     }
   });
 
-  it('draws no held sprite for the bare handed Kamehameha, Freezer and Gear 5, the air strike and the utilities only', () => {
+  it('draws no held sprite for the bare handed Kamehameha, Freezer, Gear 5 and seed, the air strike and the utilities only', () => {
     const withoutHeld = WEAPON_IDS.filter((id) => WEAPONS[id].heldSprite === null);
-    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'air_strike', ...UTILITY_IDS]);
+    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'saibaman', 'air_strike', ...UTILITY_IDS]);
   });
 
   it('gives every weapon a non empty display name and a fire cue', () => {

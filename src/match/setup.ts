@@ -78,6 +78,8 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   dynamite: 1,
   mine: 2,
   sheep: 1,
+  // One seed per worm, like the supers: it grows a Saibaman for the team.
+  saibaman: 1,
   air_strike: 1,
   parachute: 2,
   jetpack: 1,
@@ -190,6 +192,17 @@ export function buildAmmoTable(overrides: Readonly<Partial<Record<WeaponId, numb
   const table: Partial<Record<WeaponId, number>> = {};
   // Only panel weapons carry ammo; cluster children are nested inside their parent def.
   for (const id of PANEL_WEAPON_IDS) table[id] = merged[id] ?? 0;
+  // Every id was written above, so the partial is complete.
+  return Object.freeze(table) as Readonly<Record<WeaponId, number>>;
+}
+
+/**
+ * A Saibaman's loadout (sim/sprout.ts): the weapons a worm carries without limit and nothing else,
+ * no supers and no seeds of its own; crates and power orbs add to it like anyone's.
+ */
+export function saibamanAmmoTable(): Readonly<Record<WeaponId, number>> {
+  const table: Partial<Record<WeaponId, number>> = {};
+  for (const id of PANEL_WEAPON_IDS) table[id] = DEFAULT_STARTING_AMMO[id] === -1 ? -1 : 0;
   // Every id was written above, so the partial is complete.
   return Object.freeze(table) as Readonly<Record<WeaponId, number>>;
 }

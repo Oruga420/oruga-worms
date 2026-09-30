@@ -11,7 +11,7 @@ import type { MatchState } from '../match/state.ts';
 import type { SimEvent, WormBody } from '../sim/types.ts';
 import type { SimWorld } from '../sim/world.ts';
 
-/** Sim damage, drown and activity events become the match events the reducer understands. */
+/** Sim damage, drown, activity, crate and new worm events become the match events the reducer understands. */
 export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
   const out: MatchEvent[] = [];
   for (const event of events) {
@@ -33,6 +33,9 @@ export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
         break;
       case 'crateDestroyed':
         out.push({ type: 'CrateDestroyed', wasCounted: event.wasCounted });
+        break;
+      case 'wormSpawned':
+        out.push({ type: 'WormSpawned', wormId: event.wormId, teamId: event.teamId, hpShare: event.hpShare, x: Math.round(event.x), y: Math.round(event.y) });
         break;
       default:
         break;

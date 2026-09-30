@@ -34,16 +34,17 @@ import { fallDamage } from './damage.ts';
 import { applyForces, bounce, speedOf, sweepMove as sweepBodyMove } from './integrator.ts';
 import type { SimEvent, WormBody, WormIntent } from './types.ts';
 import type { SimWorld } from './world.ts';
+import { wormHalfWidth, wormHeight } from './worm-size.ts';
 
 function airborne(worm: WormBody): boolean {
   return worm.motion === 'jumping' || worm.motion === 'falling' || worm.motion === 'flying' || worm.motion === 'parachuting' || worm.motion === 'jetpacking';
 }
 
-/** Free column of WORM_HEIGHT pixels above the feet at (x, feetY). */
-export function headroomFree(mask: TerrainMask, x: number, feetY: number): boolean {
+/** Free column the worm's height tall above the feet at (x, feetY), as wide as the worm (a full worm by default). */
+export function headroomFree(mask: TerrainMask, x: number, feetY: number, height: number = WORM_HEIGHT, half: number = WORM_HALF_WIDTH): boolean {
   const cx = Math.round(x);
-  for (let dy = 1; dy <= WORM_HEIGHT; dy += 1) {
-    for (let dx = -WORM_HALF_WIDTH; dx <= WORM_HALF_WIDTH; dx += 1) {
+  for (let dy = 1; dy <= height; dy += 1) {
+    for (let dx = -half; dx <= half; dx += 1) {
       if (isSolid(mask, cx + dx, Math.round(feetY) - dy)) return false;
     }
   }
@@ -86,20 +87,30 @@ export function standingRow(mask: TerrainMask, tx: number, feet: number, half: n
  * check and the worm froze in place (3 of 10 random islands, backlog 4.5). Now that spike is a step
  * the worm stands on and walks off.
  */
-export function stepHorizontal(mask: TerrainMask, worm: WormBody, targetX: number): 'moved' | 'blocked' | 'falling' {
+/** What walking moves: a worm's feet, and its size. A worm body is one; the CPU plans walks with a stand in. */
+export interface Walker {
+  x: number;
+  y: number;
+  readonly size?: number;
+}
+
+export function stepHorizontal(mask: TerrainMask, worm: Walker, targetX: number): 'moved' | 'blocked' | 'falling' {
   const tx = Math.round(targetX);
   const feet = Math.round(worm.y);
-  const row = standingRow(mask, tx, feet, WORM_HALF_WIDTH);
+  // A Saibaman is half a worm: a narrower footprint and half the headroom, so it fits smaller holes.
+  const half = wormHalfWidth(worm);
+  const height = wormHeight(worm);
+  const row = standingRow(mask, tx, feet, half);
   if (row !== null) {
     const newFeet = row - 1;
-    if (!headroomFree(mask, tx, newFeet)) return 'blocked';
+    if (!headroomFree(mask, tx, newFeet, height, half)) return 'blocked';
     worm.x = targetX;
     worm.y = newFeet;
     return 'moved';
   }
-  if (!headroomFree(mask, tx, feet)) return 'blocked';
+  if (!headroomFree(mask, tx, feet, height, half)) return 'blocked';
   worm.x = targetX;
-  return groundBelow(mask, worm.x, worm.y, WORM_HALF_WIDTH) ? 'moved' : 'falling';
+  return groundBelow(mask, worm.x, worm.y, half) ? 'moved' : 'falling';
 }
 
 function land(worm: WormBody, landingSpeed: number, events: SimEvent[]): void {
@@ -140,7 +151,7 @@ function stepAirborne(world: SimWorld, worm: WormBody, intent: WormIntent, dt: n
   // An equipped pack survives ground contact. Waiting between activation and the first
   // thrust must not discard it, and a parked pack must still let the turn settle.
   if (worm.motion === 'jetpacking' && worm.fuelMs > 0 && worm.onGround && !intent.thrust && intent.moveX === 0
-    && groundBelow(mask, worm.x, worm.y, WORM_HALF_WIDTH)) {
+    && groundBelow(mask, worm.x, worm.y, wormHalfWidth(worm))) {
     worm.vx = 0;
     worm.vy = 0;
     worm.restTicks += 1;
@@ -223,7 +234,7 @@ function stepGrounded(world: SimWorld, worm: WormBody, intent: WormIntent, dt: n
     worm.restTicks = 0;
     return;
   }
-  if (!groundBelow(mask, worm.x, worm.y, WORM_HALF_WIDTH)) {
+  if (!groundBelow(mask, worm.x, worm.y, wormHalfWidth(worm))) {
     worm.motion = 'falling';
     worm.onGround = false;
     worm.fallStartY = worm.y;

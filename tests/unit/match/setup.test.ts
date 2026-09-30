@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '@/core/rng.ts';
-import { buildAmmoTable, buildInitialState, validateSetup, type MatchSetup, type TeamSetup } from '@/match/setup.ts';
+import { buildAmmoTable, buildInitialState, saibamanAmmoTable, validateSetup, type MatchSetup, type TeamSetup } from '@/match/setup.ts';
 import { applySpawnPoints, placeWorms, spawnOptions } from '@/match/spawn.ts';
 
 function team(name: string, colorIndex: 0 | 1 | 2 | 3, worms: readonly string[]): TeamSetup {
@@ -67,7 +67,16 @@ describe('buildInitialState', () => {
     expect(table.mortar).toBe(1);
     expect(table.bazooka).toBe(-1);
     expect(table.minigun).toBe(0);
-    expect(Object.keys(table)).toHaveLength(30);
+    expect(Object.keys(table)).toHaveLength(31);
+  });
+
+  it("gives a Saibaman the unlimited weapons and nothing else: no supers, no seed", () => {
+    const table = saibamanAmmoTable();
+    expect(Object.keys(table)).toHaveLength(31);
+    expect(table.bazooka).toBe(-1);
+    expect(table.grenade).toBe(-1);
+    expect(table.skip_go).toBe(-1);
+    for (const id of ['kamehameha', 'freezer', 'ryuko_ranbu', 'gear_five', 'saibaman', 'holy_hand_grenade', 'mine'] as const) expect(table[id]).toBe(0);
   });
 });
 

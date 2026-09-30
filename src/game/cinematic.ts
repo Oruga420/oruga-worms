@@ -14,6 +14,10 @@
  * And the Freezer: the world darkens round the worm pointing as the light gathers, the camera eases
  * back for the light's flight, then closes in on the victim as it floats and more and more as it
  * swells, and pulls back out as it bursts, the dark lifting so the pieces show.
+ *
+ * A Saibaman seed gets a lighter touch: the camera leans in as the seed goes in and a little more at
+ * every crack of the ground, the world dimming a shade so the green light shows, and eases back out
+ * as the Saibaman leaps.
  */
 
 import { clamp } from '../core/math.ts';
@@ -21,7 +25,8 @@ import { beamProgress } from '../sim/beam.ts';
 import { stageProgress, ticksFor } from '../sim/combo.ts';
 import { devourProgress } from '../sim/devour.ts';
 import { hexProgress } from '../sim/hex.ts';
-import type { BeamBody, ComboBody, DevourBody, HexBody } from '../sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody, SproutBody } from '../sim/types.ts';
+import { sproutProgress } from '../sim/sprout.ts';
 import { drumBounce } from './gear-five.ts';
 
 export interface Cinematic {
@@ -109,7 +114,25 @@ function hexCinematic(hex: HexBody): Cinematic {
   }
 }
 
-export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = []): Cinematic {
+/** How close the camera gets on the ground as it shakes, a little closer at every crack. */
+const SPROUT_ZOOM = 1.2;
+const CRACK_ZOOM = 0.05;
+
+function sproutCinematic(sprout: SproutBody): Cinematic {
+  const p = sproutProgress(sprout);
+  switch (sprout.stage) {
+    case 'plant':
+      return { whiteout: 0, dim: 0, zoom: 1 + (SPROUT_ZOOM - 1) * ease(p), aura: 0 };
+    case 'grow':
+      return { whiteout: 0, dim: 0.25 * ease(p), zoom: SPROUT_ZOOM + CRACK_ZOOM * sprout.cracks, aura: 0 };
+    case 'recover': {
+      const from = SPROUT_ZOOM + (sprout.fertile ? CRACK_ZOOM * sprout.cracks : 0);
+      return { whiteout: 0, dim: 0.25 * (1 - ease(p / 0.4)) * (sprout.fertile ? 1 : 0), zoom: from - (from - 1) * ease(p), aura: 0 };
+    }
+  }
+}
+
+export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = [], sprouts: readonly SproutBody[] = []): Cinematic {
   const combo = combos.find((c) => c.alive);
   if (combo === undefined) {
     const beam = beams.find((b) => b.alive);
@@ -117,7 +140,9 @@ export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamB
     const devour = devours.find((d) => d.alive);
     if (devour !== undefined) return devourCinematic(devour);
     const hex = hexes.find((h) => h.alive);
-    return hex === undefined ? NO_CINEMATIC : hexCinematic(hex);
+    if (hex !== undefined) return hexCinematic(hex);
+    const sprout = sprouts.find((s) => s.alive);
+    return sprout === undefined ? NO_CINEMATIC : sproutCinematic(sprout);
   }
   const p = stageProgress(combo);
   const landed = combo.victimId !== null;

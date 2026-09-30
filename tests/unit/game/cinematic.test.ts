@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NO_CINEMATIC, cinematicFor } from '@/game/cinematic.ts';
-import type { BeamBody, BeamStage, ComboBody, ComboStage, DevourBody, DevourStage, HexBody, HexStage } from '@/sim/types.ts';
+import type { BeamBody, BeamStage, ComboBody, ComboStage, DevourBody, DevourStage, HexBody, HexStage, SproutBody, SproutStage } from '@/sim/types.ts';
 import { drumTicks } from '@/sim/devour.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 
@@ -221,5 +221,47 @@ describe('cinematic: the freezer', () => {
 
   it('gives way to Gear 5 when both play', () => {
     expect(cinematicFor([], [], [devour('chew', 5)], [hex('point', 1)]).zoom).toBeGreaterThan(1.3);
+  });
+});
+
+describe('cinematic: the saibaman seed', () => {
+  const SPEC = WEAPONS.saibaman.sprout!;
+  const ticks = (ms: number): number => Math.max(1, Math.round((ms * 60) / 1000));
+  const seed = (stage: SproutStage, stageTicks: number, extra: Partial<SproutBody> = {}): SproutBody => ({
+    id: 9,
+    weaponId: 'saibaman',
+    planterId: 'a',
+    teamId: 't',
+    spec: SPEC,
+    stage,
+    stageTicks,
+    holdX: 0,
+    holdY: 0,
+    facing: 1,
+    spotX: 22,
+    spotY: 0,
+    fertile: true,
+    cracks: 0,
+    sproutId: null,
+    alive: true,
+    ...extra,
+  });
+
+  it('leans in as the seed goes in and a little more at every crack, never with a white screen', () => {
+    const start = cinematicFor([], [], [], [], [seed('plant', 1)]);
+    const planted = cinematicFor([], [], [], [], [seed('plant', ticks(SPEC.plantMs))]);
+    expect(planted.zoom).toBeGreaterThan(start.zoom);
+    const one = cinematicFor([], [], [], [], [seed('grow', 30, { cracks: 1 })]);
+    const three = cinematicFor([], [], [], [], [seed('grow', 80, { cracks: 3 })]);
+    expect(three.zoom).toBeGreaterThan(one.zoom);
+    expect(three.dim).toBeGreaterThan(0);
+    expect(three.whiteout).toBe(0);
+  });
+
+  it('eases back out as the Saibaman leaps and lets go at the end, and gives way to the supers', () => {
+    const leap = cinematicFor([], [], [], [], [seed('recover', 1, { cracks: 3, sproutId: 's' })]);
+    expect(leap.zoom).toBeGreaterThan(1.2);
+    expect(cinematicFor([], [], [], [], [seed('recover', ticks(SPEC.recoverMs), { cracks: 3 })])).toEqual({ ...NO_CINEMATIC, dim: 0 });
+    expect(cinematicFor([], [], [], [], [{ ...seed('grow', 5), alive: false }])).toBe(NO_CINEMATIC);
   });
 });

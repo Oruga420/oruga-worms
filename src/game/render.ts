@@ -29,7 +29,9 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { BeamBody, ComboBody, DevourBody, HexBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, CrateKind, DevourBody, HexBody, ProjectileBody, SproutBody, WormMotion } from '../sim/types.ts';
+import { sproutProgress } from '../sim/sprout.ts';
+import { wormHalfWidth, wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { beamProgress } from '../sim/beam.ts';
 import { devourHand, devourProgress } from '../sim/devour.ts';
 import { hexLight, hexProgress } from '../sim/hex.ts';
@@ -62,6 +64,8 @@ import {
   type MouthLook,
 } from './gear-five.ts';
 import { HEX_PINK, TYRANT_WHITE, drawHexLight, drawHexTrail, drawInnerGlow, drawTyrantDome, innerGlow, swelling, tipCharge, tremble, tyrantForm } from './freezer.ts';
+import { drawPowerOrb } from './power-orb.ts';
+import { SAIBA_GREEN, SAIBA_SKIN_ALPHA, drawSproutScene, isSaibaman, seedHand } from './saibaman.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -196,6 +200,13 @@ export function hexRoles(hexes: readonly HexBody[]): Map<string, HexRole> {
   return roles;
 }
 
+/** Who is planting a seed right now, by worm id: until the Saibaman is out or the seed has wilted. */
+export function sproutRoles(sprouts: readonly SproutBody[]): Map<string, SproutBody> {
+  const roles = new Map<string, SproutBody>();
+  for (const sprout of sprouts) if (sprout.alive && sprout.stage !== 'recover') roles.set(sprout.planterId, sprout);
+  return roles;
+}
+
 /** How a worm stands to use a weapon: the sheets have a hold pose per family. */
 export function holdPose(weapon: WeaponId): string {
   const def = getWeapon(weapon);
@@ -230,6 +241,8 @@ export interface PoseInput {
   readonly devour?: DevourRole | undefined;
   /** This worm's part in the Freezer, pointing or swelling up. */
   readonly hex?: HexRole | undefined;
+  /** The seed this worm is planting, reaching out and kneeling to push it in, then watching the ground. */
+  readonly sprout?: SproutBody | undefined;
   /** The weapon the worm is aiming, when it is the active worm on its turn. */
   readonly aiming?: WeaponId | null;
   /** The match is over and this worm's team won. */
@@ -364,6 +377,23 @@ function devourPose(input: PoseInput, role: DevourRole): WormPose {
  * is in, it gasps and trembles, pink from inside, as it floats and swells about its middle, faster
  * and faster, until it bursts.
  */
+/**
+ * The planter: it holds the seed out, kneels and pushes it into the ground in front, leaning over
+ * it; then straightens up to watch the ground shake, and cheers as it gives.
+ */
+function sproutPose(input: PoseInput, sprout: SproutBody): WormPose {
+  const base: WormPose = { frame: 'idle_a', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
+  const p = sproutProgress(sprout);
+  if (sprout.stage === 'plant') {
+    if (p < 0.3) return { ...base, frame: 'hold_throw', offsetX: sprout.facing * p * 3 };
+    const kneel = Math.sin(clamp((p - 0.3) / 0.7, 0, 1) * Math.PI);
+    return { ...base, frame: 'jump_land', stretchX: 1 + kneel * 0.14, stretchY: 1 - kneel * 0.2, offsetX: sprout.facing * (1 + kneel * 1.5) };
+  }
+  // The ground shakes: it watches, bobbing with the tremors, and throws its arms up at the last crack.
+  const bob = Math.abs(Math.sin(input.timeMs / 90)) * 0.6;
+  return { ...base, frame: sprout.cracks >= sprout.spec.cracks ? 'taunt' : 'idle_a', offsetY: -bob };
+}
+
 function hexPose(input: PoseInput, role: HexRole): WormPose {
   const { hex } = role;
   const base: WormPose = { frame: 'idle_a', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
@@ -410,6 +440,7 @@ export function poseFor(input: PoseInput): WormPose {
   if (input.beam !== undefined) return beamPose(input, input.beam);
   if (input.devour !== undefined) return devourPose(input, input.devour);
   if (input.hex !== undefined) return hexPose(input, input.hex);
+  if (input.sprout !== undefined) return sproutPose(input, input.sprout);
   const plain: WormPose = { frame: wormFrameId(worm, timeMs), rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
   // The hit flash rides on whatever the body is doing: white for a moment, then red, fading.
   const hurtMs = anim?.hurtMs ?? Infinity;
@@ -461,7 +492,7 @@ export function poseFor(input: PoseInput): WormPose {
     return { ...plain, frame: holdPose(input.aiming), stretchY: breath + pop * 0.08, stretchX: 1 - pop * 0.04 };
   }
   // A badly hurt worm winces now and then.
-  if (worm.hp > 0 && worm.hp < GAME_CONFIG.wormHp * 0.3 && Math.floor((timeMs + worm.x * 37) / 400) % 6 === 0) return { ...plain, frame: 'hurt', stretchY: breath };
+  if (worm.hp > 0 && worm.hp < (worm.maxHp ?? GAME_CONFIG.wormHp) * 0.3 && Math.floor((timeMs + worm.x * 37) / 400) % 6 === 0) return { ...plain, frame: 'hurt', stretchY: breath };
   return { ...plain, stretchY: breath };
 }
 
@@ -605,6 +636,12 @@ export interface WormVisual {
   readonly colorIndex: number;
   /** Stable per worm seed for where its wounds sit. */
   readonly seed?: number;
+  /** 1 for a worm (when absent), less for a Saibaman: drawn that much smaller. */
+  readonly size?: number;
+  /** A colour washed over the whole body (the Saibaman's green), under the hit flash. */
+  readonly skin?: string | null;
+  /** Its full health (half a worm's for a Saibaman), for how hurt it looks; a worm's when absent. */
+  readonly maxHp?: number;
 }
 
 /** How one worm is drawn this frame beyond its pose. */
@@ -675,7 +712,8 @@ function drawComposite(ctx: Ctx2D, set: CharacterSprites, frame: AtlasFrame, piv
 }
 
 function drawWorm(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, look: WormLook, timeMs: number, sprites?: ReadonlyMap<number, CharacterSprites>, scratch?: Scratch | null): void {
-  const z = camera.zoom;
+  // A Saibaman is the same worm drawn smaller: every size below goes through z.
+  const z = camera.zoom * (worm.size ?? 1);
   const pose = look.pose;
   const feet = worldToScreen(camera, viewport, { x: worm.x + pose.offsetX, y: worm.y + pose.offsetY });
   const walking = Math.abs(worm.vx) > 5;
@@ -709,8 +747,10 @@ function drawWorm(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, 
         stretchX: pose.stretchX,
         stretchY: pose.stretchY,
       };
-      const tint = look.silhouette ?? pose.tint;
-      const tintAlpha = look.silhouette !== undefined ? 1 : pose.tintAlpha;
+      // The hit flash wins over the skin; the skin over nothing.
+      const skinned = pose.tint === null && worm.skin !== undefined && worm.skin !== null;
+      const tint = look.silhouette ?? (skinned ? worm.skin ?? null : pose.tint);
+      const tintAlpha = look.silhouette !== undefined ? 1 : skinned ? SAIBA_SKIN_ALPHA : pose.tintAlpha;
       const wounds = look.silhouette !== undefined ? 0 : look.wounds;
       if (scratch !== undefined && scratch !== null && (wounds > 0 || (tint !== null && tintAlpha > 0))) {
         drawComposite(ctx, set, frame, set.atlas.pivotOf(frame), options, scratch, { wounds, seed: worm.seed ?? 0, tint, tintAlpha });
@@ -746,7 +786,7 @@ function drawWorm(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, 
 
   // Body with a dark outline, a lit belly and a shaded back.
   ellipsePath(ctx, 0, 0, bodyRx, bodyH * 0.5);
-  ctx.fillStyle = silhouette ?? (pose.tint !== null && pose.tintAlpha > 0.3 ? pose.tint : WORM_SKIN);
+  ctx.fillStyle = silhouette ?? (pose.tint !== null && pose.tintAlpha > 0.3 ? pose.tint : worm.skin ?? WORM_SKIN);
   ctx.fill();
   if (silhouette !== undefined) {
     ctx.restore();
@@ -845,16 +885,16 @@ function aimDirection(angleDeg: number, facing: number): { readonly x: number; r
  * wedge from yellow to red that grows with the power, so the aim and the power read at the worm
  * instead of only in the HUD corner.
  */
-function drawAim(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, angleDeg: number, facing: number, power: number, timeMs: number, armColor: string): void {
+function drawAim(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, angleDeg: number, facing: number, power: number, timeMs: number, armColor: string, size = 1): void {
   const z = camera.zoom;
-  const shoulder = worldToScreen(camera, viewport, { x, y: y - WORM_HEIGHT * 0.55 });
+  const shoulder = worldToScreen(camera, viewport, { x, y: y - WORM_HEIGHT * size * 0.55 });
   const dir = aimDirection(angleDeg, facing);
 
   // The arm: a short thick stub from the shoulder in the aim direction, in the body's colour.
-  const armLen = 10 * z;
+  const armLen = 10 * z * size;
   const hand = { x: shoulder.x + dir.x * armLen, y: shoulder.y + dir.y * armLen };
   ctx.strokeStyle = armColor;
-  ctx.lineWidth = Math.max(2, 3 * z);
+  ctx.lineWidth = Math.max(2, 3 * z * size);
   ctx.beginPath();
   ctx.moveTo(shoulder.x, shoulder.y);
   ctx.lineTo(hand.x, hand.y);
@@ -902,20 +942,21 @@ function drawAim(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: numbe
  * Laser sight for the guns: a thin red beam from the muzzle to the first land or worm it meets,
  * with a dot where the round would land; brighter when it is on a worm.
  */
-function drawLaser(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, body: { readonly id: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }, angleDeg: number, timeMs: number): void {
+function drawLaser(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, body: SimWorld['worms'][number], angleDeg: number, timeMs: number): void {
   const dir = aimDirection(angleDeg, body.facing);
-  const mx = body.x + body.facing * 6;
-  const my = body.y - WORM_HEIGHT * 0.6;
+  // The muzzle and the hit test the guns use (behaviors/types.ts muzzlePoint, hitscan.ts), a Saibaman's smaller body included.
+  const mx = body.x + body.facing * 6 * body.size;
+  const my = body.y - wormHeight(body) * 0.6;
   const wall = sweep(world.terrain.mask, mx, my, mx + dir.x * LASER_PX, my + dir.y * LASER_PX, 0);
   let reach = wall.hit === null ? LASER_PX : Math.hypot(wall.x - mx, wall.y - my);
   let onWorm = false;
   for (const other of world.worms) {
     if (!other.alive || other.id === body.id) continue;
     const ox = other.x;
-    const oy = other.y - WORM_HEIGHT / 2;
+    const oy = wormMiddleY(other);
     const t = (ox - mx) * dir.x + (oy - my) * dir.y;
     if (t < 0 || t > reach) continue;
-    if (Math.hypot(mx + dir.x * t - ox, my + dir.y * t - oy) <= WORM_HALF_WIDTH + 2) {
+    if (Math.hypot(mx + dir.x * t - ox, my + dir.y * t - oy) <= wormHalfWidth(other) + 2) {
       reach = t;
       onWorm = true;
     }
@@ -939,8 +980,8 @@ function drawLaser(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, 
 }
 
 /** A melee weapon's reach: a faint arc in front of the worm where a blow connects. */
-function drawReach(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, facing: 1 | -1, reachPx: number): void {
-  const c = worldToScreen(camera, viewport, { x, y: y - WORM_HEIGHT / 2 });
+function drawReach(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, facing: 1 | -1, reachPx: number, size = 1): void {
+  const c = worldToScreen(camera, viewport, { x, y: y - (WORM_HEIGHT * size) / 2 });
   const from = facing === 1 ? -1.3 : Math.PI - 0.5;
   const to = facing === 1 ? 0.5 : Math.PI + 1.3;
   ctx.save();
@@ -958,7 +999,7 @@ function drawReach(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: num
  */
 function drawLock(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, body: SimWorld['worms'][number], rangePx: number, timeMs: number): void {
   const z = camera.zoom;
-  const c = worldToScreen(camera, viewport, { x: body.x, y: body.y - WORM_HEIGHT / 2 });
+  const c = worldToScreen(camera, viewport, { x: body.x, y: wormMiddleY(body) });
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 210, 60, 0.55)';
   ctx.lineWidth = 1.5;
@@ -971,9 +1012,9 @@ function drawLock(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, b
   }
   const target = lockTarget(world, body, rangePx);
   if (target !== null) {
-    const t = worldToScreen(camera, viewport, { x: target.x, y: target.y - WORM_HEIGHT / 2 });
+    const t = worldToScreen(camera, viewport, { x: target.x, y: wormMiddleY(target) });
     const pulse = 1 - ((timeMs / 500) % 1) * 0.35;
-    const r = 11 * z * pulse;
+    const r = 11 * z * pulse * (0.4 + 0.6 * target.size);
     const arm = r * 0.45;
     ctx.strokeStyle = '#ff2626';
     ctx.lineWidth = Math.max(1.5, 0.9 * z);
@@ -1258,14 +1299,15 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
 
   const phase = model.state.phase;
   const activeId = activeWormOf(model.state)?.id;
-  const infoById = new Map<string, { hp: number; color: string; name: string; colorIndex: number; teamId: string }>();
-  for (const team of model.state.teams) for (const worm of team.worms) infoById.set(worm.id, { hp: worm.hp, color: teamColor(team.colorIndex), name: worm.name, colorIndex: team.colorIndex, teamId: team.id });
+  const infoById = new Map<string, { hp: number; maxHp: number; color: string; name: string; colorIndex: number; teamId: string }>();
+  for (const team of model.state.teams) for (const worm of team.worms) infoById.set(worm.id, { hp: worm.hp, maxHp: worm.maxHp, color: teamColor(team.colorIndex), name: worm.name, colorIndex: team.colorIndex, teamId: team.id });
   const winnerTeam = phase === 'MatchEnd' ? model.state.teams.find((team) => team.worms.some((worm) => worm.alive))?.id : undefined;
   const fights = fightRoles(model.world.combos ?? []);
   const beamers = new Map<string, BeamBody>();
   for (const beam of model.world.beams ?? []) if (beam.alive) beamers.set(beam.attackerId, beam);
   const devours = devourRoles(model.world.devours ?? []);
   const hexes = hexRoles(model.world.hexes ?? []);
+  const planters = sproutRoles(model.world.sprouts ?? []);
   // The Freezer's worms drawn with the rest of its scene, on top of everything.
   const hexDrawn = new Set<string>();
   const aimingPhase = phase === 'Active' || phase === 'Firing';
@@ -1282,7 +1324,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const hex = hexRole !== undefined && !(hexRole.role === 'caster' && hexRole.hex.stage === 'recover' && body.motion === 'flying') ? hexRole : undefined;
     // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5 chewing it.
     if (info.hp <= 0 && fight === undefined && devour === undefined) continue;
-    const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id) };
+    const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id), size: body.size, skin: isSaibaman(body) ? SAIBA_GREEN : null, maxHp: info.maxHp };
     const pose = poseFor({
       worm: visual,
       anim: model.anim?.(body.id),
@@ -1290,11 +1332,12 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       beam: beamers.get(body.id),
       devour,
       hex,
+      sprout: planters.get(body.id),
       aiming: body.id === activeId && phase === 'Active' && model.weapon !== undefined ? model.weapon : null,
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
     });
-    const wounds = model.gore === false ? 0 : (fight?.role === 'victim' || devour?.role === 'prey') && info.hp <= 0 ? 1 : woundLevel(info.hp);
+    const wounds = model.gore === false ? 0 : (fight?.role === 'victim' || devour?.role === 'prey') && info.hp <= 0 ? 1 : woundLevel(info.hp, info.maxHp);
     visuals.set(body.id, { visual, pose, wounds });
     // Gear 5's worms and the Freezer's are drawn with the rest of their scene, on top of everything.
     if (hex !== undefined) hexDrawn.add(body.id);
@@ -1304,6 +1347,11 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     if (!crate.alive) continue;
     drawCrate(ctx, viewport, camera, crate.x, crate.y, crate.kind, crate.landed, model);
   }
+  // Saibaman seeds: the seed going in, the mound, the cracks and the light through them.
+  for (const sprout of model.world.sprouts ?? []) {
+    if (!sprout.alive) continue;
+    drawSproutScene(ctx, sprout, worldToScreen(camera, viewport, { x: sprout.spotX, y: sprout.spotY }), worldToScreen(camera, viewport, seedHand(sprout)), camera.zoom, model.timeMs);
+  }
   for (const mine of model.world.mines) drawMine(ctx, viewport, camera, mine, model);
   for (const projectile of model.world.projectiles) drawProjectile(ctx, viewport, camera, projectile, model);
   for (const sheep of model.world.sheep) {
@@ -1312,7 +1360,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
 
   const activeBody = activeId === undefined ? undefined : model.world.worms.find((b) => b.id === activeId);
-  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id) && !hexes.has(activeBody.id)) {
+  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id) && !hexes.has(activeBody.id) && !planters.has(activeBody.id)) {
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
       if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
@@ -1320,14 +1368,14 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       else if (def.devour !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.devour.rangePx, model.timeMs);
       else if (def.hex !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.hex.rangePx, model.timeMs);
       else if (def.kind === 'HITSCAN') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs);
-      else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx);
+      else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx, activeBody.size);
     }
-    // Utilities, the air strike and the supers that lock do not aim: the crosshair or the lock says it all.
-    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined);
+    // Utilities, the air strike, the supers that lock and the seed do not aim: the crosshair or the lock says it all.
+    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined);
     const colorIndex = infoById.get(activeBody.id)?.colorIndex ?? 0;
     const armColor = model.sprites?.has(colorIndex) === true ? bodyPalette(colorIndex).skin : WORM_SKIN;
-    if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, armColor);
-    drawHeldWeapon(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model, activeBody.id);
+    if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, isSaibaman(activeBody) ? SAIBA_GREEN : armColor, activeBody.size);
+    drawHeldWeapon(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model, activeBody.id, activeBody.size);
     drawWeaponLabel(ctx, viewport, camera, activeBody.x, activeBody.y, model, activeBody.id);
   }
   if (model.targeting === true && model.pointer !== undefined && phase === 'Active') {
@@ -1646,11 +1694,16 @@ function drawCrosshair(ctx: Ctx2D, viewport: Size, camera: Camera, pointer: { re
  * A supply crate: the weapon atlas's crate icon when it has loaded (health or weapon; the utility
  * crate borrows the weapon icon), otherwise a boxed primitive, both about a worm wide so the
  * player can see it. While it falls a canopy hangs over it. Before this a crate was a 12 px
- * rectangle with no parachute, which is why "crates never fall" was the report.
+ * rectangle with no parachute, which is why "crates never fall" was the report. The power orb
+ * needs no parachute: it comes down glowing (power-orb.ts).
  */
-function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, kind: 'weapon' | 'health' | 'utility', landed: boolean, model: RenderModel): void {
+function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, kind: CrateKind, landed: boolean, model: RenderModel): void {
   const p = worldToScreen(camera, viewport, { x, y });
   const z = camera.zoom;
+  if (kind === 'power') {
+    drawPowerOrb(ctx, p.x, p.y, z, model.timeMs, landed);
+    return;
+  }
   const size = 14 * z;
   const sprites = model.weaponSprites;
   const frameId = kind === 'health' ? 'weapon_icon_crate_health' : 'weapon_icon_crate_weapon';
@@ -1720,7 +1773,7 @@ function drawSheep(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: num
  * angle flips with it. A shot kicks it back along the aim and a new pick pops it in; nothing is
  * drawn when the atlas is missing or the weapon has no held layer.
  */
-function drawHeldWeapon(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, angleDeg: number, facing: number, model: RenderModel, wormId: string): void {
+function drawHeldWeapon(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, angleDeg: number, facing: number, model: RenderModel, wormId: string, size = 1): void {
   const sprites = model.weaponSprites;
   if (sprites === undefined || sprites === null || model.weapon === undefined) return;
   const frameId = getWeapon(model.weapon).heldSprite;
@@ -1730,9 +1783,9 @@ function drawHeldWeapon(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y
   const anim = model.anim?.(wormId);
   const kick = anim === undefined ? 0 : Math.max(0, 1 - anim.firedMs / 150) * 4;
   const pop = anim === undefined ? 0 : Math.max(0, 1 - anim.switchedMs / 220);
-  const shoulder = worldToScreen(camera, viewport, { x, y: y - WORM_HEIGHT * 0.55 });
+  const shoulder = worldToScreen(camera, viewport, { x, y: y - WORM_HEIGHT * size * 0.55 });
   const a = degToRad(angleDeg);
-  const armLen = (10 - kick) * camera.zoom;
+  const armLen = (10 - kick) * camera.zoom * size;
   const hand = { x: shoulder.x + Math.cos(a) * facing * armLen, y: shoulder.y - Math.sin(a) * armLen };
   const flipX = facing === -1;
   // The kick also tips the muzzle up for a moment.
@@ -1740,7 +1793,7 @@ function drawHeldWeapon(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y
   drawSprite(ctx, sprites.image, frame, sprites.atlas.pivotOf(frame), {
     x: hand.x,
     y: hand.y,
-    zoom: camera.zoom,
+    zoom: camera.zoom * size,
     flipX,
     rotation: flipX ? a + tip : -a - tip,
     scale: 1 + pop * 0.45,

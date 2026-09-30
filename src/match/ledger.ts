@@ -28,6 +28,7 @@ export type MatchLogKind =
   | 'death.queued'
   | 'death.killed'
   | 'death.drowned'
+  | 'worm.spawned'
   | 'crate.drop'
   | 'crate.landed'
   | 'crate.picked'

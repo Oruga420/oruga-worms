@@ -29,11 +29,31 @@ and start the match.
 | Kamehameha | Pick it in Weapons, aim with ▲ ▼, then press and release FIRE |
 | Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal |
 | Freezer | Pick it in Weapons, then press and release FIRE: the light finds its own victim |
+| Saibaman seed | Pick it in Weapons (Animals), then press and release FIRE: it is planted in front |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **Saibaman seed** (one per worm, unlocked from turn 2, in the Animals row). The worm holds a seed
+  out and kneels to push it into the ground a stride in front of it; the ground shakes and cracks
+  three times, green light shining up through the cracks, and a Saibaman leaps out of the crater
+  (¡SAIBAMAN!, KEKEKE!): a small green worm with half a worm's health (50) and half its size, so a
+  smaller target that fits through gaps a worm cannot. It joins the planter's team and takes its own
+  turns, with the unlimited weapons (bazooka, grenade, guns, fire punch, skip go) and whatever crates
+  and power orbs bring it. With no ground in front it goes in nearer or behind; a team is capped at
+  eight living worms, and a seed planted past that wilts (NO ROOM!). The CPU plants one when it has
+  no better shot.
+- **Power orbs**: about one supply drop in three is now an orange ball with four red stars that
+  falls out of the sky like a comet and floats glowing where it lands (POWER INCOMING in gold). The
+  worm that takes it gets a super back: one it has already used if any (Ryuko Ranbu, the
+  Kamehameha, Gear 5, the Freezer or the Saibaman seed), otherwise one more of any, and the name
+  rises over it (+1 KAMEHAMEHA!). Every crate now says what it gave (+1 BAZOOKA, +25).
+- **CPU worms move**: before they shoot they walk to a better spot and turn to face enemies behind
+  them, and with nothing to shoot at they close in instead of standing still.
+- Crates now land on the land. The top of the world is a thin bedrock ceiling, and every crate used
+  to come to rest on it, off the top of the screen; the air strike's bombs also went off up there
+  instead of on the target. Both come down under it now.
 - **Freezer**, a super after Frieza's finger (one per worm, unlocked from turn 5). The worm takes
   the emperor's last form (white, a purple dome on its head, a dark purple aura) and holds out a
   finger while a pink light gathers on its tip. The light flies to the nearest enemy in plain sight
@@ -76,7 +96,8 @@ and start the match.
   weapons, and the name of a newly picked weapon over the worm.
 - Each worm carries its own ammunition and remembers its selected weapon.
 - A random supply crate parachutes down after every three completed turns. Contents can be
-  weapons, utilities, or health. The worm that collects a crate receives the reward.
+  weapons, utilities, health, or a power orb that recharges a super. The worm that collects a
+  crate receives the reward.
 - Supply drops respect the five-crate map limit; health drops stop during sudden death.
 - The HUD identifies the active inventory, shows ammunition, and counts down to the next drop.
 - Fuse selection for supported explosives uses keys 1–5 and is shown in the HUD.
@@ -114,6 +135,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Kamehameha | Select it in the inventory, aim with Up/Down, then press and release Space |
 | Gear 5 | Select it in the inventory, then press and release Space |
 | Freezer | Select it in the inventory, then press and release Space |
+| Saibaman seed | Select it in the inventory, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -155,6 +177,11 @@ heuristic remains available. Never commit real `.env` files or API keys.
 - `src/sim/hex.ts`, `src/weapons/behaviors/hex.ts`, `src/game/freezer.ts`: the Freezer's timeline
   (the light, the float, the swell and the burst), its lock, and its look (the emperor's form, the
   pink light, the glow and the swelling).
+- `src/sim/sprout.ts`, `src/weapons/behaviors/sprout.ts`, `src/game/saibaman.ts`: the Saibaman
+  seed's timeline (the planting, the cracks, the leap), where it goes in, and its look (the seed,
+  the mound, the cracks and the light through them); `src/sim/worm-size.ts` makes a small worm a
+  small target everywhere.
+- `src/game/power-orb.ts`, `src/match/crates.ts`: the power orb's look, and what it recharges.
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

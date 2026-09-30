@@ -47,18 +47,21 @@ export const MUSIC_ITEM: MusicItem = Object.freeze({
  * more stylised than the sergeant so it strains and soars, and slowed so the vowels stretch. The
  * beam's charge (weapons/defs/firearms.ts) is timed to the chant's length. The same voice screams
  * for a friend lost when the Freezer's victim bursts, and the emperor laughs over it in the
- * comedic bank's nerd, pitched up into a sneer.
+ * comedic bank's nerd, pitched up into a sneer. The same nerd, pitched higher still, is the
+ * Saibaman's cackle as it leaps out of the ground.
  */
 const SUPER_VOICE_NAME = 'Harry - Fierce Warrior';
 const EMPEROR_VOICE_NAME = 'Timmy - Anxious Nerd';
 const CHANT_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.25, similarity_boost: 0.75, style: 0.8, use_speaker_boost: true, speed: 0.8 });
 const SHOUT_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.2, similarity_boost: 0.75, style: 0.9, use_speaker_boost: true, speed: 0.9 });
 const LAUGH_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.3, similarity_boost: 0.75, style: 0.7, use_speaker_boost: true, speed: 0.85 });
+const CACKLE_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.25, similarity_boost: 0.75, style: 0.8, use_speaker_boost: true, speed: 1.1 });
 const SUPER_LINES: readonly { readonly event: string; readonly text: string; readonly settings: VoiceSettings; readonly gainDb: number; readonly voiceName: string; readonly pitchFactor: number }[] = Object.freeze([
   { event: 'kamehameha_chant', text: 'Kaaaaa... meeeeeee... haaaaaaa... meeeeeeee...', settings: CHANT_SETTINGS, gainDb: 0, voiceName: SUPER_VOICE_NAME, pitchFactor: 1.05 },
   { event: 'kamehameha_ha', text: 'HAAAAAAAAAAAA!!!!!!!!', settings: SHOUT_SETTINGS, gainDb: 2, voiceName: SUPER_VOICE_NAME, pitchFactor: 1.05 },
   { event: 'freezer_krilin', text: 'KRILIIIIIIIIN!!!!!!', settings: SHOUT_SETTINGS, gainDb: 2, voiceName: SUPER_VOICE_NAME, pitchFactor: 1.05 },
   { event: 'freezer_laugh', text: 'Ohohohohoho... ohohohohoho!', settings: LAUGH_SETTINGS, gainDb: 0, voiceName: EMPEROR_VOICE_NAME, pitchFactor: 1.2 },
+  { event: 'saibaman_kekeke', text: 'Kekekekeke! Kekekeke!', settings: CACKLE_SETTINGS, gainDb: 0, voiceName: EMPEROR_VOICE_NAME, pitchFactor: 1.4 },
 ]);
 
 /** The supers' voice lines, each with its voice's id from the candidates table. */

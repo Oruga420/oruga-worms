@@ -6,7 +6,7 @@
  */
 
 import { degToRad } from '../../core/math.ts';
-import { WORM_HEIGHT } from '../../sim/constants.ts';
+import { wormHeight } from '../../sim/worm-size.ts';
 import type { WormBody } from '../../sim/types.ts';
 import type { SimWorld } from '../../sim/world.ts';
 import type { WeaponDef } from '../types.ts';
@@ -39,16 +39,16 @@ export interface FireResult {
   /** True while a controlled descent (parachute, jetpack) is active, so Resolving does not force settle it. */
   readonly controlledDescent?: boolean;
   /**
-   * True when the shot plays out in the sim over many ticks (a super move, a beam, Gear 5 or the
-   * Freezer): the caller keeps the shot open while world.combos, world.beams, world.devours or
-   * world.hexes has a live one and closes it once done.
+   * True when the shot plays out in the sim over many ticks (a super move, a beam, Gear 5, the
+   * Freezer or a Saibaman seed): the caller keeps the shot open while world.combos, world.beams,
+   * world.devours, world.hexes or world.sprouts has a live one and closes it once done.
    */
   readonly sequence?: boolean;
 }
 
-/** The muzzle: a little in front of the worm's chest, in the facing direction. */
+/** The muzzle: a little in front of the worm's chest, in the facing direction (lower and closer on a Saibaman). */
 export function muzzlePoint(worm: WormBody): { readonly x: number; readonly y: number } {
-  return { x: worm.x + worm.facing * 6, y: worm.y - WORM_HEIGHT * 0.6 };
+  return { x: worm.x + worm.facing * 6 * worm.size, y: worm.y - wormHeight(worm) * 0.6 };
 }
 
 /** Unit aim direction from the elevation and the worm's facing (up is negative y). */

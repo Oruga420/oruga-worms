@@ -65,7 +65,7 @@ import { WEAPONS, WEAPON_IDS } from './weapons/registry.ts';
 import { solidCount } from './terrain/terrain.ts';
 import { firstSolidBelow } from './terrain/queries.ts';
 import { findWorm as findBody } from './sim/world.ts';
-import type { DevourBeat, HexBeat } from './sim/types.ts';
+import type { DevourBeat, HexBeat, SproutBeat } from './sim/types.ts';
 import { WORM_HEIGHT } from './sim/constants.ts';
 import { muzzlePoint } from './weapons/behaviors/types.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
@@ -76,6 +76,8 @@ import { fire } from './weapons/fire.ts';
 const DEVOUR_SHAKE: Readonly<Record<DevourBeat, number>> = Object.freeze({ drum: 3.5, awake: 7, stretch: 0, grab: 1.5, snap: 0, chomp: 2.5, gulp: 4, burp: 3 });
 /** How hard each beat of the Freezer shakes the camera: the throbs harder and harder, the burst hardest (its blast shakes too). */
 const HEX_SHAKE: Readonly<Record<HexBeat, number>> = Object.freeze({ shot: 1.5, enter: 3, fizzle: 1, pulse: 1.5, burst: 8 });
+/** The seed: the ground shakes harder with every crack, and gives with a jolt. */
+const SPROUT_SHAKE: Readonly<Record<SproutBeat, number>> = Object.freeze({ plant: 0.8, crack: 2, wither: 0, pop: 5 });
 
 interface OrugasDebug {
   readonly frames: () => number;
@@ -88,7 +90,7 @@ interface OrugasDebug {
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
-  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>> }[]; drops: readonly { kind: string; landed: boolean }[] };
+  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>> }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
@@ -127,7 +129,8 @@ interface OrugasDebug {
   readonly panelOpen: () => boolean;
   /** Screen rects of the open panel's cells (empty when closed), so a test can click a real cell. */
   readonly panelCells: () => readonly { id: string; x: number; y: number; w: number; h: number; enabled: boolean }[];
-  readonly dropCrate: () => void;
+  /** Drops a crate (a health crate by default) at a free column, or dx world px in front of the active worm. */
+  readonly dropCrate: (kind?: string, dx?: number) => void;
   readonly drownOne: () => boolean;
   readonly crateCount: () => number;
   readonly forceSuddenDeath: () => void;
@@ -161,6 +164,8 @@ interface OrugasDebug {
   readonly devours: () => number;
   /** Live Freezer hexes in the sim. */
   readonly hexes: () => number;
+  /** Saibaman seeds still in the ground. */
+  readonly sprouts: () => number;
   /** Degrees the crosshair sits above the line from the muzzle to that worm's centre (below is negative); null when either is missing. */
   readonly aimOffBy: (id: string) => number | null;
 }
@@ -305,6 +310,10 @@ function boot(): void {
   const hpOf = (wormId: string): number => {
     for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.hp;
     return 0;
+  };
+  const maxHpOf = (wormId: string): number => {
+    for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.maxHp;
+    return GAME_CONFIG.wormHp;
   };
   const resetEffects = (): void => {
     resetGore(gore);
@@ -699,6 +708,9 @@ function boot(): void {
               if (kick > 0) camera = shake(camera, kick);
             } else if (event.type === 'hexBeat') {
               camera = shake(camera, HEX_SHAKE[event.beat] + (event.beat === 'pulse' ? event.n * 0.5 : 0));
+            } else if (event.type === 'sproutBeat') {
+              const kick = SPROUT_SHAKE[event.beat] + (event.beat === 'crack' ? event.n * 1.2 : 0);
+              if (kick > 0) camera = shake(camera, kick);
             }
             if (event.type === 'explosion') {
               // The fireworks scale with the weapon: a dynamite stick (blast tier 'big') used to get
@@ -736,7 +748,7 @@ function boot(): void {
         }
         camera = updateCamera(camera, 1000 / SIM_HZ, viewport);
         particles.update(1 / SIM_HZ);
-        advanceFx(fx, 1000 / SIM_HZ, appPhase === 'playing' ? { world: controller.world(), hpOf, maxHp: GAME_CONFIG.wormHp } : null, fxDeps);
+        advanceFx(fx, 1000 / SIM_HZ, appPhase === 'playing' ? { world: controller.world(), hpOf, maxHp: GAME_CONFIG.wormHp, maxHpOf } : null, fxDeps);
         updateGore(gore, 1 / SIM_HZ, controller.world().terrain, rng);
       },
       render: () => {
@@ -754,7 +766,7 @@ function boot(): void {
         // The supers' camera work: the freeze dims and pulls in, the beating turns the screen white,
         // a beam darkens the world while it charges and pulls back as it fires, Gear 5 steps in on
         // every drum and closes in on the meal, the Freezer closes in on the victim as it swells.
-        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours, controller.world().hexes);
+        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours, controller.world().hexes, controller.world().sprouts);
         const view: Camera = cine.zoom === 1 ? camera : { ...camera, zoom: camera.zoom * cine.zoom };
         const model = {
           state,
@@ -857,7 +869,7 @@ function boot(): void {
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),
         worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo }))),
-        drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed })),
+        drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed, x: crate.x, y: crate.y })),
       }),
       stepsRemaining: () => controller.stepsRemaining(),
       seed: () => controller.state().seed,
@@ -915,10 +927,12 @@ function boot(): void {
         }
         return results;
       },
-      dropCrate: () => {
+      dropCrate: (kind = 'health', dx?: number) => {
         const world = controller.world();
-        const x = pickCrateColumn(world) ?? Math.floor(world.terrain.width / 2);
-        spawnCrate(world, 'health', x);
+        const active = activeWormOf(controller.state());
+        const body = active === undefined ? undefined : findBody(world, active.id);
+        const x = dx !== undefined && body !== undefined ? Math.round(body.x + body.facing * dx) : (pickCrateColumn(world) ?? Math.floor(world.terrain.width / 2));
+        spawnCrate(world, kind === 'weapon' || kind === 'utility' || kind === 'power' ? kind : 'health', x);
       },
       // Sink a worm that is NOT the active one, so the turn is not forfeited mid checklist.
       drownOne: () => {
@@ -1005,6 +1019,7 @@ function boot(): void {
       beams: () => controller.world().beams.length,
       devours: () => controller.world().devours.length,
       hexes: () => controller.world().hexes.length,
+      sprouts: () => controller.world().sprouts.length,
       aimOffBy: (id: string) => {
         const world = controller.world();
         const active = activeWormOf(controller.state());

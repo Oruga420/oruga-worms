@@ -19,6 +19,7 @@
 import { msToTicks } from '../config/units.ts';
 import { sweep } from './collision.ts';
 import { WORM_HEIGHT } from './constants.ts';
+import { wormHeight, wormMiddleY } from './worm-size.ts';
 import { explode } from './explosion.ts';
 import type { HexBeat, HexBody, HexStage, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
@@ -95,7 +96,7 @@ export function hexTicks(spec: HexSpec, flightTicks: number, bursts = true): num
 
 /** How high the victim can float: the spec's lift, less under a ceiling, keeping room over its head. */
 function headroom(world: SimWorld, victim: WormBody, liftPx: number): number {
-  const headY = victim.y - WORM_HEIGHT;
+  const headY = victim.y - wormHeight(victim);
   const path = sweep(world.terrain.mask, victim.x, headY, victim.x, headY - liftPx - HEADROOM_PX, 0);
   if (path.hit === null) return liftPx;
   return Math.max(0, Math.min(liftPx, headY - path.y - HEADROOM_PX));
@@ -287,7 +288,7 @@ function toRecover(hex: HexBody, attacker: WormBody): void {
  */
 function burst(world: SimWorld, hex: HexBody, victim: WormBody, attacker: WormBody): void {
   const x = victim.x;
-  const y = victim.y - WORM_HEIGHT / 2;
+  const y = wormMiddleY(victim);
   hex.burst = true;
   world.events.push({ type: 'damage', wormId: victim.id, amount: BURST_DAMAGE, sourceTeamId: hex.ownerTeamId, sourceWormId: hex.attackerId, cause: 'blast', at: { x, y, dx: 0, dy: -1 } });
   beat(world, hex, 'burst', 0, x, y);
@@ -350,7 +351,7 @@ export function stepHex(world: SimWorld, hex: HexBody): void {
         return;
       }
       place(victim, hex.groundX, hex.groundY - hex.liftPx);
-      const middleY = victim.y - WORM_HEIGHT / 2;
+      const middleY = wormMiddleY(victim);
       if (pulseTicks(spec).includes(hex.stageTicks)) {
         hex.pulses += 1;
         beat(world, hex, 'pulse', hex.pulses, victim.x, middleY);

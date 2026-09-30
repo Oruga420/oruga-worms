@@ -13,7 +13,8 @@
 
 import { msToTicks } from '../config/units.ts';
 import { carve } from '../terrain/terrain.ts';
-import { TICK_S, WORM_HALF_WIDTH, WORM_HEIGHT } from './constants.ts';
+import { TICK_S, WORM_HALF_WIDTH } from './constants.ts';
+import { wormHalfWidth, wormMiddleY } from './worm-size.ts';
 import { explode } from './explosion.ts';
 import type { BeamBody, BeamStage, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
@@ -183,11 +184,11 @@ function bore(world: SimWorld, beam: BeamBody, upTo: number): void {
 /** Every worm the beam, now reaching `upTo` px, touches for the first time takes it and is thrown. */
 function strike(world: SimWorld, beam: BeamBody, upTo: number): void {
   const spec = beam.spec;
-  const reach = spec.radiusPx + WORM_HALF_WIDTH;
   for (const worm of world.worms) {
     if (!worm.alive || worm.id === beam.attackerId || worm.motion === 'drowning' || beam.hit.includes(worm.id)) continue;
+    const reach = spec.radiusPx + wormHalfWidth(worm);
     const cx = worm.x;
-    const cy = worm.y - WORM_HEIGHT / 2;
+    const cy = wormMiddleY(worm);
     const along = (cx - beam.x0) * beam.dx + (cy - beam.y0) * beam.dy;
     if (along < 0 || along > upTo + reach) continue;
     // Distance from the beam's axis: the cross product with its unit direction.
