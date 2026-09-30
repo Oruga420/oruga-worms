@@ -1,6 +1,6 @@
 ﻿# Oruga Worms
 
-A browser artillery game with destructible terrain, 29 weapons and utilities, animated worms,
+A browser artillery game with destructible terrain, 30 weapons and utilities, animated worms,
 local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2D.
 
 **Content warning:** the game shows cartoon blood and gore (blood sprays, stains, and worms bursting
@@ -28,11 +28,22 @@ and start the match.
 | Super move (Ryuko Ranbu) | Pick it in Weapons, then press and release FIRE |
 | Kamehameha | Pick it in Weapons, aim with ▲ ▼, then press and release FIRE |
 | Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal |
+| Freezer | Pick it in Weapons, then press and release FIRE: the light finds its own victim |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **Freezer**, a super after Frieza's finger (one per worm, unlocked from turn 5). The worm takes
+  the emperor's last form (white, a purple dome on its head, a dark purple aura) and holds out a
+  finger while a pink light gathers on its tip. The light flies to the nearest enemy in plain sight
+  within 340 px (a LOCK ON marker shows who) and sinks into its body (?!). The victim floats up,
+  glowing pink from inside, and swells, throbbing and beeping faster and faster while pink light
+  breaks out through its skin, until it bursts: twice the pieces of a normal death, a ring of blood
+  and blood all over the lens, and a blast that hurts whoever stands close (the attacker too).
+  A worm that bursts is gone, whatever its health. Then ¡KRILIIIN! and the emperor laughs, HO HO
+  HO! With nobody in sight the light fizzles out. The CPU uses it too, unless a teammate stands in
+  the blast.
 - **Gear 5**, a super after Luffy's Sun God Nika (one per worm, unlocked from turn 4). The drums of
   liberation beat four times (DON!) while the worm turns white, the sun god's rays spin behind it
   and a cloud of white steam wraps its neck; it awakens with GEAR 5! and the straw hat pops on. Its
@@ -102,6 +113,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Super move (Ryuko Ranbu) | Select it in the inventory, then press and release Space |
 | Kamehameha | Select it in the inventory, aim with Up/Down, then press and release Space |
 | Gear 5 | Select it in the inventory, then press and release Space |
+| Freezer | Select it in the inventory, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -140,6 +152,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
 - `src/sim/beam.ts`, `src/weapons/behaviors/beam.ts`: the Kamehameha's charge, flight, tunnel and hits.
 - `src/sim/devour.ts`, `src/weapons/behaviors/devour.ts`, `src/game/gear-five.ts`: Gear 5's timeline,
   its grab, and its look (the white, the cloud, the hat, the rubber arm and the giant mouth).
+- `src/sim/hex.ts`, `src/weapons/behaviors/hex.ts`, `src/game/freezer.ts`: the Freezer's timeline
+  (the light, the float, the swell and the burst), its lock, and its look (the emperor's form, the
+  pink light, the glow and the swelling).
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

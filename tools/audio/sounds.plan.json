@@ -1936,6 +1936,48 @@
       "gainDb": 2
     },
     {
+      "kind": "voice",
+      "id": "voice_super_freezer_krilin",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "freezer_krilin",
+      "text": "KRILIIIIIIIIN!!!!!!",
+      "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+      "voiceName": "Harry - Fierce Warrior",
+      "pitchFactor": 1.05,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_freezer_laugh",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "freezer_laugh",
+      "text": "Ohohohohoho... ohohohohoho!",
+      "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+      "voiceName": "Timmy - Anxious Nerd",
+      "pitchFactor": 1.2,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.3,
+        "similarity_boost": 0.75,
+        "style": 0.7,
+        "use_speaker_boost": true,
+        "speed": 0.85
+      },
+      "gainDb": 0
+    },
+    {
       "kind": "music",
       "id": "music_theme_loop",
       "group": "music",

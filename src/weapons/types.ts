@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 29 panel slots: 24 combat weapons plus 5 utilities, in panel order. */
+/** The 30 panel slots: 25 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -24,6 +24,7 @@ export const PANEL_WEAPON_IDS = [
   'minigun',
   'sonic_blast',
   'kamehameha',
+  'freezer',
   'fire_punch',
   'baseball_bat',
   'ryuko_ranbu',
@@ -125,6 +126,8 @@ export interface WeaponDef {
   readonly beam?: BeamSpec;
   /** A MELEE row played out as a transformation that grabs a worm and eats it (Gear 5). */
   readonly devour?: DevourSpec;
+  /** A HITSCAN row fired as a light that makes a worm float, swell up and burst (the Freezer). */
+  readonly hex?: HexSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -341,6 +344,33 @@ export interface DevourSpec {
   readonly chompIntervalMs: number;
   readonly chompDamage: number;
   /** After the swallow: the lump going down, the burp, and the white wearing off. */
+  readonly recoverMs: number;
+}
+
+/**
+ * The Freezer: the worm points a finger at the nearest enemy in plain sight within reach, and a
+ * glowing pink light leaves the fingertip, flies to it and sinks into its body; the victim rises
+ * off the ground glowing from inside, swells up and bursts. A FIELD on a HITSCAN row, like the
+ * beam: the row's hitscan block states the reach the CPU and the panel read; this block is the
+ * timeline the sim plays (sim/hex.ts). A worm that bursts is gone, whatever health it had left,
+ * and the burst is a blast that hurts whoever stands close. Durations are ms, rounded to ticks.
+ */
+export interface HexSpec {
+  /** Lock reach, worm centre to worm centre, world px. The victim must be in plain sight. */
+  readonly rangePx: number;
+  /** The finger up, the light gathering on its tip. */
+  readonly pointMs: number;
+  /** How fast the light flies, world px per second. */
+  readonly lightSpeedPxPerS: number;
+  /** The victim floats up this far off the ground (less under a ceiling) over riseMs. */
+  readonly riseMs: number;
+  readonly liftPx: number;
+  /** Then it swells up over swellMs, throbbing faster and faster (pulses), and bursts. */
+  readonly swellMs: number;
+  readonly pulses: number;
+  /** The burst, around the victim's middle: it hurts its neighbours and carves the land. */
+  readonly burst: BlastSpec;
+  /** After the burst: the finger comes down, and a laugh. */
   readonly recoverMs: number;
 }
 

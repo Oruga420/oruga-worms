@@ -93,6 +93,18 @@ describe('validateRegistry: supers', () => {
     expectError(errorsOf(patch('gear_five', { devour: { ...devour, chomps: 0 } })), 'gear_five', 'devour.chomps');
     expectError(errorsOf(patch('gear_five', { devour: { ...devour, rangePx: 0 } })), 'gear_five', 'devour.rangePx');
   });
+
+  it('fails when a hex block rides anything but a hitscan row, or shares one with a beam', () => {
+    expectError(errorsOf(patch('bazooka', { hex: WEAPONS.freezer.hex })), 'bazooka', 'hex', 'HITSCAN');
+    expectError(errorsOf(patch('freezer', { beam: WEAPONS.kamehameha.beam })), 'freezer', 'beam or a hex');
+  });
+
+  it('fails when a hex throbs a fraction of a time, reaches nowhere or has a light that never arrives', () => {
+    const hex = WEAPONS.freezer.hex;
+    expectError(errorsOf(patch('freezer', { hex: { ...hex, pulses: 1.5 } })), 'freezer', 'hex.pulses');
+    expectError(errorsOf(patch('freezer', { hex: { ...hex, rangePx: 0 } })), 'freezer', 'hex.rangePx');
+    expectError(errorsOf(patch('freezer', { hex: { ...hex, lightSpeedPxPerS: 0 } })), 'freezer', 'lightSpeedPxPerS');
+  });
 });
 
 describe('validateRegistry: fuses', () => {

@@ -1,7 +1,8 @@
 /**
  * Firearm rows of the ultraplan rev 2 roster: handgun, shotgun, uzi, minigun and the sonic blast
  * gun are HITSCAN; the longbow is a fixed power PROJECTILE that does not carve (its arrows embed
- * in the landscape). The Kamehameha, a charged energy beam, is a HITSCAN row with a beam block.
+ * in the landscape). The Kamehameha, a charged energy beam, is a HITSCAN row with a beam block, and
+ * the Freezer, a light that makes a worm swell up and burst, one with a hex block.
  */
 
 import { WORLD_SIZE_MAX } from '../../config/constants.ts';
@@ -295,6 +296,56 @@ const KAMEHAMEHA: WeaponDef = defineWeapon({
   sfx: { fire: 'ui_power_charge', impact: 'exp_large' },
 });
 
+/** The light finds a worm up to half a screen away, as long as it is in plain sight. */
+const FREEZER_RANGE_PX = 340;
+
+const FREEZER: WeaponDef = defineWeapon({
+  id: 'freezer',
+  name: 'Freezer',
+  kind: 'HITSCAN',
+  category: 'firearm',
+  icon: iconFrame('freezer'),
+  /** A bare finger: the light on its tip is the only thing the worm holds. */
+  heldSprite: null,
+  ammo: 1,
+  /** The surest kill in the game waits for the fight to ripen: never before the fifth turn. */
+  delayTurns: 5,
+  charged: false,
+  maxPower: 0,
+  windAffected: false,
+  gravityScale: 1,
+  shotsPerTurn: 1,
+  endsTurnOnFire: true,
+  requiresTargetSelect: false,
+  /** One per worm, from the loadout only: a weapon crate never hands out another super. */
+  crateWeight: 0,
+  /** Required of a hitscan row: the lock reach, and a whole worm's health as the hit (the burst takes all a worm has, however much). */
+  hitscan: {
+    pellets: 1,
+    spreadDeg: 0,
+    damagePerPellet: 100,
+    rangePx: FREEZER_RANGE_PX,
+    carveRadiusPx: 0,
+    burstCount: 1,
+    burstIntervalMs: 0,
+    recoil: 0,
+    aimWhileFiring: false,
+  },
+  hex: {
+    rangePx: FREEZER_RANGE_PX,
+    pointMs: 1000,
+    lightSpeedPxPerS: 520,
+    riseMs: 1000,
+    liftPx: 36,
+    swellMs: 1600,
+    pulses: 5,
+    /** A body going off in mid air: it reaches the neighbours, and dents the ground under it. */
+    burst: blast(110, 30, 9, 'medium'),
+    recoverMs: 1200,
+  },
+  sfx: { fire: 'ui_power_charge', impact: 'exp_large' },
+});
+
 export const FIREARMS = Object.freeze({
   handgun: HANDGUN,
   shotgun: SHOTGUN,
@@ -302,5 +353,6 @@ export const FIREARMS = Object.freeze({
   minigun: MINIGUN,
   sonic_blast: SONIC_BLAST,
   kamehameha: KAMEHAMEHA,
+  freezer: FREEZER,
   longbow: LONGBOW,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;

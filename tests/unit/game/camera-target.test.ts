@@ -158,3 +158,53 @@ describe('camera director: gear 5', () => {
     expect(after.target).toEqual({ x: 306, y: 333 });
   });
 });
+
+describe('camera director: the freezer', () => {
+  const SPEC = WEAPONS.freezer.hex!;
+  const hexWorld = (stage: 'point' | 'shot' | 'rise' | 'swell' | 'recover', stageTicks: number, extra: Record<string, unknown> = {}): SimWorld =>
+    ({
+      projectiles: [],
+      worms: [{ id: 'hero', x: 300, y: 349 }],
+      hexes: [
+        {
+          attackerId: 'hero',
+          victimId: 'enemy',
+          stage,
+          stageTicks,
+          spec: SPEC,
+          holdX: 300,
+          holdY: 349,
+          facing: 1,
+          tipX: 312,
+          tipY: 339,
+          targetX: 500,
+          targetY: 341,
+          arcPx: 30,
+          flightTicks: 20,
+          groundX: 500,
+          groundY: 349,
+          liftPx: 36,
+          burst: false,
+          alive: true,
+          ...extra,
+        },
+      ],
+    }) as unknown as SimWorld;
+
+  it('frames the worm pointing, rides the light, follows the victim up and holds on the burst', () => {
+    const pointing = updateCameraTarget(INITIAL_DIRECTOR, hexWorld('point', 10), TICK);
+    expect(pointing.director.focus).toBe('hex');
+    expect(pointing.target).toEqual({ x: 300, y: 349 - 16 * 0.6 });
+    // Half way: the light is between the finger and the victim, above the straight line.
+    const flying = updateCameraTarget(pointing.director, hexWorld('shot', 10), TICK);
+    expect(flying.target?.x).toBeCloseTo((312 + 500) / 2);
+    expect(flying.target?.y).toBeLessThan((339 + 341) / 2 - 20);
+    const floated = updateCameraTarget(flying.director, hexWorld('swell', 5), TICK);
+    expect(floated.target).toEqual({ x: 500, y: 349 - 8 - 36 });
+    const burst = updateCameraTarget(floated.director, hexWorld('recover', 5, { burst: true }), TICK);
+    expect(burst.target).toEqual({ x: 500, y: 349 - 8 - 36 });
+    const after = updateCameraTarget(burst.director, hexWorld('recover', 5, { burst: true, alive: false }), TICK);
+    expect(after.director.focus).toBe('impact');
+    expect(after.target).toEqual({ x: 500, y: 349 - 8 - 36 });
+  });
+});

@@ -4,8 +4,11 @@
  * at the muzzle and spits a casing, bullets leave tracers, blows leave swing arcs, blasts get a
  * flash and a shock ring, damage floats up as numbers, drowned worms sink with bubbles, rockets
  * trail smoke, and a super move gets its name card, its hit counter and its K.O. Gear 5 gets its
- * drums, its name, CHOMP! on every bite and the verdict. The gore layer (gore.ts) gets the blood of
- * every hit from here too, and what a swallowed worm leaves when it is burped back up.
+ * drums, its name, CHOMP! on every bite and the verdict. The Freezer gets its light's sparkles, the
+ * victim's ?! as the light goes in, a pink ring on every throb, the burst in pink and red, the
+ * scream of a friend lost and the emperor's laugh. The gore layer (gore.ts) gets the blood of every
+ * hit from here too, what a swallowed worm leaves when it is burped back up, and what is left of one
+ * that burst from inside.
  *
  * Everything runs on its own clock advanced by the fixed tick (advanceFx), so the effects are as
  * deterministic as the sim and stop when the game pauses.
@@ -25,7 +28,9 @@ import type { SimWorld } from '../sim/world.ts';
 import { WEAPONS, getWeapon, isWeaponId } from '../weapons/registry.ts';
 import type { WeaponId } from '../weapons/types.ts';
 import type { GameEvent } from './controller.ts';
-import { BITE_SPIT, BURP_SPIT, bloodBurst, dripFrom, ejectCasing, gibBurst, spitOut, splatterLens, type GoreSystem } from './gore.ts';
+import { BITE_SPIT, BURP_SPIT, bloodBurst, burstOpen, dripFrom, ejectCasing, gibBurst, spitOut, splatterLens, type GoreSystem } from './gore.ts';
+import { HEX_CORE, HEX_PINK, HEX_PINK_SOFT } from './freezer.ts';
+import { LAUGH_TICK, hexLight } from '../sim/hex.ts';
 import type { CharacterSprites } from './render.ts';
 
 export const TRACER_MS = 90;
@@ -45,6 +50,10 @@ export const GEAR_CALL_MS = 1100;
 export const DEVOURED_MS = 1700;
 /** How long a sound effect written into the world (CHOMP!, GULP!, BURP!) stays up. */
 export const POP_MS = 750;
+/** How long the scream stays up once the Freezer's victim bursts. */
+export const SCREAM_MS = 1900;
+/** How hard a worm the Freezer blew up bursts, against 1 for a normal death. */
+export const HEX_GIB_POWER = 1.3;
 
 export interface WormFxTimers {
   hurtAt: number;
@@ -149,6 +158,18 @@ export interface DevourShow {
   endedAt: number | null;
 }
 
+/** The Freezer on screen: whether the light went in or out, and when the victim burst. */
+export interface HexShow {
+  readonly hexId: number;
+  readonly attackerId: string;
+  readonly victimId: string | null;
+  readonly startedAt: number;
+  enteredAt: number | null;
+  missedAt: number | null;
+  burstAt: number | null;
+  endedAt: number | null;
+}
+
 /** A sound effect written into the world, comic style: CHOMP!, GULP!, BURP!, HAHAHA! */
 export interface Pop {
   readonly text: string;
@@ -189,6 +210,7 @@ export interface FxState {
   combo: ComboShow | null;
   beam: BeamShow | null;
   devour: DevourShow | null;
+  hex: HexShow | null;
   readonly pops: Pop[];
   /** A full screen flash: white for the super, colour and strength per event. */
   screenFlash: { readonly at: number; readonly strength: number; readonly color: string; readonly ms: number } | null;
@@ -197,7 +219,7 @@ export interface FxState {
 }
 
 export function createFx(): FxState {
-  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, pops: [], screenFlash: null, redPulse: null };
+  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, hex: null, pops: [], screenFlash: null, redPulse: null };
 }
 
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
@@ -449,6 +471,62 @@ function onDevour(fx: FxState, e: Extract<GameEvent, { type: 'devourStart' | 'de
   }
 }
 
+/** Sparks out of (x, y) every way, in the Freezer's pinks and white. */
+function pinkSparks(deps: FxDeps, x: number, y: number, count: number, speedMin: number, speedMax: number, life: number): void {
+  for (let i = 0; i < count; i += 1) {
+    const a = deps.rng.nextFloat(0, TWO_PI);
+    const speed = deps.rng.nextFloat(speedMin, speedMax);
+    const color = i % 3 === 0 ? HEX_CORE : i % 3 === 1 ? HEX_PINK : HEX_PINK_SOFT;
+    deps.particles.spawn((p) => initSpark(p, x, y, Math.cos(a) * speed, Math.sin(a) * speed, deps.rng, color, life));
+  }
+}
+
+function onHex(fx: FxState, e: Extract<GameEvent, { type: 'hexStart' | 'hexBeat' | 'hexEnd' }>, deps: FxDeps): void {
+  if (e.type === 'hexStart') {
+    fx.hex = { hexId: e.hexId, attackerId: e.attackerId, victimId: e.victimId, startedAt: fx.now, enteredAt: null, missedAt: null, burstAt: null, endedAt: null };
+    return;
+  }
+  const show = fx.hex;
+  if (show === null || show.hexId !== e.hexId) return;
+  if (e.type === 'hexEnd') {
+    show.endedAt = fx.now;
+    return;
+  }
+  switch (e.beat) {
+    case 'shot':
+      fx.rings.push({ x: e.x, y: e.y, radius: 14, bornAt: fx.now, color: HEX_PINK });
+      pinkSparks(deps, e.x, e.y, 10, 40, 140, 0.35);
+      return;
+    case 'enter':
+      // In: a pink flare on the body, and the victim's ?! over its head.
+      show.enteredAt = fx.now;
+      fx.rings.push({ x: e.x, y: e.y, radius: 30, bornAt: fx.now, color: HEX_PINK });
+      fx.flashes.push({ x: e.x, y: e.y, angle: 0, size: 12, bornAt: fx.now, kind: 'impact' });
+      fx.screenFlash = { at: fx.now, strength: 0.35, color: HEX_PINK_SOFT, ms: 220 };
+      pinkSparks(deps, e.x, e.y, 18, 60, 200, 0.45);
+      pop(fx, '?!', e.x - e.facing * 2, e.y - 20, 18, '#ffffff', '#6a1466', -e.facing * 0.15);
+      return;
+    case 'fizzle':
+      show.missedAt = fx.now;
+      fx.rings.push({ x: e.x, y: e.y, radius: 12, bornAt: fx.now, color: HEX_PINK_SOFT });
+      pinkSparks(deps, e.x, e.y, 8, 20, 90, 0.4);
+      return;
+    case 'pulse':
+      // A throb: a ring off the body, and the screen's edges reddening a little more each time.
+      fx.rings.push({ x: e.x, y: e.y, radius: 13 + e.n * 3, bornAt: fx.now, color: e.n % 2 === 0 ? HEX_CORE : HEX_PINK_SOFT });
+      if (deps.onScreen(e.x, e.y)) fx.redPulse = { at: fx.now, strength: 0.15 + e.n * 0.07 };
+      return;
+    case 'burst':
+      // The pieces and the blood come with the worm's own burst (the gib); this is the light.
+      show.burstAt = fx.now;
+      fx.screenFlash = { at: fx.now, strength: 0.95, color: '#ffd9f6', ms: 380 };
+      fx.rings.push({ x: e.x, y: e.y, radius: 74, bornAt: fx.now, color: HEX_PINK });
+      fx.rings.push({ x: e.x, y: e.y, radius: 46, bornAt: fx.now, color: HEX_CORE });
+      pinkSparks(deps, e.x, e.y, 46, 120, 460, 0.6);
+      return;
+  }
+}
+
 /** Routes one tick's GameEvents into the effects and the gore. */
 export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: FxDeps): void {
   for (const e of events) {
@@ -456,14 +534,18 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'damage':
         onDamage(fx, e, deps);
         break;
-      case 'gib':
-        gibBurst(deps.gore, { x: e.x, y: e.y, vx: e.vx, vy: e.vy, colorIndex: e.colorIndex, power: fx.combo !== null && fx.combo.victimId === e.wormId ? 1.35 : 1 }, deps.rng);
+      case 'gib': {
+        // A worm the Freezer swelled bursts from inside: twice the pieces, every way, and the lens drenched.
+        const hexed = fx.hex !== null && fx.hex.victimId === e.wormId;
+        if (hexed) burstOpen(deps.gore, { x: e.x, y: e.y, vx: e.vx, vy: e.vy, colorIndex: e.colorIndex, power: HEX_GIB_POWER }, deps.rng);
+        else gibBurst(deps.gore, { x: e.x, y: e.y, vx: e.vx, vy: e.vy, colorIndex: e.colorIndex, power: fx.combo !== null && fx.combo.victimId === e.wormId ? 1.35 : 1 }, deps.rng);
         fx.rings.push({ x: e.x, y: e.y, radius: 26, bornAt: fx.now, color: '#ff4a4a' });
         if (deps.onScreen(e.x, e.y)) {
-          splatterLens(deps.gore, 2, 1, deps.rng);
-          fx.redPulse = { at: fx.now, strength: 0.9 };
+          splatterLens(deps.gore, hexed ? 5 : 2, 1, deps.rng);
+          fx.redPulse = { at: fx.now, strength: hexed ? 1 : 0.9 };
         }
         break;
+      }
       case 'tracer':
         fx.tracers.push({ x0: e.x, y0: e.y, x1: e.x1, y1: e.y1, bornAt: fx.now, hit: e.hit });
         break;
@@ -515,6 +597,11 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'devourBeat':
       case 'devourEnd':
         onDevour(fx, e, deps);
+        break;
+      case 'hexStart':
+      case 'hexBeat':
+      case 'hexEnd':
+        onHex(fx, e, deps);
         break;
       default:
         break;
@@ -577,6 +664,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
     emitTrails(scene.world, deps);
     emitKi(scene.world, deps);
     emitGearSteam(fx, scene.world, deps);
+    emitHexSparkles(fx, scene.world, deps);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
@@ -590,6 +678,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   if (fx.combo !== null && fx.combo.endedAt !== null && fx.now - fx.combo.endedAt > Math.max(COMBO_HUD_LINGER_MS, fx.combo.ko ? KO_MS : 0)) fx.combo = null;
   if (fx.beam !== null && fx.beam.endedAt !== null && fx.now - Math.max(fx.beam.endedAt, (fx.beam.firedAt ?? 0) + BEAM_SHOUT_MS) > 0) fx.beam = null;
   if (fx.devour !== null && fx.devour.endedAt !== null && fx.now - Math.max(fx.devour.endedAt, (fx.devour.gulpAt ?? -Infinity) + DEVOURED_MS, fx.devour.endedAt + COMBO_HUD_LINGER_MS) > 0) fx.devour = null;
+  if (fx.hex !== null && fx.hex.endedAt !== null && fx.now - Math.max((fx.hex.burstAt ?? -Infinity) + SCREAM_MS, fx.hex.endedAt + COMBO_HUD_LINGER_MS) > 0) fx.hex = null;
   prune(fx.pops, fx.now, POP_MS);
   if (fx.screenFlash !== null && fx.now - fx.screenFlash.at > fx.screenFlash.ms) fx.screenFlash = null;
   if (fx.redPulse !== null && fx.now - fx.redPulse.at > 600) fx.redPulse = null;
@@ -878,6 +967,42 @@ function drawDevourCalls(ctx: Ctx2D, fx: FxState, show: DevourShow, viewport: Si
   }
 }
 
+/**
+ * The Freezer's calls: the scream for a friend lost the moment the victim bursts, shaking, and MISS
+ * when the light found nobody. On a phone smaller and lower, under the row of buttons along the top.
+ */
+function drawHexCalls(ctx: Ctx2D, fx: FxState, show: HexShow, viewport: Size, touch: boolean): void {
+  const w = viewport.w;
+  const h = viewport.h;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (show.burstAt !== null) {
+    const since = fx.now - show.burstAt;
+    const t = since / SCREAM_MS;
+    if (t < 1) {
+      const grow = 1 + Math.max(0, 0.15 - t) * 3;
+      const shake = (1 - t) * 3;
+      ctx.save();
+      ctx.globalAlpha = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+      ctx.translate(w / 2 + Math.sin(since / 23) * shake, h * (touch ? 0.38 : 0.22) + Math.cos(since / 29) * shake);
+      ctx.rotate(-0.05);
+      const size = Math.round((touch ? clamp(w / 14, 32, 80) : clamp(w / 13, 36, 96)) * grow);
+      ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
+      outlinedText(ctx, '¡KRILIIIN!', 0, 0, '#ffe14a', '#3a1600', Math.max(4, size / 16));
+      ctx.restore();
+    }
+  }
+  if (show.missedAt !== null && show.endedAt !== null) {
+    const t = (fx.now - show.endedAt) / COMBO_HUD_LINGER_MS;
+    if (t < 1) {
+      ctx.globalAlpha = 1 - t;
+      ctx.font = 'italic 900 48px system-ui, sans-serif';
+      outlinedText(ctx, 'MISS', w / 2, h * 0.4 - t * 20, '#d8d8d8', '#202020', 3);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
 /** Ki drawn in from all around a charging beam, and sparks thrown off the sides of a live one. */
 function emitKi(world: SimWorld, deps: FxDeps): void {
   for (const beam of world.beams ?? []) {
@@ -923,6 +1048,43 @@ function emitGearSteam(fx: FxState, world: SimWorld, deps: FxDeps): void {
     const laughing = devour.stage === 'recover' && (devour.burped || devour.victimId === null);
     if (laughing && devour.stageTicks % 26 === 1 && fx.pops.filter((p) => p.text === 'HAHAHA!').length < 2) {
       pop(fx, 'HAHAHA!', x - devour.facing * 6, devour.holdY - WORM_HEIGHT * 1.6, 13, '#ffffff', '#4b2a88', -devour.facing * 0.12);
+    }
+  }
+}
+
+/**
+ * The Freezer's sparkles: pink motes drawn in to the fingertip while the light gathers, sparkles
+ * shed by the light in flight, pink motes rising off the victim as it floats and swells, and the
+ * emperor's laugh once the victim has burst, as HO HO HO! floating up.
+ */
+function emitHexSparkles(fx: FxState, world: SimWorld, deps: FxDeps): void {
+  for (const hex of world.hexes ?? []) {
+    if (!hex.alive) continue;
+    if (hex.stage === 'point' && deps.rng.next() < 0.6) {
+      const a = deps.rng.nextFloat(0, TWO_PI);
+      const d = deps.rng.nextFloat(10, 22);
+      const x = hex.tipX + Math.cos(a) * d;
+      const y = hex.tipY + Math.sin(a) * d;
+      deps.particles.spawn((p) => initSpark(p, x, y, (hex.tipX - x) * 4, (hex.tipY - y) * 4, deps.rng, deps.rng.next() < 0.5 ? HEX_PINK : HEX_CORE, 0.25));
+    }
+    const light = hexLight(hex);
+    if (light !== null) {
+      for (let i = 0; i < 2; i += 1) {
+        const color = deps.rng.next() < 0.4 ? HEX_CORE : HEX_PINK_SOFT;
+        deps.particles.spawn((p) => initSpark(p, light.x, light.y, deps.rng.nextFloat(-40, 40), deps.rng.nextFloat(-50, 20), deps.rng, color, 0.45));
+      }
+    }
+    if ((hex.stage === 'rise' || hex.stage === 'swell') && hex.victimId !== null && !hex.burst) {
+      const victim = world.worms.find((w) => w.id === hex.victimId);
+      if (victim !== undefined && deps.rng.next() < (hex.stage === 'swell' ? 0.7 : 0.35)) {
+        const x = victim.x + deps.rng.nextFloat(-8, 8);
+        const y = victim.y - deps.rng.nextFloat(0, WORM_HEIGHT);
+        deps.particles.spawn((p) => initSpark(p, x, y, deps.rng.nextFloat(-20, 20), deps.rng.nextFloat(-70, -20), deps.rng, deps.rng.next() < 0.5 ? HEX_PINK : HEX_PINK_SOFT, 0.5));
+      }
+    }
+    // The laugh, every half second or so once the victim is in pieces, from when the voice starts.
+    if (hex.stage === 'recover' && hex.burst && hex.stageTicks >= LAUGH_TICK && (hex.stageTicks - LAUGH_TICK) % 26 === 0 && fx.pops.filter((p) => p.text === 'HO HO HO!').length < 2) {
+      pop(fx, 'HO HO HO!', hex.holdX - hex.facing * 4, hex.holdY - WORM_HEIGHT * 1.7, 13, '#f3e6ff', '#5b1c95', -hex.facing * 0.12);
     }
   }
 }
@@ -1031,6 +1193,7 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: F
   }
   if (fx.beam !== null) drawBeamShout(ctx, fx, fx.beam, viewport, touch);
   if (fx.devour !== null) drawDevourCalls(ctx, fx, fx.devour, viewport, touch);
+  if (fx.hex !== null) drawHexCalls(ctx, fx, fx.hex, viewport, touch);
 
   if (fx.screenFlash !== null) {
     const t = (fx.now - fx.screenFlash.at) / fx.screenFlash.ms;

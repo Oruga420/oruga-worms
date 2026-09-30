@@ -353,6 +353,35 @@ export function gibBurst(gore: GoreSystem, spec: GibSpec, rng: Rng): number {
   return chunks;
 }
 
+/**
+ * A body swollen until it bursts from inside (the Freezer): twice the pieces of a normal death
+ * (one bandana and two eyes still, the worm had no more), flung out every way at once instead of
+ * up, a ring of blood all round and a red mist hanging where it was.
+ */
+export function burstOpen(gore: GoreSystem, spec: GibSpec, rng: Rng): number {
+  if (!gore.enabled) return 0;
+  const power = spec.power ?? 1;
+  const palette = bodyPalette(spec.colorIndex);
+  let chunks = 0;
+  for (const part of GIB_RECIPE) {
+    const count = part.shape === 'bandana' || part.shape === 'eye' ? part.count : part.count * 2;
+    for (let i = 0; i < count; i += 1) {
+      const angle = rng.nextFloat(0, TWO_PI);
+      const speed = rng.nextFloat(150, 420) * power;
+      const size = rng.nextFloat(part.size[0], part.size[1]);
+      const colors = chunkColors(part.shape, palette, rng);
+      if (spawnChunk(gore, part.shape, spec.x + Math.cos(angle) * 3, spec.y + Math.sin(angle) * 3, spec.vx * 0.55 + Math.cos(angle) * speed, spec.vy * 0.55 + Math.sin(angle) * speed - 70, size, colors[0], colors[1], rng)) chunks += 1;
+    }
+  }
+  const rays = 8;
+  for (let i = 0; i < rays; i += 1) {
+    const angle = (i / rays) * TWO_PI + rng.nextFloat(-0.2, 0.2);
+    bloodBurst(gore, { x: spec.x, y: spec.y, dx: Math.cos(angle), dy: Math.sin(angle), amount: 26 * power, cause: 'blast' }, rng);
+  }
+  for (let i = 0; i < 12; i += 1) spawnMist(gore, spec.x, spec.y, rng.nextFloat(-110, 110), rng.nextFloat(-120, 40), rng.nextFloat(4, 8) * power, rng);
+  return chunks;
+}
+
 export interface SpitSpec {
   /** The mouth, world px, and which way it faces. */
   readonly x: number;

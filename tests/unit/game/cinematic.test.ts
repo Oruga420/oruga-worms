@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NO_CINEMATIC, cinematicFor } from '@/game/cinematic.ts';
-import type { BeamBody, BeamStage, ComboBody, ComboStage, DevourBody, DevourStage } from '@/sim/types.ts';
+import type { BeamBody, BeamStage, ComboBody, ComboStage, DevourBody, DevourStage, HexBody, HexStage } from '@/sim/types.ts';
 import { drumTicks } from '@/sim/devour.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 
@@ -163,5 +163,63 @@ describe('cinematic: gear 5', () => {
     expect(meal.dim).toBeGreaterThan(0);
     expect(cinematicFor([], [], [devour('recover', ticks(SPEC.recoverMs))])).toEqual({ ...NO_CINEMATIC, dim: 0 });
     expect(cinematicFor([], [], [{ ...devour('chew', 5), alive: false }])).toBe(NO_CINEMATIC);
+  });
+});
+
+describe('cinematic: the freezer', () => {
+  const SPEC = WEAPONS.freezer.hex!;
+  const ticks = (ms: number): number => Math.max(1, Math.round((ms * 60) / 1000));
+  const hex = (stage: HexStage, stageTicks: number, extra: Partial<HexBody> = {}): HexBody => ({
+    id: 4,
+    weaponId: 'freezer',
+    attackerId: 'a',
+    ownerTeamId: 't',
+    victimId: 'v',
+    spec: SPEC,
+    stage,
+    stageTicks,
+    holdX: 0,
+    holdY: 0,
+    facing: 1,
+    tipX: 7,
+    tipY: -8.5,
+    targetX: 200,
+    targetY: -8,
+    arcPx: 36,
+    flightTicks: 24,
+    groundX: 200,
+    groundY: 0,
+    liftPx: 36,
+    pulses: 0,
+    burst: false,
+    alive: true,
+    ...extra,
+  });
+
+  it('darkens the world round the worm pointing, eases back for the flight, and closes in as the victim swells', () => {
+    const start = cinematicFor([], [], [], [hex('point', 1)]);
+    const pointing = cinematicFor([], [], [], [hex('point', ticks(SPEC.pointMs) - 1)]);
+    expect(start.dim).toBeLessThan(pointing.dim);
+    expect(pointing.zoom).toBeGreaterThan(1.15);
+    const flying = cinematicFor([], [], [], [hex('shot', 24)]);
+    expect(flying.zoom).toBeLessThan(pointing.zoom);
+    const floating = cinematicFor([], [], [], [hex('rise', ticks(SPEC.riseMs))]);
+    const full = cinematicFor([], [], [], [hex('swell', ticks(SPEC.swellMs))]);
+    expect(floating.zoom).toBeGreaterThan(flying.zoom);
+    expect(full.zoom).toBeGreaterThan(floating.zoom);
+    expect(full.dim).toBeGreaterThan(floating.dim);
+    expect(full.whiteout).toBe(0);
+  });
+
+  it('lifts the dark at once as it bursts, pulls back out, and lets go at the end', () => {
+    const burst = cinematicFor([], [], [], [hex('recover', 1, { burst: true })]);
+    const full = cinematicFor([], [], [], [hex('swell', ticks(SPEC.swellMs))]);
+    expect(burst.dim).toBeLessThan(full.dim);
+    expect(cinematicFor([], [], [], [hex('recover', ticks(SPEC.recoverMs), { burst: true })])).toEqual({ ...NO_CINEMATIC, dim: 0 });
+    expect(cinematicFor([], [], [], [{ ...hex('swell', 5), alive: false }])).toBe(NO_CINEMATIC);
+  });
+
+  it('gives way to Gear 5 when both play', () => {
+    expect(cinematicFor([], [], [devour('chew', 5)], [hex('point', 1)]).zoom).toBeGreaterThan(1.3);
   });
 });

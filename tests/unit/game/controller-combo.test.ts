@@ -425,3 +425,100 @@ describe('controller: gear 5', () => {
     expect(hpOf(controller.state(), victimId)).toBeGreaterThan(0);
   });
 });
+
+describe('controller: freezer', () => {
+  /** Picks the Freezer, lets the lined up victim settle where it landed, then presses and releases fire. */
+  function fireFreezer(controller: Controller): GameEvent[] {
+    controller.selectWeapon('freezer');
+    expect(controller.selectedWeapon()).toBe('freezer');
+    for (let i = 0; i < 90; i += 1) controller.tick(IDLE);
+    controller.drainEvents();
+    controller.tick({ ...IDLE, fireHeld: true });
+    controller.tick({ ...IDLE, fireReleased: true });
+    return controller.drainEvents();
+  }
+
+  /** Moves the lined up victim farther off, still in plain sight, so the burst reaches nobody else. */
+  function stepBack(controller: Controller, attackerId: string, victimId: string, dx: number): void {
+    const world = controller.world();
+    const attacker = findWorm(world, attackerId);
+    const victim = findWorm(world, victimId);
+    if (attacker === undefined || victim === undefined) throw new Error('bodies missing');
+    victim.x = attacker.x + attacker.facing * dx;
+    const mask = world.terrain.mask;
+    const lo = Math.round(Math.min(attacker.x, victim.x)) - 4;
+    const hi = Math.round(Math.max(attacker.x, victim.x)) + 4;
+    for (let x = lo; x <= hi; x += 1) for (let y = Math.round(attacker.y) - 30; y < Math.round(attacker.y) - 1; y += 1) mask.data[y * mask.width + x] = 0;
+  }
+
+  it('is refused before its scheme delay has elapsed', () => {
+    const controller = makeController({ turn: 4 });
+    tickUntil(controller, 'Active');
+    controller.selectWeapon('freezer');
+    expect(controller.selectedWeapon()).not.toBe('freezer');
+  });
+
+  it('holds the shot open until the victim bursts, blows it into gore, then moves on', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    const { attackerId, victimId } = lineUp(controller);
+    stepBack(controller, attackerId, victimId, 70);
+    const fired = fireFreezer(controller);
+    // Nothing leaves a barrel at the press: no muzzle flash, the finger goes up instead.
+    expect(fired.some((e) => e.type === 'fired')).toBe(false);
+    expect(fired.some((e) => e.type === 'hexStart' && e.victimId === victimId)).toBe(true);
+    // Still Firing two seconds in: the reducer has not been told the shot is over.
+    for (let i = 0; i < 120; i += 1) controller.tick(IDLE);
+    expect(controller.state().phase).toBe('Firing');
+    expect(controller.world().hexes).toHaveLength(1);
+    const events: GameEvent[] = [];
+    tickUntil(controller, 'TurnEnd', events);
+    expect(hpOf(controller.state(), victimId)).toBe(0);
+    const beats = events.flatMap((e) => (e.type === 'hexBeat' ? [e.beat] : []));
+    expect(beats).toEqual(['shot', 'enter', 'pulse', 'pulse', 'pulse', 'pulse', 'pulse', 'burst']);
+    // Blown apart: one burst of gore, up where it floated, and the body out of the world.
+    const gibs = events.filter((e) => e.type === 'gib' && e.wormId === victimId);
+    expect(gibs).toHaveLength(1);
+    const burst = events.find((e): e is Extract<GameEvent, { type: 'hexBeat' }> => e.type === 'hexBeat' && e.beat === 'burst');
+    expect(gibs[0]).toMatchObject({ x: burst?.x, y: burst?.y });
+    expect(findWorm(controller.world(), victimId)?.alive).toBe(false);
+    expect(events.some((e) => e.type === 'hexEnd' && e.burst)).toBe(true);
+    expect(events.some((e) => e.type === 'explosion')).toBe(true);
+    expect(hpOf(controller.state(), attackerId)).toBeGreaterThan(0);
+    expect(controller.state().log.some((entry) => entry.kind === 'retreat')).toBe(true);
+  });
+
+  it('bursts a worm a health crate topped up past full, all of it, with one number for what it had', () => {
+    const controller = makeController({ turn: 5, enemyHp: 180 });
+    tickUntil(controller, 'Active');
+    const { attackerId, victimId } = lineUp(controller);
+    stepBack(controller, attackerId, victimId, 70);
+    fireFreezer(controller);
+    const events: GameEvent[] = [];
+    tickUntil(controller, 'TurnEnd', events);
+    expect(hpOf(controller.state(), victimId)).toBe(0);
+    const numbers = events.flatMap((e) => (e.type === 'damage' && e.wormId === victimId ? [e.lost] : []));
+    expect(numbers).toEqual([180]);
+  });
+
+  it('a surrender mid swell ends it and lets the victim down whole', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    const { attackerId, victimId } = lineUp(controller);
+    stepBack(controller, attackerId, victimId, 70);
+    fireFreezer(controller);
+    for (let i = 0; i < 1000 && controller.world().hexes[0]?.stage !== 'swell'; i += 1) controller.tick(IDLE);
+    expect(controller.world().hexes[0]?.stage).toBe('swell');
+    controller.tick(IDLE);
+    controller.drainEvents();
+    const team = activeTeamOf(controller.state());
+    if (team === undefined) throw new Error('no active team');
+    controller.surrender(team.id);
+    expect(controller.state().phase).toBe('MatchEnd');
+    expect(controller.world().hexes).toHaveLength(0);
+    const events = controller.drainEvents();
+    expect(events.some((e) => e.type === 'hexEnd' && !e.burst)).toBe(true);
+    expect(findWorm(controller.world(), victimId)?.alive).toBe(true);
+    expect(hpOf(controller.state(), victimId)).toBeGreaterThan(0);
+  });
+});

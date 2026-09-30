@@ -14,6 +14,7 @@ import { TICK_S, WALK_SPEED_PX_PER_S, WORM_HEIGHT } from '../sim/constants.ts';
 import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
+import { cancelHexes, heldByHexes } from '../sim/hex.ts';
 import { reduce } from '../match/machine.ts';
 import type { MatchEvent } from '../match/events.ts';
 import type { MatchState } from '../match/state.ts';
@@ -22,7 +23,7 @@ import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
 import { stepWorld } from '../sim/world.ts';
-import { IDLE_INTENT, type DevourBeat, type SimEvent, type WormIntent } from '../sim/types.ts';
+import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type WormIntent } from '../sim/types.ts';
 import { pickCrateColumn, spawnCrate } from '../sim/crate.ts';
 import { detonate } from '../sim/projectile.ts';
 import { detonateSheep } from '../sim/sheep.ts';
@@ -90,6 +91,10 @@ export type GameEvent =
   /** A beat of Gear 5; colorIndex is the victim's team colour, for what the burp brings back up. */
   | { readonly type: 'devourBeat'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: DevourBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
   | { readonly type: 'devourEnd'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly eaten: boolean }
+  | { readonly type: 'hexStart'; readonly hexId: number; readonly weapon: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  /** A beat of the Freezer; colorIndex is the victim's team colour, for the pieces the burst throws. */
+  | { readonly type: 'hexBeat'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: HexBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
+  | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean }
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
   | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number };
@@ -329,6 +334,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
       case 'devourEnd':
         events.push({ type: 'devourEnd', devourId: e.devourId, attackerId: e.attackerId, victimId: e.victimId, eaten: e.eaten });
         return;
+      case 'hexStart':
+        events.push({ type: 'hexStart', hexId: e.hexId, weapon: e.weaponId, attackerId: e.attackerId, victimId: e.victimId, x: e.x, y: e.y });
+        return;
+      case 'hexBeat':
+        events.push({ type: 'hexBeat', hexId: e.hexId, attackerId: e.attackerId, victimId: e.victimId, beat: e.beat, n: e.n, x: e.x, y: e.y, facing: e.facing, colorIndex: e.victimId === null ? 0 : colorIndexOf(e.victimId) });
+        return;
+      case 'hexEnd':
+        events.push({ type: 'hexEnd', hexId: e.hexId, attackerId: e.attackerId, victimId: e.victimId, burst: e.burst });
+        return;
       default:
         return;
     }
@@ -337,15 +351,17 @@ export function createController(game: Game, options: ControllerOptions): Contro
   /**
    * A worm at 0 hp is not drawn any more (the Worms rule keeps it in the ledger until TurnEnd), so
    * that is the moment it bursts. A worm a super move still holds keeps taking the beating first
-   * and bursts on the finisher, one in Gear 5's mouth is chewed to the end and swallowed, and a
-   * drowned worm sinks instead.
+   * and bursts on the finisher, one in Gear 5's mouth is chewed to the end and swallowed, one the
+   * Freezer's light went into floats and swells until its own burst, and a drowned worm sinks
+   * instead.
    */
   const observeCasualties = (): void => {
     const held = heldWormIds(world.combos);
     const eating = heldByDevours(world.devours);
+    const hexed = heldByHexes(world.hexes);
     for (const team of state.teams) {
       for (const worm of team.worms) {
-        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id)) continue;
+        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id)) continue;
         goneWorms.add(worm.id);
         const body = findBody(world, worm.id);
         if (body === undefined || body.motion === 'drowning') continue;
@@ -366,15 +382,16 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   /**
-   * The match ended while a super move, a beam or Gear 5 played (a surrender): the sim is not
-   * stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp bursts, and the
-   * white screen, the beam or the meal does not hold over the end screen forever.
+   * The match ended while a super move, a beam, Gear 5 or the Freezer played (a surrender): the sim
+   * is not stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp bursts,
+   * and the white screen, the beam, the meal or the swelling does not hold over the end screen forever.
    */
   const endFightsAtMatchEnd = (): void => {
-    if (state.phase !== 'MatchEnd' || !(world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive))) return;
+    if (state.phase !== 'MatchEnd' || !(world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive))) return;
     cancelCombos(world);
     cancelBeams(world);
     cancelDevours(world);
+    cancelHexes(world);
     drainSimAfterFire();
   };
 
@@ -453,11 +470,11 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const def = getWeapon(weapon);
     // Nothing leaves the worm's hands for a utility, a super move or an air strike (it comes from
     // the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
-    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined) return;
+    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined) return;
     events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
   };
 
-  /** Closes a super move's shot once the sim has played the combo, the beam or the meal out. */
+  /** Closes a super move's shot once the sim has played the combo, the beam, the meal or the burst out. */
   const stepSequence = (): void => {
     const weapon = pending.sequence;
     if (weapon === null) return;
@@ -465,7 +482,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       pending.sequence = null;
       return;
     }
-    if (world.combos.some((combo) => combo.alive) || world.beams.some((beam) => beam.alive) || world.devours.some((devour) => devour.alive)) return;
+    if (world.combos.some((combo) => combo.alive) || world.beams.some((beam) => beam.alive) || world.devours.some((devour) => devour.alive) || world.hexes.some((hex) => hex.alive)) return;
     pending.sequence = null;
     const activeWorm = activeWormOf(state);
     const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);

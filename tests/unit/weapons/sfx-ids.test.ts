@@ -11,6 +11,7 @@ import { WEAPONS, WEAPON_IDS } from '@/weapons/registry.ts';
 import { BEAM_SOUNDS } from '@/sim/beam.ts';
 import { COMBO_SOUNDS } from '@/sim/combo.ts';
 import { DEVOUR_SOUNDS } from '@/sim/devour.ts';
+import { HEX_SOUNDS } from '@/sim/hex.ts';
 
 interface PlanItem {
   readonly id: string;
@@ -55,7 +56,7 @@ describe('weapon sfx ids', () => {
   });
 
   it('plays only one shot cues from the plan in the supers\' own sound tables', () => {
-    const cues = [COMBO_SOUNDS, BEAM_SOUNDS, DEVOUR_SOUNDS].flatMap((table) => Object.values(table).flatMap((cue: string | readonly string[]) => (typeof cue === 'string' ? [cue] : [...cue])));
+    const cues = [COMBO_SOUNDS, BEAM_SOUNDS, DEVOUR_SOUNDS, HEX_SOUNDS].flatMap((table) => Object.values(table).flatMap((cue: string | readonly string[]) => (typeof cue === 'string' ? [cue] : [...cue])));
     expect(cues.length).toBeGreaterThan(10);
     for (const cue of cues) {
       expect(plan.has(cue), cue).toBe(true);

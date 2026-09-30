@@ -225,3 +225,50 @@ describe('decideHeuristic', () => {
     expect(decision.confidence).toBe(0);
   });
 });
+
+describe('decideHeuristic: the freezer', () => {
+  const ammo = [
+    { weapon: 'bazooka' as WeaponId, count: -1 },
+    { weapon: 'ryuko_ranbu' as WeaponId, count: 1 },
+    { weapon: 'freezer' as WeaponId, count: 1 },
+  ];
+
+  it('bursts an enemy in plain sight beyond the rush, over a bazooka shot', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(req, worms)).weapon).toBe('freezer');
+  });
+
+  it('keeps it when the light cannot find anyone, or only through a wall', () => {
+    const far = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.freezer.hex!.rangePx + 60, y: 299, hp: 100, alive: true },
+    ];
+    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(farReq, far)).weapon).not.toBe('freezer');
+    const walled = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 400, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 400, y: 299, hp: 100 }] });
+    const mask = flatMask(req.world.w, req.world.h, 300);
+    for (let y = 200; y < 300; y += 1) setSpan(mask, y, 300, 306, SOLID);
+    expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: walled }).weapon).not.toBe('freezer');
+  });
+
+  it('holds it when the burst would take a friend with the enemy', () => {
+    const crowded = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 10, alive: true },
+      { id: 'r2', teamId: 'red', x: 482, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo: [{ weapon: 'freezer' as WeaponId, count: 1 }], enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 10 }] });
+    const lone = [crowded[0]!, crowded[1]!];
+    expect(decideHeuristic(input(req, lone)).weapon).toBe('freezer');
+    // Next to a friend the burst costs more than the kill is worth: nothing scores, the CPU skips.
+    expect(decideHeuristic(input(req, crowded)).confidence).toBe(0);
+  });
+});
