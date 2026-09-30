@@ -9,7 +9,7 @@
 import { vec2 } from '../core/math.ts';
 import { carve } from '../terrain/terrain.ts';
 import type { BlastSpec } from '../weapons/types.ts';
-import { WORM_HEIGHT } from './constants.ts';
+import { wormMiddleY } from './worm-size.ts';
 import { blastDamage, knockbackVelocity } from './damage.ts';
 import type { SimWorld } from './world.ts';
 
@@ -34,7 +34,7 @@ export function explode(world: SimWorld, input: BlastInput): void {
   }
   for (const worm of world.worms) {
     if (!worm.alive || worm.motion === 'drowning') continue;
-    const center = vec2(worm.x, worm.y - WORM_HEIGHT / 2);
+    const center = vec2(worm.x, wormMiddleY(worm));
     const distance = Math.hypot(center.x - x, center.y - y);
     if (distance > r) continue;
     const amount = blastDamage(blast.maxDamage, distance, r);

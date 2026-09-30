@@ -12,6 +12,8 @@ export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' |
 export interface WormBody {
   readonly id: string;
   readonly teamId: string;
+  /** 1 for a worm, 0.5 for a Saibaman sprouted from a seed: its hitbox scales by it (sim/worm-size.ts). */
+  readonly size: number;
   /** Feet position, world px. */
   x: number;
   y: number;

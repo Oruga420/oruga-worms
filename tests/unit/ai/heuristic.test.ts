@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CPU_TURN_SCHEMA, type CpuTurnRequest } from '@/ai/contract.ts';
-import { decideHeuristic, type HeuristicInput } from '@/ai/heuristic.ts';
+import { decideHeuristic, pickChoice, walkSpots, type HeuristicInput } from '@/ai/heuristic.ts';
 import { GRAVITY_PX_PER_S2 } from '@/sim/constants.ts';
 import { createMask, setSpan, SOLID } from '@/terrain/mask.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
@@ -36,6 +36,11 @@ function request(overrides: Partial<CpuTurnRequest> = {}): CpuTurnRequest {
 
 function input(req: CpuTurnRequest, worms: HeuristicInput['worms']): HeuristicInput {
   return { request: req, registry: WEAPONS, mask: flatMask(req.world.w, req.world.h, 300), worms };
+}
+
+/** The same request with the walk spent: the worm fires from where it stands. */
+function still(req: CpuTurnRequest): CpuTurnRequest {
+  return { ...req, active: { ...req.active, maxWalkMs: 0 } };
 }
 
 const flatWorms = [
@@ -80,7 +85,7 @@ describe('decideHeuristic: the super move', () => {
         { id: 'b2', team: 'blue', x: 330, y: 299, hp: 100 },
       ],
     });
-    expect(decideHeuristic(input(req, worms)).weapon).not.toBe('ryuko_ranbu');
+    expect(decideHeuristic(input(still(req), worms)).weapon).not.toBe('ryuko_ranbu');
   });
 });
 
@@ -111,7 +116,21 @@ describe('decideHeuristic: the kamehameha', () => {
       { id: 'b1', teamId: 'blue', x: 420, y: 299, hp: 100, alive: true },
     ];
     const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 420, y: 299, hp: 100 }] });
-    expect(decideHeuristic(input(req, worms)).weapon).not.toBe('kamehameha');
+    expect(decideHeuristic(input(still(req), worms)).weapon).not.toBe('kamehameha');
+  });
+
+  it('walks past the team mate first when it can, and beams the enemy from there', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'r2', teamId: 'red', x: 300, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 420, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo: [{ weapon: 'kamehameha' as WeaponId, count: 1 }], enemies: [{ id: 'b1', team: 'blue', x: 420, y: 299, hp: 100 }] });
+    const out = decideHeuristic(input(req, worms));
+    expect(out.weapon).toBe('kamehameha');
+    expect(out.move.direction).toBe('right');
+    // Far enough to be past the team mate: 60 px a second of walking.
+    expect(out.move.durationMs).toBeGreaterThan(((300 - 200) / 60) * 1000);
   });
 });
 
@@ -137,7 +156,11 @@ describe('decideHeuristic: gear 5', () => {
       { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.gear_five.devour!.rangePx + 60, y: 299, hp: 100, alive: true },
     ];
     const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
-    expect(decideHeuristic(input(farReq, far)).weapon).not.toBe('gear_five');
+    expect(decideHeuristic(input(still(farReq), far)).weapon).not.toBe('gear_five');
+    // With its walk left it closes in and eats.
+    const closer = decideHeuristic(input(farReq, far));
+    expect(closer.weapon).toBe('gear_five');
+    expect(closer.move.direction).toBe('right');
     const walled = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
       { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
@@ -248,7 +271,10 @@ describe('decideHeuristic: the freezer', () => {
       { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.freezer.hex!.rangePx + 60, y: 299, hp: 100, alive: true },
     ];
     const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
-    expect(decideHeuristic(input(farReq, far)).weapon).not.toBe('freezer');
+    expect(decideHeuristic(input(still(farReq), far)).weapon).not.toBe('freezer');
+    const closer = decideHeuristic(input(farReq, far));
+    expect(closer.weapon).toBe('freezer');
+    expect(closer.move.direction).toBe('right');
     const walled = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
       { id: 'b1', teamId: 'blue', x: 400, y: 299, hp: 100, alive: true },
@@ -270,5 +296,75 @@ describe('decideHeuristic: the freezer', () => {
     expect(decideHeuristic(input(req, lone)).weapon).toBe('freezer');
     // Next to a friend the burst costs more than the kill is worth: nothing scores, the CPU skips.
     expect(decideHeuristic(input(req, crowded)).confidence).toBe(0);
+  });
+});
+
+describe('decideHeuristic: walking and turning', () => {
+  it('turns round to shoot an enemy behind it', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 600, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ active: { wormId: 'r1', team: 'red', x: 600, y: 299, hp: 100, canMoveLeft: true, canMoveRight: true, maxWalkMs: 3000 }, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    const out = decideHeuristic(input(req, worms));
+    expect(out.weapon).toBe('bazooka');
+    expect(out.facing).toBe('left');
+    expect(decideHeuristic(input(still(req), worms)).facing).toBe('left');
+  });
+
+  it('walks before it fires when a walk gives up little, and stands still when the walk is spent', () => {
+    const req = request({ ammo: [{ weapon: 'shotgun' as WeaponId, count: -1 }], enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const moving = decideHeuristic(input(req, worms));
+    expect(moving.weapon).toBe('shotgun');
+    expect(moving.move.direction).not.toBe('none');
+    expect(moving.move.durationMs).toBeGreaterThan(0);
+    expect(moving.move.durationMs).toBeLessThanOrEqual(req.active.maxWalkMs);
+    expect(decideHeuristic(input(still(req), worms)).move.direction).toBe('none');
+  });
+
+  it('never plans a walk off a cliff or into the water', () => {
+    const req = request({ ammo: [{ weapon: 'shotgun' as WeaponId, count: -1 }], enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    // Ground only between 180 and 240: a step either way beyond it is a drop.
+    const mask = createMask(req.world.w, req.world.h);
+    for (let y = 300; y < req.world.h; y += 1) setSpan(mask, y, 180, 240, SOLID);
+    for (let y = 300; y < req.world.h; y += 1) setSpan(mask, y, 320, 340, SOLID);
+    const spots = walkSpots({ request: req, registry: WEAPONS, mask, worms }, worms[0]!);
+    for (const spot of spots) {
+      expect(spot.at.x).toBeGreaterThanOrEqual(180 - 5);
+      expect(spot.at.x).toBeLessThanOrEqual(240 + 5);
+    }
+  });
+
+  it('with no shot at all, walks toward the nearest enemy and passes the turn', () => {
+    const req = request({ ammo: [{ weapon: 'baseball_bat' as WeaponId, count: 1 }, { weapon: 'skip_go' as WeaponId, count: -1 }], enemies: [{ id: 'b1', team: 'blue', x: 700, y: 299, hp: 100 }] });
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 700, y: 299, hp: 100, alive: true },
+    ];
+    const out = decideHeuristic(input(req, worms));
+    expect(out.weapon).toBe('skip_go');
+    expect(out.facing).toBe('right');
+    expect(out.move.direction).toBe('right');
+    expect(out.move.durationMs).toBeGreaterThan(1000);
+  });
+
+  it('prefers a walk only when it costs little: a clearly better shot from where it stands wins', () => {
+    const shots = [
+      { score: 50, spot: { at: { id: 'a', teamId: 't', x: 0, y: 0, hp: 1, alive: true }, dir: 0 as const, walkMs: 0 } },
+      { score: 46, spot: { at: { id: 'a', teamId: 't', x: 40, y: 0, hp: 1, alive: true }, dir: 1 as const, walkMs: 600 } },
+      { score: 30, spot: { at: { id: 'a', teamId: 't', x: 80, y: 0, hp: 1, alive: true }, dir: 1 as const, walkMs: 1300 } },
+    ];
+    expect(pickChoice(shots)?.spot.dir).toBe(1);
+    expect(pickChoice(shots)?.score).toBe(46);
+    expect(pickChoice([shots[0]!, shots[2]!])?.spot.dir).toBe(0);
+    expect(pickChoice([])).toBeNull();
   });
 });

@@ -5,7 +5,8 @@
  */
 
 import { firstSolidBelow, isSolid } from '../terrain/queries.ts';
-import { CRATE_FALL_PX_PER_S, CRATE_SIZE_PX, WORM_HALF_WIDTH, WORM_HEIGHT } from './constants.ts';
+import { CRATE_FALL_PX_PER_S, CRATE_SIZE_PX, WORM_HALF_WIDTH } from './constants.ts';
+import { wormHalfWidth, wormHeight } from './worm-size.ts';
 import type { CrateBody, CrateKind, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 
@@ -58,7 +59,7 @@ export function stepCrate(world: SimWorld, crate: CrateBody, dt: number): void {
 /** Overlap test between a landed crate and a worm's hitbox. */
 export function wormTouchesCrate(worm: WormBody, crate: CrateBody): boolean {
   const half = CRATE_SIZE_PX / 2;
-  return Math.abs(worm.x - crate.x) <= half + WORM_HALF_WIDTH && crate.y >= worm.y - WORM_HEIGHT - half && crate.y <= worm.y + half;
+  return Math.abs(worm.x - crate.x) <= half + wormHalfWidth(worm) && crate.y >= worm.y - wormHeight(worm) - half && crate.y <= worm.y + half;
 }
 
 export function collectCrates(world: SimWorld): void {

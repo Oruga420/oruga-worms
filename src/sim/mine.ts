@@ -7,7 +7,8 @@
 
 import { GAME_CONFIG } from '../config/game-config.ts';
 import type { BlastSpec, SpawnSpec } from '../weapons/types.ts';
-import { MINE_RADIUS_PX, REST_SPEED_PX_PER_S, TICK_S, WORM_HEIGHT } from './constants.ts';
+import { MINE_RADIUS_PX, REST_SPEED_PX_PER_S, TICK_S } from './constants.ts';
+import { wormMiddleY } from './worm-size.ts';
 import { explode } from './explosion.ts';
 import { applyForces, bounce, speedOf, sweepMove } from './integrator.ts';
 import type { MineBody } from './types.ts';
@@ -71,7 +72,7 @@ export function stepMine(world: SimWorld, mine: MineBody, dt: number): void {
     const proximity = mine.spec.proximityPx ?? 0;
     const trigger = world.worms.some((w) => {
       if (!w.alive || (mine.graceTicks > 0 && w.teamId === mine.ownerTeamId)) return false;
-      return Math.hypot(w.x - mine.x, w.y - WORM_HEIGHT / 2 - mine.y) <= proximity;
+      return Math.hypot(w.x - mine.x, wormMiddleY(w) - mine.y) <= proximity;
     });
     if (trigger) {
       mine.armed = true;

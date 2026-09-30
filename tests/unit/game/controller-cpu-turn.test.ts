@@ -7,6 +7,7 @@ import { activeTeamOf } from '@/match/ledger.ts';
 import type { MatchSetup } from '@/match/setup.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { PANEL_WEAPON_IDS, type WeaponId } from '@/weapons/types.ts';
+import { AIR, SOLID } from '@/terrain/mask.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 
 /**
@@ -99,5 +100,48 @@ describe('controller: the CPU turn ends after its shot', () => {
     // standing for the full retreat time (3 s of dead air before this).
     expect(turn.retreatTicks).toBeLessThanOrEqual(2);
     expect(turn.ticks * TICK_MS).toBeLessThan(GAME_CONFIG.turnMs / 3);
+  });
+});
+
+describe('controller: the CPU walks and turns round', () => {
+  it('walks toward an enemy behind it, then turns and fires at it', async () => {
+    const controller = makeController('shotgun');
+    // Up to the CPU's turn, but before it decides: set the scene while the turn banner shows.
+    let guard = 0;
+    while (!(controller.state().phase === 'TurnStart' && activeTeamOf(controller.state())?.controller === 'cpu') && guard < 3000) {
+      controller.tick(IDLE);
+      guard += 1;
+    }
+    const team = activeTeamOf(controller.state());
+    const activeId = team?.worms[team.activeWormIndex]?.id;
+    const world = controller.world();
+    const body = world.worms.find((w) => w.id === activeId);
+    const enemies = world.worms.filter((w) => w.teamId !== team?.id);
+    const target = enemies[0];
+    if (body === undefined || target === undefined) throw new Error('bodies missing');
+    // One enemy 150 px behind it on cleared ground, the rest out of the fight.
+    body.facing = 1;
+    target.x = body.x - 150;
+    target.y = body.y;
+    for (const other of enemies.slice(1)) other.alive = false;
+    const mask = world.terrain.mask;
+    // Air above and solid ground under it, a good depth of it: a floor a pixel thin is not one a worm stands on.
+    for (let x = Math.round(target.x) - 8; x <= Math.round(body.x) + 8; x += 1) {
+      for (let y = Math.round(body.y) - 40; y <= Math.round(body.y); y += 1) mask.data[y * mask.width + x] = AIR;
+      for (let y = Math.round(body.y) + 1; y <= Math.round(body.y) + 16; y += 1) mask.data[y * mask.width + x] = SOLID;
+    }
+    const startX = body.x;
+    const fired: { facing: 1 | -1; x: number }[] = [];
+    let ticks = 0;
+    while (controller.state().phase !== 'TurnEnd' && ticks < 4000) {
+      controller.tick(IDLE);
+      for (const e of controller.drainEvents()) if (e.type === 'fired') fired.push({ facing: e.facing, x: e.x });
+      ticks += 1;
+      if (ticks % 5 === 0) await Promise.resolve();
+    }
+    expect(fired.length).toBeGreaterThan(0);
+    // It walked toward the enemy, then fired facing it, not the way it stood.
+    expect(fired[0]?.x).toBeLessThan(startX - 20);
+    for (const shot of fired) expect(shot.facing).toBe(-1);
   });
 });

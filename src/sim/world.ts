@@ -84,12 +84,15 @@ export interface AddWormParams {
   readonly x: number;
   readonly y: number;
   readonly facing?: 1 | -1;
+  /** 1 for a worm (the default), 0.5 for a Saibaman. */
+  readonly size?: number;
 }
 
 export function addWorm(world: SimWorld, params: AddWormParams): WormBody {
   const worm: WormBody = {
     id: params.id,
     teamId: params.teamId,
+    size: params.size ?? 1,
     x: params.x,
     y: params.y,
     vx: 0,

@@ -10,7 +10,8 @@
 
 import { validateUtilityTarget } from '../weapons/behaviors/utility.ts';
 import { TICK_MS } from '../config/units.ts';
-import { TICK_S, WALK_SPEED_PX_PER_S, WORM_HEIGHT } from '../sim/constants.ts';
+import { TICK_S, WALK_SPEED_PX_PER_S } from '../sim/constants.ts';
+import { wormMiddleY } from '../sim/worm-size.ts';
 import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
@@ -128,6 +129,8 @@ interface Pending {
   /** Queued human or CPU walk intents to feed before firing. */
   walk: WormIntent[];
   fireAfterWalk: FireAim | null;
+  /** Which way the CPU's worm faces to fire, set once the walk is over (walking turns it the way it goes). */
+  fireFacing: 1 | -1;
   fireWeapon: WeaponId | null;
   cpuRequested: boolean;
   /** The CPU decision has come back (with or without a plan), so standing still is not "waiting". */
@@ -176,7 +179,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   let bannerMs = BANNER_MS;
   let cpuBusy = false;
   const events: GameEvent[] = [];
-  const pending: Pending = { walk: [], fireAfterWalk: null, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
+  const pending: Pending = { walk: [], fireAfterWalk: null, fireFacing: 1, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
   // Worms whose last hp already went to gore (a burst) or to the water, so each dies exactly once.
   const goneWorms = new Set<string>();
 
@@ -279,7 +282,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         return;
       case 'damage': {
         const body = findBody(world, e.wormId);
-        const at = e.at ?? (body === undefined ? null : { x: body.x, y: body.y - WORM_HEIGHT / 2, dx: 0, dy: -1 });
+        const at = e.at ?? (body === undefined ? null : { x: body.x, y: wormMiddleY(body), dx: 0, dy: -1 });
         const left = hpLeft.get(e.wormId) ?? 0;
         const lost = Number.isFinite(e.amount) && e.amount > 0 ? Math.min(e.amount, left) : 0;
         hpLeft.set(e.wormId, left - lost);
@@ -365,7 +368,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         goneWorms.add(worm.id);
         const body = findBody(world, worm.id);
         if (body === undefined || body.motion === 'drowning') continue;
-        events.push({ type: 'gib', wormId: worm.id, x: body.x, y: body.y - WORM_HEIGHT / 2, vx: body.vx, vy: body.vy, colorIndex: team.colorIndex });
+        events.push({ type: 'gib', wormId: worm.id, x: body.x, y: wormMiddleY(body), vx: body.vx, vy: body.vy, colorIndex: team.colorIndex });
         // The body goes with the burst. Left in the physics it flew on unseen: the camera chased
         // it, it landed or drowned in front of the player, and it could trip a mine or take a crate.
         body.alive = false;
@@ -577,9 +580,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
     cpuBusy = true;
     void decideCpuTurn(buildSnapshot(), options.cpu, cpuState).then((decision) => {
       const plan = buildPlan(decision.response);
-      const body = activeWormOf(state);
-      const simBody = body === undefined ? undefined : findBody(world, body.id);
-      if (simBody !== undefined) simBody.facing = plan.facing;
+      // The worm turns to its target once it is done walking: set now, the walk would turn it back.
+      pending.fireFacing = plan.facing;
       const walk = plan.steps.filter((s) => s.kind === 'move').flatMap((s) => (s.kind === 'move' ? Array.from({ length: s.ticks }, () => s.intent) : []));
       // The request carried the budget and the sanitizer clamped to it; this cap is the last line
       // of defence so the queue never holds a walk the sim would cut short (backlog 4.4).
@@ -675,6 +677,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
           if (pending.refireTicks > 0) pending.refireTicks -= 1;
           if (pending.walk.length === 0 && pending.fireAfterWalk !== null && pending.fireWeapon !== null && !cpuBusy && pending.refireTicks === 0) {
             const weapon = pending.fireWeapon;
+            const cpuWorm = activeWormOf(state);
+            const cpuBody = cpuWorm === undefined ? undefined : findBody(world, cpuWorm.id);
+            if (cpuBody !== undefined) cpuBody.facing = pending.fireFacing;
             aim = setAngle(aim, pending.fireAfterWalk.angleDeg);
             startShot(weapon, pending.fireAfterWalk);
             // A two barrel weapon brings the reducer back to Active with a shot still owed: keep

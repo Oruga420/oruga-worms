@@ -12,7 +12,8 @@
  */
 
 import { msToTicks } from '../config/units.ts';
-import { MELEE_KNOCKBACK_SCALE, WORM_HEIGHT } from './constants.ts';
+import { MELEE_KNOCKBACK_SCALE } from './constants.ts';
+import { wormHeight } from './worm-size.ts';
 import type { ComboBody, ComboStage, HitPoint, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 import type { ComboSpec } from '../weapons/types.ts';
@@ -185,7 +186,7 @@ function blowPoint(combo: ComboBody, victim: WormBody, finisher: boolean): HitPo
   const height = finisher ? 0.55 : blow.height;
   return {
     x: victim.x - combo.facing * 2,
-    y: victim.y - WORM_HEIGHT * height,
+    y: victim.y - wormHeight(victim) * height,
     dx: Math.cos(lift) * combo.facing,
     dy: -Math.sin(lift),
   };

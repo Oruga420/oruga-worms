@@ -6,7 +6,7 @@
  */
 
 import { degToRad } from '../../core/math.ts';
-import { WORM_HEIGHT } from '../../sim/constants.ts';
+import { wormHeight } from '../../sim/worm-size.ts';
 import type { WormBody } from '../../sim/types.ts';
 import type { SimWorld } from '../../sim/world.ts';
 import type { WeaponDef } from '../types.ts';
@@ -46,9 +46,9 @@ export interface FireResult {
   readonly sequence?: boolean;
 }
 
-/** The muzzle: a little in front of the worm's chest, in the facing direction. */
+/** The muzzle: a little in front of the worm's chest, in the facing direction (lower and closer on a Saibaman). */
 export function muzzlePoint(worm: WormBody): { readonly x: number; readonly y: number } {
-  return { x: worm.x + worm.facing * 6, y: worm.y - WORM_HEIGHT * 0.6 };
+  return { x: worm.x + worm.facing * 6 * worm.size, y: worm.y - wormHeight(worm) * 0.6 };
 }
 
 /** Unit aim direction from the elevation and the worm's facing (up is negative y). */

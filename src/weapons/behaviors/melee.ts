@@ -7,18 +7,20 @@
  */
 
 import { degToRad } from '../../core/math.ts';
-import { MELEE_KNOCKBACK_SCALE, WORM_HEIGHT } from '../../sim/constants.ts';
+import { MELEE_KNOCKBACK_SCALE } from '../../sim/constants.ts';
+import type { WormBody } from '../../sim/types.ts';
+import { wormHeight, wormMiddleY } from '../../sim/worm-size.ts';
 import { carve } from '../../terrain/terrain.ts';
 import type { MeleeSpec } from '../types.ts';
 import { fireCombo } from './combo.ts';
 import { fireDevour } from './devour.ts';
 import { endsAfter, muzzlePoint, type FireContext, type FireResult } from './types.ts';
 
-function withinArc(ctx: FireContext, melee: MeleeSpec, wx: number, wy: number): boolean {
+function withinArc(ctx: FireContext, melee: MeleeSpec, target: WormBody): boolean {
   const ox = ctx.worm.x;
-  const oy = ctx.worm.y - WORM_HEIGHT / 2;
-  const dx = wx - ox;
-  const dy = wy - WORM_HEIGHT / 2 - oy;
+  const oy = wormMiddleY(ctx.worm);
+  const dx = target.x - ox;
+  const dy = wormMiddleY(target) - oy;
   const dist = Math.hypot(dx, dy);
   if (dist > melee.reachPx || dist === 0) return false;
   const facingDot = (dx * ctx.worm.facing) / dist;
@@ -39,8 +41,8 @@ export function fireMelee(ctx: FireContext): FireResult {
   const dir = { dx: (melee.knockback.x / push) * ctx.worm.facing, dy: -melee.knockback.y / push };
   for (const worm of ctx.world.worms) {
     if (!worm.alive || worm.id === ctx.worm.id) continue;
-    if (!withinArc(ctx, melee, worm.x, worm.y)) continue;
-    const at = { x: worm.x - ctx.worm.facing * 3, y: worm.y - WORM_HEIGHT * 0.6, ...dir };
+    if (!withinArc(ctx, melee, worm)) continue;
+    const at = { x: worm.x - ctx.worm.facing * 3, y: worm.y - wormHeight(worm) * 0.6, ...dir };
     ctx.world.events.push({ type: 'damage', wormId: worm.id, amount: melee.damage, sourceTeamId: ctx.worm.teamId, sourceWormId: ctx.worm.id, cause: 'melee', at });
     if (ctx.def.sfx.impact !== undefined) ctx.world.events.push({ type: 'sound', id: ctx.def.sfx.impact, x: worm.x, y: worm.y });
     worm.vx += melee.knockback.x * ctx.worm.facing * MELEE_KNOCKBACK_SCALE;

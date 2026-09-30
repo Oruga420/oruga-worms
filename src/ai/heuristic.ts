@@ -1,18 +1,27 @@
 /**
  * The deterministic heuristic CPU (architecture.md section F, ai/heuristic.ts): for each weapon
- * with ammo, sample aim angle and power, simulate the shot with the real integrator against the
- * mask, and score by expected enemy damage minus self and ally damage. The best candidate
- * becomes a CpuTurnResponse. Difficulty adds bounded jitter; nothing scoring above zero means
- * Skip Go. Because it uses a seeded index and the real trajectory, it is fully reproducible and
- * can never make the CPU play worse than this floor.
+ * with ammo, from where the worm stands and from the spots it can walk to (walked with the sim's
+ * own rules), facing whichever way an enemy is, sample aim angle and power, simulate the shot with
+ * the real integrator against the mask, and score by expected enemy damage minus self and ally
+ * damage. The best candidate becomes a CpuTurnResponse: walk there, turn, fire. A walk that gives
+ * up little is preferred to standing still, so the CPU moves about like a player does, and a turn
+ * with no shot walks toward the nearest enemy and passes. Difficulty adds bounded jitter. Because it
+ * uses a seeded index and the real trajectory, it is fully reproducible and can never make the CPU
+ * play worse than this floor.
+ *
+ * The ballistic search is coarse then fine: a grid of angles and powers with the shell as a point,
+ * which is cheap, then the neighbourhood of the best of it with the shell's real size. Marching a
+ * grenade's full disc through every sample of a fine grid was most of a second per turn.
  */
 
-import { GRAVITY_PX_PER_S2, WORM_HALF_WIDTH, WORM_HEIGHT } from '../sim/constants.ts';
+import { GRAVITY_PX_PER_S2, TICK_S, WALK_SPEED_PX_PER_S, WORM_HALF_WIDTH, WORM_HEIGHT } from '../sim/constants.ts';
+import { stepHorizontal } from '../sim/worm-controller.ts';
+import { wormMiddleY } from '../sim/worm-size.ts';
 import { clamp } from '../core/math.ts';
 import type { CpuDifficulty, CpuTurnRequest, CpuTurnResponse } from './contract.ts';
 import { CPU_TURN_SCHEMA } from './contract.ts';
 import { pickSkipTaunt, pickTaunt } from './taunts.ts';
-import { estimateBlast, simulateShot, type ShotSpec, type TrajectoryEnv, type WormPoint } from './trajectory.ts';
+import { clearShot, estimateBlast, simulateShot, type ShotSpec, type TrajectoryEnv, type WormPoint } from './trajectory.ts';
 import type { TerrainMask } from '../terrain/mask.ts';
 import type { WeaponDef, WeaponId } from '../weapons/types.ts';
 import type { WeaponRegistry } from '../weapons/registry.ts';
@@ -38,10 +47,19 @@ interface Candidate {
   readonly targetPoint?: { readonly x: number; readonly y: number };
 }
 
-const ANGLE_STEP = 5;
 const ANGLE_MIN = -85;
 const ANGLE_MAX = 85;
-const POWER_STEPS = [0.4, 0.6, 0.8, 1] as const;
+/** The coarse pass: every 10 degrees from -80 to 80, at three charges (full power for an uncharged weapon). */
+const COARSE_ANGLES: readonly number[] = Object.freeze(Array.from({ length: 17 }, (_, i) => -80 + i * 10));
+const COARSE_POWERS: readonly number[] = Object.freeze([0.45, 0.7, 0.95]);
+/** The fine pass round the best coarse shot: half a coarse step each way, and a tenth of a charge. */
+const FINE_ANGLE_STEP = 5;
+const FINE_POWER_STEP = 0.1;
+
+/** How far the CPU considers walking each way before it fires, px, as far as its movement budget goes. */
+export const WALK_STOPS_PX: readonly number[] = Object.freeze([45, 120]);
+/** A shot after a walk is taken over a standing one when it scores at least this share of it. */
+export const WALK_TOLERANCE = 0.9;
 
 /** Difficulty jitter in degrees and power fraction, and a weapon downgrade chance for easy. */
 const JITTER: Readonly<Record<CpuDifficulty, { readonly angle: number; readonly power: number }>> = Object.freeze({
@@ -90,28 +108,55 @@ function scoreImpact(bx: number, by: number, radius: number, maxDamage: number, 
   return { score: enemy - friendly, enemy };
 }
 
-function evaluateBallistic(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1, env: TrajectoryEnv): Candidate | null {
-  const activeTeam = input.request.active.team;
-  let best: Candidate | null = null;
-  for (let angle = ANGLE_MIN; angle <= ANGLE_MAX; angle += ANGLE_STEP) {
-    for (const power of POWER_STEPS) {
-      const shot = shotFor(def, from, angle, power, facing);
-      if (shot === null) continue;
-      const impact = simulateShot(shot, env);
-      if (impact === null) continue;
-      const { score, enemy } = scoreImpact(impact.x, impact.y, def.blast!.radiusPx, def.blast!.maxDamage, from, input.worms, activeTeam);
-      if (best === null || score > best.score) {
-        const confidence = clamp(enemy / Math.max(1, def.blast!.maxDamage), 0, 1);
-        best = { weapon: def.id, angleDeg: angle, power, score, confidence, ...(def.fuse === undefined ? {} : { fuseMs: def.fuse.defaultMs }) };
-        if (!def.charged) break;
-      }
-    }
-  }
-  return best;
+/** Where one shot lands and what it is worth; exact false marches the shell as a point (the cheap pass). */
+function scoreShot(input: HeuristicInput, def: WeaponDef, from: WormPoint, angle: number, power: number, facing: 1 | -1, env: TrajectoryEnv, exact: boolean): { score: number; enemy: number } | null {
+  const shot = shotFor(def, from, angle, power, facing);
+  if (shot === null) return null;
+  const impact = simulateShot(exact ? shot : { ...shot, radiusPx: 0 }, env);
+  if (impact === null) return null;
+  return scoreImpact(impact.x, impact.y, def.blast!.radiusPx, def.blast!.maxDamage, from, input.worms, input.request.active.team);
 }
 
-/** Direct line estimate for hitscan and melee: damage if an enemy is on a clear bearing within range. */
-function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint): Candidate | null {
+interface CoarseShot {
+  readonly angle: number;
+  readonly power: number;
+  readonly score: number;
+}
+
+/** The coarse pass: the best of the grid, the shell marched as a point. Null when nothing on the grid scores. */
+function coarseBallistic(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1, env: TrajectoryEnv): CoarseShot | null {
+  const powers = def.charged ? COARSE_POWERS : [1];
+  let coarse: CoarseShot | null = null;
+  for (const angle of COARSE_ANGLES) {
+    for (const power of powers) {
+      const scored = scoreShot(input, def, from, angle, power, facing, env, false);
+      if (scored !== null && (coarse === null || scored.score > coarse.score)) coarse = { angle, power, score: scored.score };
+    }
+  }
+  return coarse !== null && coarse.score > 0 ? coarse : null;
+}
+
+/** The fine pass round a coarse shot, with the shell's real size: that is the shot that will fire. */
+function fineBallistic(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1, env: TrajectoryEnv, coarse: CoarseShot): Candidate | null {
+  let best: Candidate | null = null;
+  for (const da of [0, -FINE_ANGLE_STEP, FINE_ANGLE_STEP]) {
+    for (const dp of def.charged ? [0, -FINE_POWER_STEP, FINE_POWER_STEP] : [0]) {
+      const angle = clamp(coarse.angle + da, ANGLE_MIN, ANGLE_MAX);
+      const power = def.charged ? clamp(Math.round((coarse.power + dp) * 100) / 100, 0.05, 1) : 1;
+      const scored = scoreShot(input, def, from, angle, power, facing, env, true);
+      if (scored === null || (best !== null && scored.score <= best.score)) continue;
+      const confidence = clamp(scored.enemy / Math.max(1, def.blast!.maxDamage), 0, 1);
+      best = { weapon: def.id, angleDeg: angle, power, score: scored.score, confidence, ...(def.fuse === undefined ? {} : { fuseMs: def.fuse.defaultMs }) };
+    }
+  }
+  return best !== null && best.score > 0 ? best : null;
+}
+
+/**
+ * Direct line estimate for hitscan and melee: damage to an enemy within range on the side the worm
+ * faces, and for a gun with a clear line from the muzzle to the target's middle.
+ */
+function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
   const range = def.hitscan?.rangePx ?? def.melee?.reachPx ?? 0;
   const perHit = def.hitscan !== undefined ? def.hitscan.damagePerPellet * def.hitscan.pellets : (def.melee?.damage ?? 0);
   let best: Candidate | null = null;
@@ -120,7 +165,8 @@ function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint):
     const dx = worm.x - from.x;
     const dy = worm.y - from.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > range) continue;
+    if (dist > range || dx * facing <= 0) continue;
+    if (def.hitscan !== undefined && !clearShot(input.mask, from.x + facing * 6, from.y - WORM_HEIGHT * 0.6, worm.x, wormMiddleY(worm))) continue;
     const angle = Math.round((Math.atan2(-dy, Math.abs(dx)) * 180) / Math.PI);
     const score = Math.min(perHit, worm.hp);
     if (best === null || score > best.score) best = { weapon: def.id, angleDeg: clamp(angle, ANGLE_MIN, ANGLE_MAX), power: 1, score, confidence: clamp(score / Math.max(1, perHit), 0, 1) };
@@ -235,41 +281,179 @@ function evaluateTargeted(input: HeuristicInput, def: WeaponDef): Candidate | nu
   return best;
 }
 
+/** A place to fire from: where the worm stands, or a spot along the ground it can walk to first. */
+export interface Spot {
+  readonly at: WormPoint;
+  /** 0 to stay put; otherwise which way it walks, and for how long. */
+  readonly dir: -1 | 0 | 1;
+  readonly walkMs: number;
+}
+
+/**
+ * Where the worm can fire from this turn: where it stands, then the spots WALK_STOPS_PX along the
+ * ground each way, walked tick by tick with the sim's own step (slopes climbed, walls stopping it),
+ * as far as the movement budget goes. A walk ends before a drop the worm would fall off, and before
+ * the water.
+ */
+export function walkSpots(input: HeuristicInput, from: WormPoint): Spot[] {
+  const request = input.request;
+  const spots: Spot[] = [{ at: from, dir: 0, walkMs: 0 }];
+  const maxTicks = Math.floor(Math.max(0, request.active.maxWalkMs) / 1000 / TICK_S);
+  const stepPx = WALK_SPEED_PX_PER_S * TICK_S;
+  for (const dir of [-1, 1] as const) {
+    if (dir === -1 ? !request.active.canMoveLeft : !request.active.canMoveRight) continue;
+    const walker = { x: from.x, y: from.y, ...(from.size === undefined ? {} : { size: from.size }) };
+    let walked = 0;
+    let stop = 0;
+    for (let tick = 1; tick <= maxTicks && stop < WALK_STOPS_PX.length; tick += 1) {
+      const x = walker.x;
+      if (stepHorizontal(input.mask, walker, walker.x + dir * stepPx) !== 'moved' || walker.y >= request.waterY - 4) break;
+      walked += Math.abs(walker.x - x);
+      if (walked >= (WALK_STOPS_PX[stop] ?? Infinity)) {
+        spots.push({ at: { ...from, x: walker.x, y: walker.y }, dir, walkMs: Math.round(tick * TICK_S * 1000) });
+        stop += 1;
+      }
+    }
+  }
+  return spots;
+}
+
+/** The ways worth facing from a spot: toward any enemy, or both when an enemy is straight above or below. */
+function facingsFrom(input: HeuristicInput, at: WormPoint): readonly (1 | -1)[] {
+  let right = false;
+  let left = false;
+  for (const worm of input.worms) {
+    if (!worm.alive || worm.teamId === input.request.active.team) continue;
+    const dx = worm.x - at.x;
+    if (dx >= -WORM_HALF_WIDTH) right = true;
+    if (dx <= WORM_HALF_WIDTH) left = true;
+  }
+  if (right && left) return [1, -1];
+  return left ? [-1] : [1];
+}
+
+interface Choice extends Candidate {
+  readonly spot: Spot;
+  readonly facing: 1 | -1;
+}
+
+/** Every shot but a shell's, which ballisticChoices searches across the spots at once. */
+function evaluate(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  if (def.combo !== undefined) return evaluateCombo(input, def, from, facing);
+  if (def.devour !== undefined) return evaluateDevour(input, def, from, facing);
+  if (def.hex !== undefined) return evaluateHex(input, def, from, facing);
+  if (def.beam !== undefined) return evaluateBeam(input, def, from, facing);
+  if (def.kind === 'HITSCAN' || def.kind === 'MELEE') return evaluateDirect(input, def, from, facing);
+  return null;
+}
+
+/** Of two shots, the better: the higher score, then the one that walks the way it will fire, then the shorter walk. */
+function better<T extends { readonly score: number; readonly spot: Spot; readonly facing?: 1 | -1 }>(a: T, b: T): boolean {
+  if (a.score !== b.score) return a.score > b.score;
+  const ahead = (c: T): number => (c.spot.dir !== 0 && c.spot.dir === c.facing ? 1 : 0);
+  if (ahead(a) !== ahead(b)) return ahead(a) > ahead(b);
+  return a.spot.walkMs < b.spot.walkMs;
+}
+
+/**
+ * The best shot, and the one the CPU takes: standing still wins only by more than WALK_TOLERANCE,
+ * otherwise the best shot from a spot it walks to is taken, so the worm moves about on its turn,
+ * toward where it will fire when that is as good.
+ */
+export function pickChoice<T extends { readonly score: number; readonly spot: Spot; readonly facing?: 1 | -1 }>(choices: readonly T[]): T | null {
+  let best: T | null = null;
+  for (const choice of choices) if (best === null || better(choice, best)) best = choice;
+  if (best === null || best.score <= 0 || best.spot.dir !== 0) return best;
+  let walk: T | null = null;
+  for (const choice of choices) {
+    if (choice.spot.dir !== 0 && choice.score >= best.score * WALK_TOLERANCE && (walk === null || better(choice, walk))) walk = choice;
+  }
+  return walk ?? best;
+}
+
+/**
+ * A shell's best shots: the coarse pass from every spot and facing, then the fine pass only on the
+ * best of them from where it stands and the best after a walk (all pickChoice needs to choose).
+ */
+function ballisticChoices(input: HeuristicInput, def: WeaponDef, spots: readonly Spot[], env: TrajectoryEnv): Choice[] {
+  let stay: { spot: Spot; facing: 1 | -1; coarse: CoarseShot } | null = null;
+  let walk: { spot: Spot; facing: 1 | -1; coarse: CoarseShot } | null = null;
+  for (const spot of spots) {
+    for (const facing of facingsFrom(input, spot.at)) {
+      const coarse = coarseBallistic(input, def, spot.at, facing, env);
+      if (coarse === null) continue;
+      if (spot.dir === 0) {
+        if (stay === null || coarse.score > stay.coarse.score) stay = { spot, facing, coarse };
+      } else if (walk === null || coarse.score > walk.coarse.score) walk = { spot, facing, coarse };
+    }
+  }
+  const out: Choice[] = [];
+  for (const pick of [stay, walk]) {
+    if (pick === null) continue;
+    const fine = fineBallistic(input, def, pick.spot.at, pick.facing, env, pick.coarse);
+    if (fine !== null) out.push({ ...fine, spot: pick.spot, facing: pick.facing });
+  }
+  return out;
+}
+
+function nearestEnemy(input: HeuristicInput, from: WormPoint): WormPoint | null {
+  let best: WormPoint | null = null;
+  for (const worm of input.worms) {
+    if (!worm.alive || worm.teamId === input.request.active.team || worm.y >= input.request.waterY) continue;
+    if (best === null || Math.hypot(worm.x - from.x, worm.y - from.y) < Math.hypot(best.x - from.x, best.y - from.y)) best = worm;
+  }
+  return best;
+}
+
 export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
   const from = activeWorm(input);
   const request = input.request;
-  const facing: 1 | -1 = request.active.canMoveRight || !request.active.canMoveLeft ? 1 : -1;
   const env: TrajectoryEnv = { mask: input.mask, waterY: request.waterY, wind: request.wind, gravity: request.gravity || GRAVITY_PX_PER_S2 };
-  let best: Candidate | null = null;
-  if (from !== undefined) {
-    for (const entry of request.ammo) {
-      if (entry.count === 0) continue;
-      const def = input.registry[entry.weapon];
-      if (def === undefined) continue;
-      let candidate: Candidate | null = null;
-      if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') candidate = evaluateBallistic(input, def, from, facing, env);
-      else if (def.combo !== undefined) candidate = evaluateCombo(input, def, from, facing);
-      else if (def.devour !== undefined) candidate = evaluateDevour(input, def, from, facing);
-      else if (def.hex !== undefined) candidate = evaluateHex(input, def, from, facing);
-      else if (def.beam !== undefined) candidate = evaluateBeam(input, def, from, facing);
-      else if (def.kind === 'HITSCAN' || def.kind === 'MELEE') candidate = evaluateDirect(input, def, from);
-      else if (def.kind === 'TARGETED' && def.strike !== undefined) candidate = evaluateTargeted(input, def);
-      if (candidate !== null && (best === null || candidate.score > best.score)) best = candidate;
+  const spots = from === undefined ? [] : walkSpots(input, from);
+  const choices: Choice[] = [];
+  for (const entry of request.ammo) {
+    if (entry.count === 0) continue;
+    const def = input.registry[entry.weapon];
+    if (def === undefined) continue;
+    if (def.kind === 'TARGETED') {
+      // Called in from the sky: where the worm stands and which way it faces do not matter.
+      const stay = spots[0];
+      const candidate = def.strike !== undefined && stay !== undefined ? evaluateTargeted(input, def) : null;
+      if (candidate !== null && stay !== undefined) choices.push({ ...candidate, spot: stay, facing: 1 });
+      continue;
+    }
+    if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') {
+      choices.push(...ballisticChoices(input, def, spots, env));
+      continue;
+    }
+    for (const spot of spots) {
+      for (const facing of facingsFrom(input, spot.at)) {
+        const candidate = evaluate(input, def, spot.at, facing);
+        if (candidate !== null) choices.push({ ...candidate, spot, facing });
+      }
     }
   }
   const jitter = JITTER[request.difficulty];
   const seedIndex = request.turn;
+  const best = pickChoice(choices);
+  const move = (spot: Spot | undefined): CpuTurnResponse['move'] =>
+    spot === undefined || spot.dir === 0 ? { direction: 'none', durationMs: 0 } : { direction: spot.dir === -1 ? 'left' : 'right', durationMs: spot.walkMs };
   if (best === null || best.score <= 0) {
+    // Nothing worth firing: walk as far as it can toward the nearest enemy, face it, and pass.
+    const enemy = from === undefined ? null : nearestEnemy(input, from);
+    const toward: -1 | 1 = enemy !== null && from !== undefined && enemy.x < from.x ? -1 : 1;
+    const approach = spots.filter((spot) => spot.dir === toward).at(-1);
+    const skip = request.ammo.some((a) => a.weapon === 'skip_go' && a.count !== 0);
     return {
       schema: CPU_TURN_SCHEMA,
-      weapon: (request.ammo.find((a) => a.count !== 0)?.weapon ?? 'skip_go') as WeaponId,
+      weapon: (skip ? 'skip_go' : (request.ammo.find((a) => a.count !== 0)?.weapon ?? 'skip_go')) as WeaponId,
       aimAngleDeg: 0,
       power: 0,
-      facing: facing === 1 ? 'right' : 'left',
-      move: { direction: 'none', durationMs: 0 },
+      facing: toward === 1 ? 'right' : 'left',
+      move: move(approach),
       taunt: pickSkipTaunt(seedIndex),
       confidence: 0,
-      reasoning: 'no shot scored above zero, skipping',
+      reasoning: 'no shot scored above zero, closing in and skipping',
     };
   }
   const wobble = ((seedIndex * 2654435761) % 1000) / 1000 - 0.5;
@@ -280,12 +464,12 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
     weapon: best.weapon,
     aimAngleDeg: Math.round(angle),
     power: Math.round(power * 100),
-    facing: facing === 1 ? 'right' : 'left',
-    move: { direction: 'none', durationMs: 0 },
+    facing: best.facing === 1 ? 'right' : 'left',
+    move: move(best.spot),
     ...(best.fuseMs === undefined ? {} : { fuseMs: best.fuseMs }),
     ...(best.targetPoint === undefined ? {} : { targetPoint: best.targetPoint }),
     taunt: pickTaunt(request.personality, seedIndex),
     confidence: Math.round(best.confidence * 100) / 100,
-    reasoning: `best of ballistic search, expected score ${Math.round(best.score)}`,
+    reasoning: `${best.spot.dir === 0 ? 'from where it stands' : `after a ${best.spot.walkMs} ms walk`}, expected score ${Math.round(best.score)}`,
   };
 }

@@ -9,6 +9,7 @@ import { placeGirder } from '../../terrain/terrain.ts';
 import type { TerrainMask } from '../../terrain/mask.ts';
 import { firstAirAbove, firstSolidBelow, isSolid } from '../../terrain/queries.ts';
 import { WORM_HALF_WIDTH, WORM_HEIGHT } from '../../sim/constants.ts';
+import { wormHalfWidth, wormHeight } from '../../sim/worm-size.ts';
 import type { FireContext, FireResult } from './types.ts';
 
 const GIRDER_DEFAULT = { w: 64, h: 8 } as const;
@@ -67,7 +68,8 @@ export function validateUtilityTarget({ world, worm, def, aim }: FireContext): b
   if (Math.hypot(target.x - worm.x, target.y - worm.y) > (def.utility?.rangePx ?? Infinity)) return false;
   if (left < 0 || top < 0 || left + size.w > world.terrain.width || top + size.h >= world.terrain.water.y) return false;
   for (const body of world.worms) {
-    if (body.alive && body.x + WORM_HALF_WIDTH >= left && body.x - WORM_HALF_WIDTH < left + size.w && body.y >= top && body.y - WORM_HEIGHT < top + size.h) return false;
+    const half = wormHalfWidth(body);
+    if (body.alive && body.x + half >= left && body.x - half < left + size.w && body.y >= top && body.y - wormHeight(body) < top + size.h) return false;
   }
   for (let y = top; y < top + size.h; y += 1) {
     for (let x = left; x < left + size.w; x += 1) {
