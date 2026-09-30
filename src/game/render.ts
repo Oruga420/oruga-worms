@@ -29,8 +29,9 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { BeamBody, ComboBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, ProjectileBody, WormMotion } from '../sim/types.ts';
 import { beamProgress } from '../sim/beam.ts';
+import { devourHand, devourProgress } from '../sim/devour.ts';
 import { holdsVictim, ticksFor } from '../sim/combo.ts';
 import { sweep } from '../sim/collision.ts';
 import { getWeapon } from '../weapons/registry.ts';
@@ -39,6 +40,26 @@ import { lockTarget } from '../weapons/behaviors/combo.ts';
 import { GAME_CONFIG } from '../config/game-config.ts';
 import type { WormAnim } from './fx.ts';
 import { bodyPalette } from './gore.ts';
+import {
+  MOUTH_CENTRE_AHEAD_PX,
+  MOUTH_CENTRE_LIFT_PX,
+  MOUTH_RADIUS_PX,
+  drawCloudScarf,
+  drawLump,
+  drawMouthFace,
+  drawMouthHead,
+  drawMouthInside,
+  drawRubberArm,
+  drawStrawHat,
+  drawSunHalo,
+  drumBounce,
+  gearWhiteness,
+  haloStrength,
+  hatScale,
+  lumpDown,
+  mouthState,
+  type MouthLook,
+} from './gear-five.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -139,6 +160,23 @@ export function fightRoles(combos: readonly ComboBody[]): Map<string, FightRole>
   return roles;
 }
 
+/** A worm's part in Gear 5: the one eating, or its meal until it is swallowed. */
+export interface DevourRole {
+  readonly role: 'eater' | 'prey';
+  readonly devour: DevourBody;
+}
+
+/** Who is eating whom right now, by worm id. */
+export function devourRoles(devours: readonly DevourBody[]): Map<string, DevourRole> {
+  const roles = new Map<string, DevourRole>();
+  for (const devour of devours) {
+    if (!devour.alive) continue;
+    roles.set(devour.attackerId, { role: 'eater', devour });
+    if (devour.victimId !== null && !devour.swallowed) roles.set(devour.victimId, { role: 'prey', devour });
+  }
+  return roles;
+}
+
 /** How a worm stands to use a weapon: the sheets have a hold pose per family. */
 export function holdPose(weapon: WeaponId): string {
   const def = getWeapon(weapon);
@@ -169,6 +207,8 @@ export interface PoseInput {
   readonly fight?: FightRole | undefined;
   /** The beam this worm is firing, charge to fade. */
   readonly beam?: BeamBody | undefined;
+  /** This worm's part in Gear 5, eating or being eaten. */
+  readonly devour?: DevourRole | undefined;
   /** The weapon the worm is aiming, when it is the active worm on its turn. */
   readonly aiming?: WeaponId | null;
   /** The match is over and this worm's team won. */
@@ -230,6 +270,73 @@ function beamPose(input: PoseInput, beam: BeamBody): WormPose {
   return { ...base, frame: 'fire_recoil', offsetX: (-beam.facing * 1.8 + Math.sin(input.timeMs / 16) * 0.4) * push };
 }
 
+/** How big the meal is drawn in the mouth as it is chewed, from where the reel left it to the swallow. */
+const PREY_SCALE_IN = 0.72;
+const PREY_SCALE_OUT = 0.42;
+
+/**
+ * Gear 5. The eater turns white and bounces like rubber on every drum, throws its arm out, chews
+ * with its whole body, swells as the meal goes down and throws its arms up for the burp. The prey
+ * trembles, tumbles in along the arm shrinking as it goes, and lies across the mouth, flashing red
+ * on every bite.
+ */
+function devourPose(input: PoseInput, role: DevourRole): WormPose {
+  const { devour } = role;
+  const f = devour.facing;
+  const p = devourProgress(devour);
+  const base: WormPose = { frame: 'idle_a', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
+  if (role.role === 'eater') {
+    const white: Pick<WormPose, 'tint' | 'tintAlpha'> = { tint: '#ffffff', tintAlpha: 0.92 * gearWhiteness(devour) };
+    switch (devour.stage) {
+      case 'awaken': {
+        const bounce = drumBounce(devour);
+        return { ...base, ...white, frame: p < 0.8 ? 'taunt' : 'victory', stretchY: 1 - 0.22 * bounce, stretchX: 1 + 0.15 * bounce, offsetY: Math.min(0, bounce) * 2 };
+      }
+      case 'stretch':
+      case 'reel':
+        return { ...base, ...white, frame: 'hold_melee', offsetX: f * 1.2 };
+      case 'chew':
+        return { ...base, ...white, frame: 'taunt', stretchY: 1 + Math.sin(input.timeMs / 60) * 0.03 };
+      case 'recover': {
+        const lump = lumpDown(devour);
+        if (lump !== null) return { ...base, ...white, frame: 'idle_a', stretchX: 1 + 0.2 * (1 - lump * 0.5), stretchY: 0.96 };
+        // The burp, then a laugh that shakes the whole body.
+        const laugh = Math.abs(Math.sin(input.timeMs / 70));
+        return { ...base, ...white, frame: devour.burped && p < 0.6 ? 'victory' : 'taunt', offsetY: -laugh * 1.2, stretchY: 1 + laugh * 0.05 };
+      }
+    }
+  }
+  switch (devour.stage) {
+    case 'awaken':
+    case 'stretch':
+      return { ...base, frame: 'hurt', offsetX: Math.sin(input.timeMs / 16) * 0.7 };
+    case 'reel': {
+      const shrink = 1 - (1 - PREY_SCALE_IN) * p;
+      return { ...base, frame: 'knocked', rotation: -f * p * Math.PI * 0.9, stretchX: shrink, stretchY: shrink };
+    }
+    default: {
+      // In the mouth, lying across it with its head down the throat, its middle just inside the jaws.
+      const scale = PREY_SCALE_IN - (PREY_SCALE_IN - PREY_SCALE_OUT) * p;
+      const cx = devour.holdX + f * (MOUTH_CENTRE_AHEAD_PX + MOUTH_RADIUS_PX * 0.3);
+      const cy = devour.holdY - MOUTH_CENTRE_LIFT_PX;
+      const interval = ticksFor(devour.spec.chompIntervalMs);
+      const sinceBite = Math.max(0, devour.stageTicks - 1) % interval;
+      const hurt = sinceBite < 8 ? 1 - sinceBite / 8 : 0;
+      return {
+        ...base,
+        frame: devour.chomps % 2 === 0 ? 'hurt' : 'knocked',
+        rotation: -f * Math.PI * 0.45,
+        stretchX: scale,
+        stretchY: scale,
+        offsetX: cx - input.worm.x,
+        offsetY: cy + (WORM_HEIGHT / 2) * scale - input.worm.y,
+        tint: '#ff1a1a',
+        tintAlpha: 0.6 * hurt,
+      };
+    }
+  }
+}
+
 /**
  * The pose of one worm this frame: its motion, the presentation cues and a super move, in that
  * order of precedence from the bottom up (a fight beats everything, a flight beats a flinch).
@@ -238,6 +345,7 @@ export function poseFor(input: PoseInput): WormPose {
   const { worm, anim, timeMs } = input;
   if (input.fight !== undefined) return fightPose(input, input.fight);
   if (input.beam !== undefined) return beamPose(input, input.beam);
+  if (input.devour !== undefined) return devourPose(input, input.devour);
   const plain: WormPose = { frame: wormFrameId(worm, timeMs), rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
   // The hit flash rides on whatever the body is doing: white for a moment, then red, fading.
   const hurtMs = anim?.hurtMs ?? Infinity;
@@ -1090,6 +1198,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   const fights = fightRoles(model.world.combos ?? []);
   const beamers = new Map<string, BeamBody>();
   for (const beam of model.world.beams ?? []) if (beam.alive) beamers.set(beam.attackerId, beam);
+  const devours = devourRoles(model.world.devours ?? []);
   const aimingPhase = phase === 'Active' || phase === 'Firing';
   const visuals = new Map<string, { visual: WormVisual; pose: WormPose; wounds: number }>();
 
@@ -1098,21 +1207,24 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const info = infoById.get(body.id);
     if (info === undefined) continue;
     const fight = fights.get(body.id);
-    // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it.
-    if (info.hp <= 0 && fight === undefined) continue;
+    const devour = devours.get(body.id);
+    // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5 chewing it.
+    if (info.hp <= 0 && fight === undefined && devour === undefined) continue;
     const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id) };
     const pose = poseFor({
       worm: visual,
       anim: model.anim?.(body.id),
       fight,
       beam: beamers.get(body.id),
+      devour,
       aiming: body.id === activeId && phase === 'Active' && model.weapon !== undefined ? model.weapon : null,
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
     });
-    const wounds = model.gore === false ? 0 : fight?.role === 'victim' && info.hp <= 0 ? 1 : woundLevel(info.hp);
+    const wounds = model.gore === false ? 0 : (fight?.role === 'victim' || devour?.role === 'prey') && info.hp <= 0 ? 1 : woundLevel(info.hp);
     visuals.set(body.id, { visual, pose, wounds });
-    drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
+    // Gear 5's worms are drawn with the rest of its scene, on top of everything.
+    if (devour === undefined) drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
   }
   for (const crate of model.world.crates) {
     if (!crate.alive) continue;
@@ -1126,16 +1238,17 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
 
   const activeBody = activeId === undefined ? undefined : model.world.worms.find((b) => b.id === activeId);
-  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id)) {
+  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id)) {
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
       if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
       else if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
+      else if (def.devour !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.devour.rangePx, model.timeMs);
       else if (def.kind === 'HITSCAN') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs);
       else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx);
     }
-    // Utilities, the air strike and the super move do not aim: the crosshair or the lock says it all.
-    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined);
+    // Utilities, the air strike and the supers that lock do not aim: the crosshair or the lock says it all.
+    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined);
     const colorIndex = infoById.get(activeBody.id)?.colorIndex ?? 0;
     const armColor = model.sprites?.has(colorIndex) === true ? bodyPalette(colorIndex).skin : WORM_SKIN;
     if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, armColor);
@@ -1184,6 +1297,11 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
   // The beam glows over it all, the dimmed world included.
   for (const beam of beamers.values()) drawBeam(ctx, viewport, camera, beam, model.timeMs);
+  // Gear 5 too: its worm, its halo and its cloud, the arm, and the mouth with the meal in it.
+  for (const devour of model.world.devours ?? []) {
+    if (!devour.alive) continue;
+    drawDevourScene(ctx, viewport, camera, devour, visuals.get(devour.attackerId), devour.victimId === null || devour.swallowed ? undefined : visuals.get(devour.victimId), model);
+  }
 
   // The super move's white screen: the world washes out, the fighters stay on it in black.
   const whiteout = clamp(model.whiteout ?? 0, 0, 1);
@@ -1312,6 +1430,61 @@ function drawBeamPath(ctx: Ctx2D, viewport: Size, camera: Camera, body: { readon
     ctx.fillRect(from.x + (to.x - from.x) * t - z, from.y + (to.y - from.y) * t - z, 2 * z, 2 * z);
   }
   ctx.restore();
+}
+
+type SceneWorm = { readonly visual: WormVisual; readonly pose: WormPose; readonly wounds: number };
+
+/** The giant head in screen space, or null while there is none. */
+function mouthLook(camera: Camera, viewport: Size, devour: DevourBody): MouthLook | null {
+  const state = mouthState(devour);
+  if (state === null) return null;
+  const c = worldToScreen(camera, viewport, { x: devour.holdX + devour.facing * MOUTH_CENTRE_AHEAD_PX, y: devour.holdY - MOUTH_CENTRE_LIFT_PX });
+  return { cx: c.x, cy: c.y, r: MOUTH_RADIUS_PX * camera.zoom * state.grow, open: state.open, dir: devour.facing === 1 ? 0 : Math.PI };
+}
+
+/**
+ * Gear 5, back to front: the halo, the meal while it is still out there, the white worm, its
+ * cloud, the giant head with the meal between its jaws, the hat, the arm with the meal in its
+ * fist, and the lump going down. The worms come from the frame's pass, posed already.
+ */
+function drawDevourScene(ctx: Ctx2D, viewport: Size, camera: Camera, devour: DevourBody, eater: SceneWorm | undefined, prey: SceneWorm | undefined, model: RenderModel): void {
+  const z = camera.zoom;
+  const f = devour.facing;
+  const draw = (entry: SceneWorm): void => drawWorm(ctx, viewport, camera, entry.visual, { pose: entry.pose, wounds: entry.wounds, showTag: false }, model.timeMs, model.sprites, model.scratch);
+  const middle = worldToScreen(camera, viewport, { x: devour.holdX, y: devour.holdY - WORM_HEIGHT * 0.6 });
+  drawSunHalo(ctx, middle.x, middle.y, z, haloStrength(devour), model.timeMs);
+  const flying = devour.stage === 'reel';
+  const chewing = devour.stage === 'chew';
+  if (prey !== undefined && !flying && !chewing) draw(prey);
+  if (eater !== undefined) draw(eater);
+  const white = gearWhiteness(devour);
+  const mouth = mouthLook(camera, viewport, devour);
+  const pose = eater?.pose;
+  const neck = worldToScreen(camera, viewport, { x: devour.holdX + (pose?.offsetX ?? 0), y: devour.holdY + (pose?.offsetY ?? 0) - WORM_HEIGHT * 0.52 * (pose?.stretchY ?? 1) });
+  const headTop = mouth === null ? neck.y - WORM_HEIGHT * 0.5 * z * (pose?.stretchY ?? 1) : mouth.cy - mouth.r;
+  drawCloudScarf(ctx, neck.x, neck.y, headTop, z, white, f, model.timeMs);
+  if (mouth !== null) {
+    drawMouthInside(ctx, mouth);
+    if (prey !== undefined && chewing) draw(prey);
+    drawMouthHead(ctx, mouth, z);
+    drawMouthFace(ctx, mouth, z, f);
+  }
+  const hat = hatScale(devour) * (mouth === null ? 1 : 0.8 + (mouth.r / (MOUTH_RADIUS_PX * z)) * 0.4);
+  const hatX = mouth === null ? neck.x - f * 0.5 * z : mouth.cx - f * mouth.r * 0.15;
+  const hatY = mouth === null ? headTop + 1.2 * z : mouth.cy - mouth.r * 0.86;
+  drawStrawHat(ctx, hatX, hatY, z, hat, -f * 0.12, Math.min(1, white * 1.4));
+  if (prey !== undefined && flying) draw(prey);
+  const hand = devourHand(devour);
+  if (hand !== null) {
+    const shoulder = worldToScreen(camera, viewport, { x: devour.shoulderX, y: devour.shoulderY });
+    const fist = worldToScreen(camera, viewport, hand);
+    drawRubberArm(ctx, shoulder.x, shoulder.y, fist.x, fist.y, z, model.timeMs);
+  }
+  const lump = lumpDown(devour);
+  if (lump !== null) {
+    const at = worldToScreen(camera, viewport, { x: devour.holdX + f * 1.5, y: devour.holdY - WORM_HEIGHT * (0.72 - 0.5 * lump) });
+    drawLump(ctx, at.x, at.y, (4.2 - lump * 1.2) * z, z);
+  }
 }
 
 /**

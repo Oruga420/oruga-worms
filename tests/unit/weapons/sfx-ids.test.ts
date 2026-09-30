@@ -8,6 +8,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { WEAPONS, WEAPON_IDS } from '@/weapons/registry.ts';
+import { BEAM_SOUNDS } from '@/sim/beam.ts';
+import { COMBO_SOUNDS } from '@/sim/combo.ts';
+import { DEVOUR_SOUNDS } from '@/sim/devour.ts';
 
 interface PlanItem {
   readonly id: string;
@@ -48,6 +51,15 @@ describe('weapon sfx ids', () => {
     for (const id of WEAPON_IDS) {
       const loop = WEAPONS[id].sfx.loop;
       if (loop !== undefined) expect(plan.get(loop)?.loop, `${id}: ${loop}`).toBe(true);
+    }
+  });
+
+  it('plays only one shot cues from the plan in the supers\' own sound tables', () => {
+    const cues = [COMBO_SOUNDS, BEAM_SOUNDS, DEVOUR_SOUNDS].flatMap((table) => Object.values(table).flatMap((cue: string | readonly string[]) => (typeof cue === 'string' ? [cue] : [...cue])));
+    expect(cues.length).toBeGreaterThan(10);
+    for (const cue of cues) {
+      expect(plan.has(cue), cue).toBe(true);
+      expect(plan.get(cue)?.loop, cue).toBe(false);
     }
   });
 

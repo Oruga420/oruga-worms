@@ -8,6 +8,7 @@ interface Played {
   readonly id: string;
   readonly pan?: number;
   readonly bus?: string;
+  readonly loop?: boolean;
 }
 
 function fakeMixer(): { mixer: PlayLike; played: Played[]; ducks: number } {
@@ -79,8 +80,15 @@ describe('handleEvents', () => {
       { type: 'explosion', x: 100, y: 0, radius: 97 },
     ];
     director.handleEvents(events);
-    expect(played[0]).toEqual({ id: 'wpn_bazooka_launch', pan: 1 });
+    expect(played[0]).toEqual({ id: 'wpn_bazooka_launch', pan: 1, loop: false });
     expect(played[1]).toEqual({ id: 'exp_medium_1', pan: -1 });
+  });
+
+  it('plays a sim cue once even when it names a loop asset', () => {
+    const { mixer, played } = fakeMixer();
+    const director = createSoundDirector({ mixer, has: ALL, random: () => 0, panAt: () => 0 });
+    director.handleEvents([{ type: 'sound', id: 'wpn_supersheep_jet', x: 0, y: 0 }]);
+    expect(played).toEqual([{ id: 'wpn_supersheep_jet', pan: 0, loop: false }]);
   });
 
   it('skips a cue that is not in the manifest', () => {

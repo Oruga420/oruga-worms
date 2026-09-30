@@ -310,6 +310,22 @@ const GIB_RECIPE: readonly { readonly shape: ChunkShape; readonly count: number;
   { shape: 'bandana', count: 1, size: [2.6, 3.2] },
 ]);
 
+/** A piece's colour and its accent: skin over meat, pink guts, a white eye, bone, the green bandana. */
+function chunkColors(shape: ChunkShape, palette: GibPalette, rng: Rng): readonly [string, string] {
+  switch (shape) {
+    case 'flesh':
+      return [rng.pick([palette.skin, palette.dark, palette.belly]) ?? palette.skin, MEAT];
+    case 'guts':
+      return [GUTS, GUTS_DARK];
+    case 'eye':
+      return ['#fbfbf6', '#111111'];
+    case 'bone':
+      return [BONE, '#c9bfa6'];
+    default:
+      return [BANDANA_GREEN, '#008a00'];
+  }
+}
+
 /** A worm beaten to 0 hp bursts: meat, guts, both eyes, bones, its bandana, and a shower of blood. */
 export function gibBurst(gore: GoreSystem, spec: GibSpec, rng: Rng): number {
   if (!gore.enabled) return 0;
@@ -323,12 +339,7 @@ export function gibBurst(gore: GoreSystem, spec: GibSpec, rng: Rng): number {
       const vx = spec.vx * 0.55 + Math.cos(angle) * speed;
       const vy = spec.vy * 0.55 + Math.sin(angle) * speed;
       const size = rng.nextFloat(part.size[0], part.size[1]);
-      const colors: readonly [string, string] =
-        part.shape === 'flesh' ? [rng.pick([palette.skin, palette.dark, palette.belly]) ?? palette.skin, MEAT]
-        : part.shape === 'guts' ? [GUTS, GUTS_DARK]
-        : part.shape === 'eye' ? ['#fbfbf6', '#111111']
-        : part.shape === 'bone' ? [BONE, '#c9bfa6']
-        : [BANDANA_GREEN, '#008a00'];
+      const colors = chunkColors(part.shape, palette, rng);
       if (spawnChunk(gore, part.shape, spec.x + rng.nextFloat(-3, 3), spec.y + rng.nextFloat(-5, 5), vx, vy, size, colors[0], colors[1], rng)) chunks += 1;
     }
   }
@@ -339,6 +350,54 @@ export function gibBurst(gore: GoreSystem, spec: GibSpec, rng: Rng): number {
     bloodBurst(gore, { x: spec.x, y: spec.y, dx: Math.cos(angle), dy: Math.sin(angle), amount: 22 * power, cause: 'blast' }, rng);
   }
   for (let i = 0; i < 6; i += 1) spawnMist(gore, spec.x, spec.y, rng.nextFloat(-60, 60), rng.nextFloat(-80, 10), rng.nextFloat(3, 6) * power, rng);
+  return chunks;
+}
+
+export interface SpitSpec {
+  /** The mouth, world px, and which way it faces. */
+  readonly x: number;
+  readonly y: number;
+  readonly facing: 1 | -1;
+  /** Team colour index of the worm being eaten: whose skin the pieces wear. */
+  readonly colorIndex: number;
+}
+
+/** A bite tears a bit off: flesh flung out of the mouth. */
+export const BITE_SPIT: readonly { readonly shape: ChunkShape; readonly count: number }[] = Object.freeze([{ shape: 'flesh', count: 2 }]);
+
+/** What a swallowed worm leaves: its bandana, bones, an eye and a last scrap of it, burped back up. */
+export const BURP_SPIT: readonly { readonly shape: ChunkShape; readonly count: number }[] = Object.freeze([
+  { shape: 'bandana', count: 1 },
+  { shape: 'bone', count: 3 },
+  { shape: 'eye', count: 1 },
+  { shape: 'flesh', count: 2 },
+]);
+
+const SPIT_SIZE: Readonly<Record<ChunkShape, readonly [number, number]>> = Object.freeze({
+  flesh: [1.3, 2.4],
+  guts: [1.4, 2.2],
+  eye: [1.2, 1.5],
+  bone: [1.8, 3],
+  bandana: [2.6, 3.2],
+  casing: [0.9, 0.9],
+});
+
+/** Pieces flung out of a mouth, forward and up, with a spray of blood after them; returns the pieces that fit. */
+export function spitOut(gore: GoreSystem, spec: SpitSpec, parts: readonly { readonly shape: ChunkShape; readonly count: number }[], rng: Rng): number {
+  if (!gore.enabled) return 0;
+  const palette = bodyPalette(spec.colorIndex);
+  let chunks = 0;
+  for (const part of parts) {
+    for (let i = 0; i < part.count; i += 1) {
+      const lift = rng.nextFloat(0.25, 1.15);
+      const angle = spec.facing === 1 ? -lift : Math.PI + lift;
+      const speed = rng.nextFloat(130, 300);
+      const size = rng.nextFloat(SPIT_SIZE[part.shape][0], SPIT_SIZE[part.shape][1]);
+      const colors = chunkColors(part.shape, palette, rng);
+      if (spawnChunk(gore, part.shape, spec.x + rng.nextFloat(-1.5, 1.5), spec.y + rng.nextFloat(-1.5, 1.5), Math.cos(angle) * speed, Math.sin(angle) * speed, size, colors[0], colors[1], rng)) chunks += 1;
+    }
+  }
+  bloodBurst(gore, { x: spec.x, y: spec.y, dx: spec.facing * 0.7, dy: -0.7, amount: 16, cause: 'melee' }, rng);
   return chunks;
 }
 
