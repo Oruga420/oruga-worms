@@ -74,6 +74,7 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   ryuko_ranbu: 1,
   kamehameha: 1,
   gear_five: 1,
+  freezer: 1,
   dynamite: 1,
   mine: 2,
   sheep: 1,

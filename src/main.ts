@@ -65,7 +65,7 @@ import { WEAPONS, WEAPON_IDS } from './weapons/registry.ts';
 import { solidCount } from './terrain/terrain.ts';
 import { firstSolidBelow } from './terrain/queries.ts';
 import { findWorm as findBody } from './sim/world.ts';
-import type { DevourBeat } from './sim/types.ts';
+import type { DevourBeat, HexBeat } from './sim/types.ts';
 import { WORM_HEIGHT } from './sim/constants.ts';
 import { muzzlePoint } from './weapons/behaviors/types.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
@@ -74,6 +74,8 @@ import { fire } from './weapons/fire.ts';
 
 /** How hard each beat of Gear 5 shakes the camera: the drums and the awakening hardest. */
 const DEVOUR_SHAKE: Readonly<Record<DevourBeat, number>> = Object.freeze({ drum: 3.5, awake: 7, stretch: 0, grab: 1.5, snap: 0, chomp: 2.5, gulp: 4, burp: 3 });
+/** How hard each beat of the Freezer shakes the camera: the throbs harder and harder, the burst hardest (its blast shakes too). */
+const HEX_SHAKE: Readonly<Record<HexBeat, number>> = Object.freeze({ shot: 1.5, enter: 3, fizzle: 1, pulse: 1.5, burst: 8 });
 
 interface OrugasDebug {
   readonly frames: () => number;
@@ -157,6 +159,8 @@ interface OrugasDebug {
   readonly beams: () => number;
   /** Gear 5 meals still playing. */
   readonly devours: () => number;
+  /** Live Freezer hexes in the sim. */
+  readonly hexes: () => number;
   /** Degrees the crosshair sits above the line from the muzzle to that worm's centre (below is negative); null when either is missing. */
   readonly aimOffBy: (id: string) => number | null;
 }
@@ -693,6 +697,8 @@ function boot(): void {
             else if (event.type === 'devourBeat') {
               const kick = DEVOUR_SHAKE[event.beat];
               if (kick > 0) camera = shake(camera, kick);
+            } else if (event.type === 'hexBeat') {
+              camera = shake(camera, HEX_SHAKE[event.beat] + (event.beat === 'pulse' ? event.n * 0.5 : 0));
             }
             if (event.type === 'explosion') {
               // The fireworks scale with the weapon: a dynamite stick (blast tier 'big') used to get
@@ -747,8 +753,8 @@ function boot(): void {
         const targeting = WEAPONS[selected].requiresTargetSelect && activeTeamOf(state)?.controller === 'human' && !panelOpen && !paused;
         // The supers' camera work: the freeze dims and pulls in, the beating turns the screen white,
         // a beam darkens the world while it charges and pulls back as it fires, Gear 5 steps in on
-        // every drum and closes in on the meal.
-        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours);
+        // every drum and closes in on the meal, the Freezer closes in on the victim as it swells.
+        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours, controller.world().hexes);
         const view: Camera = cine.zoom === 1 ? camera : { ...camera, zoom: camera.zoom * cine.zoom };
         const model = {
           state,
@@ -998,6 +1004,7 @@ function boot(): void {
       combos: () => controller.world().combos.length,
       beams: () => controller.world().beams.length,
       devours: () => controller.world().devours.length,
+      hexes: () => controller.world().hexes.length,
       aimOffBy: (id: string) => {
         const world = controller.world();
         const active = activeWormOf(controller.state());

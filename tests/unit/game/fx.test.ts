@@ -10,6 +10,7 @@ import {
   DRUM_CALL_MS,
   GEAR_CALL_MS,
   POP_MS,
+  SCREAM_MS,
   TRACER_MS,
   advanceFx,
   applyFxEvents,
@@ -22,6 +23,7 @@ import {
   type FxDeps,
 } from '@/game/fx.ts';
 import { createGore, goreCount, type GoreBit } from '@/game/gore.ts';
+import { LAUGH_TICK } from '@/sim/hex.ts';
 import { addWorm } from '@/sim/world.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
@@ -430,5 +432,118 @@ describe('fx: gear 5', () => {
     devour.stageTicks = 1;
     advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
     expect(fx.pops.map((p) => p.text)).toContain('HAHAHA!');
+  });
+});
+
+describe('fx: the freezer', () => {
+  const chunksOf = (d: FxDeps): GoreBit[] => {
+    const out: GoreBit[] = [];
+    d.gore.bits.forEach((bit) => {
+      if (bit.kind === 'chunk') out.push(bit);
+    });
+    return out;
+  };
+  const start: GameEvent = { type: 'hexStart', hexId: 5, weapon: 'freezer', attackerId: 'a', victimId: 'v', x: 0, y: 0 };
+  const beat = (kind: 'shot' | 'enter' | 'fizzle' | 'pulse' | 'burst', n = 0): GameEvent => ({
+    type: 'hexBeat',
+    hexId: 5,
+    attackerId: 'a',
+    victimId: kind === 'fizzle' ? null : 'v',
+    beat: kind,
+    n,
+    x: 100,
+    y: 80,
+    facing: 1,
+    colorIndex: 2,
+  });
+  const gib = (wormId: string): GameEvent => ({ type: 'gib', wormId, x: 100, y: 80, vx: 0, vy: 0, colorIndex: 2 });
+  const said = (fx: ReturnType<typeof createFx>): string[] => {
+    const ctx = createRecordingContext();
+    drawFxScreen(ctx, fx, { w: 1280, h: 720 });
+    return ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+  };
+  const written = (fx: ReturnType<typeof createFx>): string[] => {
+    const ctx = createRecordingContext();
+    drawFxWorld(ctx, fx, createCamera({ x: 100, y: 100 }), { w: 640, h: 360 });
+    return ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+  };
+
+  it('flares pink as the light goes in, and the victim asks ?!', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('shot'), beat('enter')], d);
+    expect(written(fx)).toContain('?!');
+    expect(fx.screenFlash).not.toBeNull();
+    expect(fx.rings.length).toBeGreaterThanOrEqual(2);
+    expect(d.particles.count()).toBeGreaterThan(20);
+    expect(fx.hex?.enteredAt).not.toBeNull();
+  });
+
+  it('rings on every throb, and reddens the edges harder the closer it gets to bursting', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('enter'), beat('pulse', 1)], d);
+    const first = fx.redPulse?.strength ?? 0;
+    applyFxEvents(fx, [beat('pulse', 5)], d);
+    expect(fx.redPulse?.strength ?? 0).toBeGreaterThan(first);
+  });
+
+  it('bursts the victim from inside: twice the pieces of a normal death, flung every way, and the lens drenched', () => {
+    const plain = deps();
+    applyFxEvents(createFx(), [gib('someone')], plain);
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('enter'), beat('burst'), gib('v')], d);
+    const pieces = chunksOf(d);
+    expect(pieces.length).toBeGreaterThanOrEqual(chunksOf(plain).length * 1.7);
+    expect(pieces.filter((b) => b.shape === 'bandana')).toHaveLength(1);
+    expect(pieces.some((b) => b.vy > 0)).toBe(true);
+    expect(pieces.some((b) => b.vx < 0)).toBe(true);
+    expect(pieces.some((b) => b.vx > 0)).toBe(true);
+    expect(d.gore.lens.length).toBeGreaterThanOrEqual(5);
+    expect(goreCount(d.gore)).toBeGreaterThan(goreCount(plain.gore) * 2);
+  });
+
+  it('screams for a friend lost the moment it bursts, and lets it go after', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('enter')], d);
+    expect(said(fx)).not.toContain('¡KRILIIIN!');
+    applyFxEvents(fx, [beat('burst')], d);
+    expect(said(fx)).toContain('¡KRILIIIN!');
+    applyFxEvents(fx, [{ type: 'hexEnd', hexId: 5, attackerId: 'a', victimId: 'v', burst: true }], d);
+    advanceFx(fx, SCREAM_MS + 10, null, d);
+    expect(said(fx)).not.toContain('¡KRILIIIN!');
+    expect(fx.hex).toBeNull();
+  });
+
+  it('says MISS when the light found nobody', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [{ ...start, victimId: null } as GameEvent, beat('shot'), beat('fizzle')], d);
+    applyFxEvents(fx, [{ type: 'hexEnd', hexId: 5, attackerId: 'a', victimId: null, burst: false }], d);
+    expect(said(fx)).toContain('MISS');
+    expect(said(fx)).not.toContain('¡KRILIIIN!');
+  });
+
+  it('laughs HO HO HO once the victim is in pieces, and draws the light in to the fingertip before', () => {
+    const fx = createFx();
+    const d = deps();
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    const hero = addWorm(world, { id: 'hero', teamId: 'a', x: 200, y: 199 });
+    addWorm(world, { id: 'victim', teamId: 'b', x: 300, y: 199 });
+    fire(world, hero, WEAPONS.freezer, { angleDeg: 0, power: 1 });
+    const hex = world.hexes[0]!;
+    for (let i = 0; i < 10; i += 1) advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+    expect(d.particles.count()).toBeGreaterThan(0);
+    expect(fx.pops.map((p) => p.text)).not.toContain('HO HO HO!');
+    hex.stage = 'recover';
+    hex.burst = true;
+    hex.stageTicks = LAUGH_TICK - 1;
+    advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+    expect(fx.pops.map((p) => p.text)).not.toContain('HO HO HO!');
+    hex.stageTicks = LAUGH_TICK;
+    advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+    expect(fx.pops.map((p) => p.text)).toContain('HO HO HO!');
   });
 });

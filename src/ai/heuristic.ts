@@ -18,6 +18,7 @@ import type { WeaponDef, WeaponId } from '../weapons/types.ts';
 import type { WeaponRegistry } from '../weapons/registry.ts';
 import { pickLockTarget } from '../weapons/behaviors/combo.ts';
 import { degToRad } from '../core/math.ts';
+import { blastDamage } from '../sim/damage.ts';
 
 export interface HeuristicInput {
   readonly request: CpuTurnRequest;
@@ -158,6 +159,32 @@ function evaluateDevour(input: HeuristicInput, def: WeaponDef, from: WormPoint, 
   return { weapon: def.id, angleDeg: 0, power: 1, score: victim.hp, confidence: 1 };
 }
 
+/**
+ * The Freezer takes no aim either: the light goes into whom the sim's lock rule picks, and a worm
+ * it goes into bursts, however much health it has. Score that victim's whole health, plus the burst
+ * on whoever floats or stands close to it, enemies less friends (twice), the CPU's own worm included.
+ */
+function evaluateHex(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const hex = def.hex;
+  if (hex === undefined) return null;
+  const request = input.request;
+  const enemies = input.worms.filter((w) => w.alive && w.teamId !== request.active.team && w.y < request.waterY);
+  const victim = pickLockTarget(input.mask, { x: from.x, y: from.y, facing }, enemies, hex.rangePx);
+  if (victim === null || victim.hp <= 0) return null;
+  // Where it bursts: its middle, up where it floats (a ceiling may hold it lower; close enough).
+  const bx = victim.x;
+  const by = victim.y - hex.liftPx - WORM_HEIGHT / 2;
+  let score = victim.hp;
+  for (const worm of input.worms) {
+    if (!worm.alive || worm.id === victim.id || worm.y >= request.waterY) continue;
+    const distance = Math.hypot(worm.x - bx, worm.y - WORM_HEIGHT / 2 - by);
+    if (distance > hex.burst.radiusPx) continue;
+    const dealt = Math.min(blastDamage(hex.burst.maxDamage, distance, hex.burst.radiusPx), worm.hp);
+    score += worm.teamId === request.active.team ? -2 * dealt : dealt;
+  }
+  return { weapon: def.id, angleDeg: 0, power: 1, score, confidence: 1 };
+}
+
 /** A beam is thin: sweep the aim finer than a shell's. */
 const BEAM_ANGLE_STEP = 2;
 
@@ -223,6 +250,7 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
       if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') candidate = evaluateBallistic(input, def, from, facing, env);
       else if (def.combo !== undefined) candidate = evaluateCombo(input, def, from, facing);
       else if (def.devour !== undefined) candidate = evaluateDevour(input, def, from, facing);
+      else if (def.hex !== undefined) candidate = evaluateHex(input, def, from, facing);
       else if (def.beam !== undefined) candidate = evaluateBeam(input, def, from, facing);
       else if (def.kind === 'HITSCAN' || def.kind === 'MELEE') candidate = evaluateDirect(input, def, from);
       else if (def.kind === 'TARGETED' && def.strike !== undefined) candidate = evaluateTargeted(input, def);

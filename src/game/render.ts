@@ -29,9 +29,10 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { BeamBody, ComboBody, DevourBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody, ProjectileBody, WormMotion } from '../sim/types.ts';
 import { beamProgress } from '../sim/beam.ts';
 import { devourHand, devourProgress } from '../sim/devour.ts';
+import { hexLight, hexProgress } from '../sim/hex.ts';
 import { holdsVictim, ticksFor } from '../sim/combo.ts';
 import { sweep } from '../sim/collision.ts';
 import { getWeapon } from '../weapons/registry.ts';
@@ -60,6 +61,7 @@ import {
   mouthState,
   type MouthLook,
 } from './gear-five.ts';
+import { HEX_PINK, TYRANT_WHITE, drawHexLight, drawHexTrail, drawInnerGlow, drawTyrantDome, innerGlow, swelling, tipCharge, tremble, tyrantForm } from './freezer.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -177,6 +179,23 @@ export function devourRoles(devours: readonly DevourBody[]): Map<string, DevourR
   return roles;
 }
 
+/** A worm's part in the Freezer: the one pointing, or the one its light went into, until it bursts. */
+export interface HexRole {
+  readonly role: 'caster' | 'target';
+  readonly hex: HexBody;
+}
+
+/** Who is pointing at whom right now, by worm id. */
+export function hexRoles(hexes: readonly HexBody[]): Map<string, HexRole> {
+  const roles = new Map<string, HexRole>();
+  for (const hex of hexes) {
+    if (!hex.alive) continue;
+    roles.set(hex.attackerId, { role: 'caster', hex });
+    if (hex.victimId !== null && !hex.burst) roles.set(hex.victimId, { role: 'target', hex });
+  }
+  return roles;
+}
+
 /** How a worm stands to use a weapon: the sheets have a hold pose per family. */
 export function holdPose(weapon: WeaponId): string {
   const def = getWeapon(weapon);
@@ -209,6 +228,8 @@ export interface PoseInput {
   readonly beam?: BeamBody | undefined;
   /** This worm's part in Gear 5, eating or being eaten. */
   readonly devour?: DevourRole | undefined;
+  /** This worm's part in the Freezer, pointing or swelling up. */
+  readonly hex?: HexRole | undefined;
   /** The weapon the worm is aiming, when it is the active worm on its turn. */
   readonly aiming?: WeaponId | null;
   /** The match is over and this worm's team won. */
@@ -338,6 +359,48 @@ function devourPose(input: PoseInput, role: DevourRole): WormPose {
 }
 
 /**
+ * The Freezer. The attacker holds its arm out and points, in the emperor's white, calm as anything,
+ * then laughs with its whole body once it is done. The victim flinches as the light comes; once it
+ * is in, it gasps and trembles, pink from inside, as it floats and swells about its middle, faster
+ * and faster, until it bursts.
+ */
+function hexPose(input: PoseInput, role: HexRole): WormPose {
+  const { hex } = role;
+  const base: WormPose = { frame: 'idle_a', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
+  const p = hexProgress(hex);
+  if (role.role === 'caster') {
+    const white: Pick<WormPose, 'tint' | 'tintAlpha'> = { tint: TYRANT_WHITE, tintAlpha: 0.78 * tyrantForm(hex) };
+    if (hex.stage !== 'recover') return { ...base, ...white, frame: 'hold_gun', stretchY: 1 + Math.sin(input.timeMs / 400) * 0.015 };
+    const laugh = hex.burst ? Math.abs(Math.sin(input.timeMs / 85)) : 0;
+    return { ...base, ...white, frame: p < 0.2 ? 'hold_gun' : 'taunt', offsetY: -laugh * 0.9, stretchY: 1 + laugh * 0.04 };
+  }
+  switch (hex.stage) {
+    case 'point':
+      return { ...base, frame: 'idle_b' };
+    case 'shot':
+      return { ...base, frame: p > 0.55 ? 'hurt' : 'idle_b' };
+    case 'rise':
+    case 'swell': {
+      const s = swelling(hex);
+      return {
+        ...base,
+        frame: hex.stage === 'rise' && p < 0.15 ? 'hurt' : 'drown_gasp',
+        stretchX: s.x,
+        stretchY: s.y,
+        // Swollen about its middle, not its feet: the feet go down as the body grows.
+        offsetY: ((s.y - 1) * WORM_HEIGHT) / 2,
+        offsetX: Math.sin(input.timeMs / 13) * tremble(hex) * 1.3,
+        // Pink enough to glow, never so pink that the gasping face is lost.
+        tint: HEX_PINK,
+        tintAlpha: 0.12 + 0.3 * innerGlow(hex),
+      };
+    }
+    default:
+      return base;
+  }
+}
+
+/**
  * The pose of one worm this frame: its motion, the presentation cues and a super move, in that
  * order of precedence from the bottom up (a fight beats everything, a flight beats a flinch).
  */
@@ -346,6 +409,7 @@ export function poseFor(input: PoseInput): WormPose {
   if (input.fight !== undefined) return fightPose(input, input.fight);
   if (input.beam !== undefined) return beamPose(input, input.beam);
   if (input.devour !== undefined) return devourPose(input, input.devour);
+  if (input.hex !== undefined) return hexPose(input, input.hex);
   const plain: WormPose = { frame: wormFrameId(worm, timeMs), rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
   // The hit flash rides on whatever the body is doing: white for a moment, then red, fading.
   const hurtMs = anim?.hurtMs ?? Infinity;
@@ -1126,6 +1190,8 @@ interface AuraPalette {
 /** The fighting spirit of a rush super, and the blue ki of a beam. */
 const FIRE_AURA: AuraPalette = { layers: ['#ff6a00', '#ffb000', '#fff0a0'], tongue: '#ff8c1a' };
 const KI_AURA: AuraPalette = { layers: ['#0a5cff', '#3fb4ff', '#dff7ff'], tongue: '#56c8ff' };
+/** The emperor's aura: a dark purple burning round the worm that points. */
+const TYRANT_AURA: AuraPalette = { layers: ['#3d0a73', '#8d3cff', '#f1d9ff'], tongue: '#a35cff' };
 
 /** The ki flaring around a worm gathering a super: glowing layers and flickering tongues of flame. */
 function drawAura(ctx: Ctx2D, viewport: Size, camera: Camera, worm: WormVisual, strength: number, timeMs: number, palette: AuraPalette = FIRE_AURA): void {
@@ -1199,6 +1265,9 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   const beamers = new Map<string, BeamBody>();
   for (const beam of model.world.beams ?? []) if (beam.alive) beamers.set(beam.attackerId, beam);
   const devours = devourRoles(model.world.devours ?? []);
+  const hexes = hexRoles(model.world.hexes ?? []);
+  // The Freezer's worms drawn with the rest of its scene, on top of everything.
+  const hexDrawn = new Set<string>();
   const aimingPhase = phase === 'Active' || phase === 'Firing';
   const visuals = new Map<string, { visual: WormVisual; pose: WormPose; wounds: number }>();
 
@@ -1208,6 +1277,9 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     if (info === undefined) continue;
     const fight = fights.get(body.id);
     const devour = devours.get(body.id);
+    // An attacker its own burst threw flies like any other worm, out of the Freezer's scene.
+    const hexRole = hexes.get(body.id);
+    const hex = hexRole !== undefined && !(hexRole.role === 'caster' && hexRole.hex.stage === 'recover' && body.motion === 'flying') ? hexRole : undefined;
     // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5 chewing it.
     if (info.hp <= 0 && fight === undefined && devour === undefined) continue;
     const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id) };
@@ -1217,14 +1289,16 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       fight,
       beam: beamers.get(body.id),
       devour,
+      hex,
       aiming: body.id === activeId && phase === 'Active' && model.weapon !== undefined ? model.weapon : null,
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
     });
     const wounds = model.gore === false ? 0 : (fight?.role === 'victim' || devour?.role === 'prey') && info.hp <= 0 ? 1 : woundLevel(info.hp);
     visuals.set(body.id, { visual, pose, wounds });
-    // Gear 5's worms are drawn with the rest of its scene, on top of everything.
-    if (devour === undefined) drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
+    // Gear 5's worms and the Freezer's are drawn with the rest of their scene, on top of everything.
+    if (hex !== undefined) hexDrawn.add(body.id);
+    else if (devour === undefined) drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
   }
   for (const crate of model.world.crates) {
     if (!crate.alive) continue;
@@ -1238,17 +1312,18 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
 
   const activeBody = activeId === undefined ? undefined : model.world.worms.find((b) => b.id === activeId);
-  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id)) {
+  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id) && !hexes.has(activeBody.id)) {
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
       if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
       else if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
       else if (def.devour !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.devour.rangePx, model.timeMs);
+      else if (def.hex !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.hex.rangePx, model.timeMs);
       else if (def.kind === 'HITSCAN') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs);
       else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx);
     }
     // Utilities, the air strike and the supers that lock do not aim: the crosshair or the lock says it all.
-    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined);
+    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined);
     const colorIndex = infoById.get(activeBody.id)?.colorIndex ?? 0;
     const armColor = model.sprites?.has(colorIndex) === true ? bodyPalette(colorIndex).skin : WORM_SKIN;
     if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, armColor);
@@ -1301,6 +1376,12 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   for (const devour of model.world.devours ?? []) {
     if (!devour.alive) continue;
     drawDevourScene(ctx, viewport, camera, devour, visuals.get(devour.attackerId), devour.victimId === null || devour.swallowed ? undefined : visuals.get(devour.victimId), model);
+  }
+  // And the Freezer: the pointing worm in its form, the victim swelling, the light over them both.
+  for (const hex of model.world.hexes ?? []) {
+    if (!hex.alive) continue;
+    const scene = (id: string | null): SceneWorm | undefined => (id !== null && hexDrawn.has(id) ? visuals.get(id) : undefined);
+    drawHexScene(ctx, viewport, camera, hex, scene(hex.attackerId), scene(hex.victimId), model);
   }
 
   // The super move's white screen: the world washes out, the fighters stay on it in black.
@@ -1484,6 +1565,53 @@ function drawDevourScene(ctx: Ctx2D, viewport: Size, camera: Camera, devour: Dev
   if (lump !== null) {
     const at = worldToScreen(camera, viewport, { x: devour.holdX + f * 1.5, y: devour.holdY - WORM_HEIGHT * (0.72 - 0.5 * lump) });
     drawLump(ctx, at.x, at.y, (4.2 - lump * 1.2) * z, z);
+  }
+}
+
+/** Ticks back along the light's path where its trail beads sit, newest first. */
+const HEX_TRAIL_TICKS: readonly number[] = Object.freeze([2, 4, 6, 8, 10, 12]);
+
+/**
+ * The Freezer, back to front: the attacker's purple aura, the attacker in the emperor's white with
+ * the dome on its head and the light gathering on its fingertip; the victim, glowing pink from inside
+ * and breaking out in light as it swells; and the light in flight with its trail, over everything.
+ */
+function drawHexScene(ctx: Ctx2D, viewport: Size, camera: Camera, hex: HexBody, caster: SceneWorm | undefined, target: SceneWorm | undefined, model: RenderModel): void {
+  const z = camera.zoom;
+  const draw = (entry: SceneWorm): void => drawWorm(ctx, viewport, camera, entry.visual, { pose: entry.pose, wounds: entry.wounds, showTag: false }, model.timeMs, model.sprites, model.scratch);
+  const form = tyrantForm(hex);
+  if (caster !== undefined) {
+    drawAura(ctx, viewport, camera, caster.visual, form * 0.8, model.timeMs, TYRANT_AURA);
+    draw(caster);
+    const pose = caster.pose;
+    // The dome sits on the crown, over the bandana.
+    const crown = worldToScreen(camera, viewport, { x: caster.visual.x + pose.offsetX + hex.facing * 1.4, y: caster.visual.y + pose.offsetY - WORM_HEIGHT * 0.82 * pose.stretchY });
+    drawTyrantDome(ctx, crown.x, crown.y, z, hex.facing, form);
+    const charge = tipCharge(hex);
+    if (charge > 0) {
+      const tip = worldToScreen(camera, viewport, { x: hex.tipX, y: hex.tipY });
+      drawHexLight(ctx, tip.x, tip.y, z, 0.2 + 0.65 * charge, model.timeMs);
+    }
+  }
+  if (target !== undefined) {
+    draw(target);
+    const strength = innerGlow(hex);
+    if (strength > 0) {
+      const pose = target.pose;
+      const middle = worldToScreen(camera, viewport, { x: target.visual.x + pose.offsetX, y: target.visual.y + pose.offsetY - (WORM_HEIGHT / 2) * pose.stretchY });
+      drawInnerGlow(ctx, middle.x, middle.y, WORM_HALF_WIDTH * 1.4 * pose.stretchX * z, (WORM_HEIGHT / 2) * pose.stretchY * z, strength, pose.stretchX, target.visual.seed ?? 0, model.timeMs);
+    }
+  }
+  const light = hexLight(hex);
+  if (light !== null) {
+    const trail: { x: number; y: number }[] = [];
+    for (const back of HEX_TRAIL_TICKS) {
+      const at = hexLight(hex, back);
+      if (at !== null) trail.push(worldToScreen(camera, viewport, at));
+    }
+    drawHexTrail(ctx, trail, z);
+    const at = worldToScreen(camera, viewport, light);
+    drawHexLight(ctx, at.x, at.y, z, 1, model.timeMs);
   }
 }
 

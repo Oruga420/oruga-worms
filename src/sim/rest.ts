@@ -2,12 +2,12 @@
  * The "everything at rest" predicate the Resolving phase waits for (architecture.md section E,
  * the most likely hard failure of the design gets its own module and its own tests): every
  * living worm idle on the ground or dead, no live projectile, no falling crate, no live sheep,
- * no mine mid air, no super move, beam or devour still playing. The reducer still has the
+ * no mine mid air, no super move, beam, devour or hex still playing. The reducer still has the
  * inactivity and absolute caps for anything this misses.
  */
 
 import { REST_TICKS } from './constants.ts';
-import type { BeamBody, ComboBody, CrateBody, DevourBody, MineBody, ProjectileBody, SheepBody, WormBody } from './types.ts';
+import type { BeamBody, ComboBody, CrateBody, DevourBody, HexBody, MineBody, ProjectileBody, SheepBody, WormBody } from './types.ts';
 
 export function wormAtRest(worm: WormBody): boolean {
   if (!worm.alive || worm.motion === 'dead') return true;
@@ -42,6 +42,10 @@ export function devourDone(devour: DevourBody): boolean {
   return !devour.alive;
 }
 
+export function hexDone(hex: HexBody): boolean {
+  return !hex.alive;
+}
+
 export interface RestSnapshot {
   readonly worms: readonly WormBody[];
   readonly projectiles: readonly ProjectileBody[];
@@ -52,6 +56,7 @@ export interface RestSnapshot {
   readonly combos?: readonly ComboBody[];
   readonly beams?: readonly BeamBody[];
   readonly devours?: readonly DevourBody[];
+  readonly hexes?: readonly HexBody[];
 }
 
 export function allAtRest(world: RestSnapshot): boolean {
@@ -63,6 +68,7 @@ export function allAtRest(world: RestSnapshot): boolean {
     world.sheep.every(sheepAtRest) &&
     (world.combos ?? []).every(comboDone) &&
     (world.beams ?? []).every(beamDone) &&
-    (world.devours ?? []).every(devourDone)
+    (world.devours ?? []).every(devourDone) &&
+    (world.hexes ?? []).every(hexDone)
   );
 }

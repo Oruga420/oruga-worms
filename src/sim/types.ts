@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, HexSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -218,6 +218,50 @@ export interface DevourBody {
   alive: boolean;
 }
 
+/**
+ * The Freezer in progress (sim/hex.ts). The attacker and the victim are held from the point until
+ * the burst; the burst takes the victim's body out of the world, and nobody is held afterwards.
+ */
+export type HexStage = 'point' | 'shot' | 'rise' | 'swell' | 'recover';
+
+/** The beats of the Freezer the presentation plays: the light leaving, going in or fizzling out, every throb, the burst. */
+export type HexBeat = 'shot' | 'enter' | 'fizzle' | 'pulse' | 'burst';
+
+export interface HexBody {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly attackerId: string;
+  readonly ownerTeamId: string;
+  /** Null when nobody was in reach and in sight: the light flies on and fizzles out. */
+  readonly victimId: string | null;
+  readonly spec: HexSpec;
+  stage: HexStage;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  /** Where the attacker stands until the burst, and which way it faces. */
+  readonly holdX: number;
+  readonly holdY: number;
+  readonly facing: 1 | -1;
+  /** The fingertip the light leaves, and where it goes: the victim's middle, or as far as it got. */
+  readonly tipX: number;
+  readonly tipY: number;
+  readonly targetX: number;
+  readonly targetY: number;
+  /** How far the light's path bows up over the straight line at its middle, world px. */
+  readonly arcPx: number;
+  /** Ticks the light takes to get there. */
+  readonly flightTicks: number;
+  /** The victim's feet where it stood, and how high it floats: the spec's lift, or less under a ceiling. */
+  readonly groundX: number;
+  readonly groundY: number;
+  readonly liftPx: number;
+  /** Throbs so far while it swells. */
+  pulses: number;
+  /** The victim has burst. */
+  burst: boolean;
+  alive: boolean;
+}
+
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
   readonly x: number;
@@ -254,7 +298,12 @@ export type SimEvent =
   | { readonly type: 'devourStart'; readonly devourId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
   /** One beat of Gear 5 at (x, y); n counts the drums and the bites from 1, 0 for the rest. Presentation only. */
   | { readonly type: 'devourBeat'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: DevourBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
-  | { readonly type: 'devourEnd'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly eaten: boolean };
+  | { readonly type: 'devourEnd'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly eaten: boolean }
+  /** The Freezer starts: the attacker, and the worm its light will go into (null for a whiff). */
+  | { readonly type: 'hexStart'; readonly hexId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  /** One beat of the Freezer at (x, y); n counts the throbs from 1, 0 for the rest. Presentation only. */
+  | { readonly type: 'hexBeat'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: HexBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

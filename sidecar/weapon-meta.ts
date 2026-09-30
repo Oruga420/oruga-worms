@@ -51,6 +51,7 @@ export const CPU_WEAPON_META: Readonly<Record<string, SanitizeWeaponInfo>> = Obj
   minigun: plain('minigun'),
   sonic_blast: plain('sonic_blast'),
   kamehameha: plain('kamehameha'),
+  freezer: plain('freezer'),
   fire_punch: plain('fire_punch'),
   baseball_bat: plain('baseball_bat'),
   ryuko_ranbu: plain('ryuko_ranbu'),

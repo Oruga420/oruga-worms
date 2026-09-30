@@ -10,13 +10,18 @@
  *
  * So does Gear 5: the world darkens and the camera closes in a step on every drum, pulls back to
  * take in the arm as it shoots out, pushes in on the mouth for the meal, and eases off for the burp.
+ *
+ * And the Freezer: the world darkens round the worm pointing as the light gathers, the camera eases
+ * back for the light's flight, then closes in on the victim as it floats and more and more as it
+ * swells, and pulls back out as it bursts, the dark lifting so the pieces show.
  */
 
 import { clamp } from '../core/math.ts';
 import { beamProgress } from '../sim/beam.ts';
 import { stageProgress, ticksFor } from '../sim/combo.ts';
 import { devourProgress } from '../sim/devour.ts';
-import type { BeamBody, ComboBody, DevourBody } from '../sim/types.ts';
+import { hexProgress } from '../sim/hex.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody } from '../sim/types.ts';
 import { drumBounce } from './gear-five.ts';
 
 export interface Cinematic {
@@ -80,13 +85,39 @@ function devourCinematic(devour: DevourBody): Cinematic {
   }
 }
 
-export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = []): Cinematic {
+/** How close the camera gets on the worm pointing, for the light's flight, and on the victim floating and at its fullest. */
+const POINT_ZOOM = 1.2;
+const FLIGHT_ZOOM = 1.05;
+const FLOAT_ZOOM = 1.25;
+const SWELL_ZOOM = 1.45;
+
+function hexCinematic(hex: HexBody): Cinematic {
+  const p = hexProgress(hex);
+  switch (hex.stage) {
+    case 'point':
+      return { whiteout: 0, dim: 0.5 * ease(p * 1.5), zoom: 1 + (POINT_ZOOM - 1) * ease(p), aura: 0 };
+    case 'shot':
+      return { whiteout: 0, dim: 0.5, zoom: POINT_ZOOM - (POINT_ZOOM - FLIGHT_ZOOM) * ease(p), aura: 0 };
+    case 'rise':
+      return { whiteout: 0, dim: 0.5, zoom: FLIGHT_ZOOM + (FLOAT_ZOOM - FLIGHT_ZOOM) * ease(p), aura: 0 };
+    case 'swell':
+      return { whiteout: 0, dim: 0.5 + 0.15 * p, zoom: FLOAT_ZOOM + (SWELL_ZOOM - FLOAT_ZOOM) * ease(p), aura: 0 };
+    case 'recover': {
+      const from = hex.burst ? SWELL_ZOOM : FLIGHT_ZOOM;
+      return { whiteout: 0, dim: (hex.burst ? 0.3 : 0.5) * (1 - ease(p / 0.6)), zoom: from - (from - 1) * ease(p), aura: 0 };
+    }
+  }
+}
+
+export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = []): Cinematic {
   const combo = combos.find((c) => c.alive);
   if (combo === undefined) {
     const beam = beams.find((b) => b.alive);
     if (beam !== undefined) return beamCinematic(beam);
     const devour = devours.find((d) => d.alive);
-    return devour === undefined ? NO_CINEMATIC : devourCinematic(devour);
+    if (devour !== undefined) return devourCinematic(devour);
+    const hex = hexes.find((h) => h.alive);
+    return hex === undefined ? NO_CINEMATIC : hexCinematic(hex);
   }
   const p = stageProgress(combo);
   const landed = combo.victimId !== null;

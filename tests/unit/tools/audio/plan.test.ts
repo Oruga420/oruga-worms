@@ -72,22 +72,33 @@ describe('parseVoiceBanks', () => {
 });
 
 describe('superVoiceItems', () => {
-  it('voices the Kamehameha in the fierce warrior voice, as its own bank', () => {
-    const items = superVoiceItems('| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |');
-    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha']);
+  const CANDIDATES = '| 1 | Timmy - Anxious Nerd | mrQhZWGbb2k9qWJb5qeA |\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |';
+
+  it('voices the Kamehameha and the scream for a friend lost in the fierce warrior voice, as its own bank', () => {
+    const items = superVoiceItems(CANDIDATES);
+    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha', 'voice_super_freezer_krilin', 'voice_super_freezer_laugh']);
     for (const item of items) {
-      expect(item.voiceId).toBe('SOYHLrjzK2X1ezoPC6cr');
       expect(item.bank).toBe('super');
       expect(item.bus).toBe('voice');
     }
+    for (const item of items.slice(0, 3)) expect(item.voiceId).toBe('SOYHLrjzK2X1ezoPC6cr');
     expect(items[0]?.text).toMatch(/^Kaa+\.\.\. mee+\.\.\. haa+\.\.\. mee+\.\.\.$/);
     expect(items[1]?.text).toMatch(/^HAA+!+$/);
+    expect(items[2]?.text).toMatch(/^KRILII+N!+$/);
+  });
+
+  it('gives the emperor his own sneering laugh, in the nerd voice pitched up', () => {
+    const laugh = superVoiceItems(CANDIDATES)[3];
+    expect(laugh?.voiceId).toBe('mrQhZWGbb2k9qWJb5qeA');
+    expect(laugh?.pitchFactor).toBeGreaterThan(1.1);
+    expect(laugh?.text).toMatch(/^O(ho)+\.\.\. o(ho)+!$/);
   });
 
   it('is in the plan, before the music', () => {
     const plan = buildPlan(`${REPORT}\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |\n`, 'now');
     const ids = plan.items.map((i) => i.id);
-    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 2);
+    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 2);
+    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 4);
     expect(validatePlan(plan).ok).toBe(true);
   });
 });

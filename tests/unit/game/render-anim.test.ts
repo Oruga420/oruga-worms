@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_AIM } from '@/game/aim.ts';
-import { devourRoles, drawGame, fightRoles, holdPose, poseFor, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
+import { devourRoles, drawGame, fightRoles, hexRoles, holdPose, poseFor, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
 import type { WormAnim } from '@/game/fx.ts';
 import { quickGame } from '@/game/setup.ts';
 import { createCamera } from '@/engine/camera.ts';
@@ -10,9 +10,10 @@ import type { ImageSource } from '@/engine/canvas-types.ts';
 import type { MatchState } from '@/match/state.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
-import type { BeamBody, ComboBody, DevourBody } from '@/sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody } from '@/sim/types.ts';
 import type { Ctx2D } from '@/engine/canvas-types.ts';
 import { drumTicks } from '@/sim/devour.ts';
+import { pulseTicks } from '@/sim/hex.ts';
 import { addWorm } from '@/sim/world.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 import { createRecordingContext } from '../ui/recording-context.ts';
@@ -326,6 +327,112 @@ describe('gear 5', () => {
     drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: active.x, y: active.y }), { state, world: game.world, aim: INITIAL_AIM, timeMs: 0, weapon: 'gear_five', aimAssist: true });
     // The dashed reach circle is drawn in arcs of the lock range.
     const reach = WEAPONS.gear_five.devour!.rangePx;
+    expect(ctx.calls.some((c) => c.name === 'arc' && Math.abs(Number(c.args[2]) - reach * 2.5) < 1)).toBe(true);
+  });
+});
+
+describe('freezer', () => {
+  const SPEC = WEAPONS.freezer.hex!;
+  const ticks = (ms: number): number => Math.max(1, Math.round((ms * 60) / 1000));
+  function hexBody(stage: HexBody['stage'], stageTicks: number, extra: Partial<HexBody> = {}): HexBody {
+    return { id: 8, weaponId: 'freezer', attackerId: 'a', ownerTeamId: 't', victimId: 'v', spec: SPEC, stage, stageTicks, holdX: 100, holdY: 100, facing: 1, tipX: 107, tipY: 91.5, targetX: 300, targetY: 92, arcPx: 36, flightTicks: 22, groundX: 300, groundY: 100, liftPx: 36, pulses: 0, burst: false, alive: true, ...extra };
+  }
+  const caster = (h: HexBody) => ({ role: 'caster' as const, hex: h });
+  const target = (h: HexBody) => ({ role: 'target' as const, hex: h });
+
+  /** Every colour the drawing filled with, in order. */
+  function fills(draw: (ctx: Ctx2D) => void): string[] {
+    const ctx = createRecordingContext();
+    const out: string[] = [];
+    const spy = new Proxy(ctx, {
+      get(t, name) {
+        if (name === 'fill') return () => out.push(String(t.fillStyle));
+        const value: unknown = Reflect.get(t, name);
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(t) : value;
+      },
+      set(t, name, value) {
+        return Reflect.set(t, name, value);
+      },
+    }) as Ctx2D;
+    draw(spy);
+    return out;
+  }
+
+  it('knows who is pointing at whom, and lets the victim go once it bursts', () => {
+    const live = hexBody('swell', 3);
+    expect(hexRoles([live]).get('a')?.role).toBe('caster');
+    expect(hexRoles([live]).get('v')?.role).toBe('target');
+    expect(hexRoles([{ ...live, burst: true, stage: 'recover' }]).has('v')).toBe(false);
+    expect(hexRoles([{ ...live, alive: false }]).size).toBe(0);
+  });
+
+  it('holds the attacker\'s arm out in the emperor\'s white, and has it laugh once the victim is in pieces', () => {
+    const early = poseFor({ worm: WORM, hex: caster(hexBody('point', 1)), timeMs: 0 });
+    const pointing = poseFor({ worm: WORM, hex: caster(hexBody('swell', 5)), timeMs: 0 });
+    expect(pointing.frame).toBe('hold_gun');
+    expect(pointing.tintAlpha).toBeGreaterThan(early.tintAlpha);
+    expect(pointing.tintAlpha).toBeGreaterThan(0.7);
+    const laughing = poseFor({ worm: WORM, hex: caster(hexBody('recover', 30, { burst: true })), timeMs: 40 });
+    expect(laughing.frame).toBe('taunt');
+    expect(laughing.offsetY).toBeLessThan(0);
+  });
+
+  it('has the victim flinch at the light, then gasp pink and trembling, swelling about its middle', () => {
+    expect(poseFor({ worm: WORM, hex: target(hexBody('point', 10)), timeMs: 0 }).frame).toBe('idle_b');
+    expect(poseFor({ worm: WORM, hex: target(hexBody('shot', 20)), timeMs: 0 }).frame).toBe('hurt');
+    const floating = poseFor({ worm: WORM, hex: target(hexBody('rise', 30)), timeMs: 7 });
+    expect(floating.frame).toBe('drown_gasp');
+    expect(floating.tint).toBe('#ff4fd8');
+    expect(floating.offsetX).not.toBe(0);
+    const full = poseFor({ worm: WORM, hex: target(hexBody('swell', ticks(SPEC.swellMs) - 1)), timeMs: 0 });
+    expect(full.stretchX).toBeGreaterThan(2);
+    expect(full.stretchY).toBeGreaterThan(1.8);
+    // The middle stays where it was: the feet go down by half of what the body grew.
+    expect(full.offsetY).toBeCloseTo(((full.stretchY - 1) * 16) / 2);
+    expect(full.tintAlpha).toBeGreaterThan(floating.tintAlpha);
+    const throbbing = poseFor({ worm: WORM, hex: target(hexBody('swell', pulseTicks(SPEC)[2]!)), timeMs: 0 });
+    const between = poseFor({ worm: WORM, hex: target(hexBody('swell', pulseTicks(SPEC)[2]! - 1)), timeMs: 0 });
+    expect(throbbing.stretchX).toBeGreaterThan(between.stretchX + 0.05);
+  });
+
+  it('draws the emperor\'s dome and the light on the fingertip, the light in flight, and the victim glowing as it swells', () => {
+    const game = scene();
+    const hero = game.world.worms[0];
+    if (hero === undefined) throw new Error('no worm');
+    const victim = game.world.worms.find((w) => w.teamId !== hero.teamId);
+    if (victim === undefined) throw new Error('no enemy');
+    victim.x = hero.x + 90;
+    victim.y = hero.y;
+    const mask = game.world.terrain.mask;
+    for (let x = Math.round(hero.x) - 2; x <= Math.round(victim.x) + 2; x += 1) for (let y = Math.round(hero.y) - 30; y < Math.round(hero.y) - 1; y += 1) mask.data[y * mask.width + x] = 0;
+    fire(game.world, hero, WEAPONS.freezer, { angleDeg: 0, power: 1 });
+    const live = game.world.hexes[0];
+    if (live === undefined || live.victimId !== victim.id) throw new Error('no hex on the victim');
+    const draw = (): string[] => fills((ctx) => drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: hero.x, y: hero.y }), { state: game.state, world: game.world, aim: INITIAL_AIM, timeMs: 0, dim: 0.4 }));
+    live.stageTicks = ticks(SPEC.pointMs) - 3;
+    const pointing = draw();
+    expect(pointing).toContain('#9a3fe0');
+    expect(pointing).toContain('#fff5fd');
+    live.stage = 'shot';
+    live.stageTicks = Math.round(live.flightTicks / 2);
+    const flying = draw();
+    expect(flying.filter((c) => c === '#ff4fd8').length).toBeGreaterThan(3);
+    live.stage = 'swell';
+    live.stageTicks = ticks(SPEC.swellMs) - 2;
+    const swelling = draw();
+    // Light breaking out of it: rays in the pale pink and the white hot core.
+    expect(swelling.filter((c) => c === '#ffa6ee').length).toBeGreaterThan(3);
+  });
+
+  it('shows the lock on the nearest enemy in sight while the Freezer is picked, with no crosshair', () => {
+    const game = scene();
+    const active = game.world.worms[0];
+    if (active === undefined) throw new Error('no worm');
+    addWorm(game.world, { id: 'near', teamId: 'nobody', x: active.x + 30, y: active.y });
+    const ctx = createRecordingContext();
+    const state: MatchState = { ...game.state, phase: 'Active' };
+    drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: active.x, y: active.y }), { state, world: game.world, aim: INITIAL_AIM, timeMs: 0, weapon: 'freezer', aimAssist: true });
+    const reach = WEAPONS.freezer.hex!.rangePx;
     expect(ctx.calls.some((c) => c.name === 'arc' && Math.abs(Number(c.args[2]) - reach * 2.5) < 1)).toBe(true);
   });
 });
