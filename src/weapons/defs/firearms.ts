@@ -280,6 +280,7 @@ const KAMEHAMEHA: WeaponDef = defineWeapon({
     aimWhileFiring: false,
   },
   beam: {
+    /** The chant (voice_super_kamehameha_chant) plays over the charge: keep the two the same length. */
     chargeMs: 1500,
     speedPxPerS: 2200,
     rangePx: KAMEHAMEHA_RANGE_PX,

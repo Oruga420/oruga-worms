@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { err, ok, type Result } from '../../src/core/result.ts';
 import { loadDotEnv, mergeEnv } from '../../sidecar/env.ts';
 import { createElevenClient, MUSIC_MODEL, SFX_MODEL, TTS_MODEL, type ElevenClient } from './elevenlabs.ts';
@@ -334,7 +334,9 @@ async function main(): Promise<number> {
   return spent >= args.cap && index < items.length ? 2 : 0;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+// pathToFileURL, not a hand built file:/// URL: that one only matched Windows paths, so on Linux
+// and macOS running the script did nothing at all.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then(
     (code) => {
       process.exitCode = code;
