@@ -79,6 +79,22 @@ describe('validateRegistry: required spec blocks per kind', () => {
   });
 });
 
+describe('validateRegistry: supers', () => {
+  it('fails when a devour block rides anything but a melee row', () => {
+    expectError(errorsOf(patch('bazooka', { devour: WEAPONS.gear_five.devour })), 'bazooka', 'devour', 'MELEE');
+  });
+
+  it('fails when a row is both a combo and a devour', () => {
+    expectError(errorsOf(patch('gear_five', { combo: WEAPONS.ryuko_ranbu.combo })), 'gear_five', 'combo or a devour');
+  });
+
+  it('fails when a devour takes no bites or reaches nowhere', () => {
+    const devour = WEAPONS.gear_five.devour;
+    expectError(errorsOf(patch('gear_five', { devour: { ...devour, chomps: 0 } })), 'gear_five', 'devour.chomps');
+    expectError(errorsOf(patch('gear_five', { devour: { ...devour, rangePx: 0 } })), 'gear_five', 'devour.rangePx');
+  });
+});
+
 describe('validateRegistry: fuses', () => {
   it('fails when fuse.defaultMs is not one of fuse.optionsMs', () => {
     const fuse = { ...WEAPONS.grenade.fuse, defaultMs: 2500 };

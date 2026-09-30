@@ -7,12 +7,17 @@
  *
  * A beam super gets its own: the world darkens and the camera closes in on the worm while the ki
  * gathers, then it pulls back as the beam leaves the hands, and the dark lifts as the beam fades.
+ *
+ * So does Gear 5: the world darkens and the camera closes in a step on every drum, pulls back to
+ * take in the arm as it shoots out, pushes in on the mouth for the meal, and eases off for the burp.
  */
 
 import { clamp } from '../core/math.ts';
 import { beamProgress } from '../sim/beam.ts';
 import { stageProgress, ticksFor } from '../sim/combo.ts';
-import type { BeamBody, ComboBody } from '../sim/types.ts';
+import { devourProgress } from '../sim/devour.ts';
+import type { BeamBody, ComboBody, DevourBody } from '../sim/types.ts';
+import { drumBounce } from './gear-five.ts';
 
 export interface Cinematic {
   /** 0..1 white over the world, the fighters in black on top. */
@@ -55,11 +60,33 @@ function beamCinematic(beam: BeamBody): Cinematic {
   }
 }
 
-export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = []): Cinematic {
+/** How close the camera gets as Gear 5 awakens, and on the meal. */
+const AWAKEN_ZOOM = 1.3;
+const MEAL_ZOOM = 1.35;
+
+function devourCinematic(devour: DevourBody): Cinematic {
+  const p = devourProgress(devour);
+  switch (devour.stage) {
+    case 'awaken':
+      return { whiteout: 0, dim: 0.55 * ease(p * 1.4), zoom: 1 + (AWAKEN_ZOOM - 1) * ease(p) + 0.05 * Math.max(0, drumBounce(devour)), aura: 0 };
+    case 'stretch':
+      return { whiteout: 0, dim: 0.55 - 0.2 * p, zoom: AWAKEN_ZOOM - (AWAKEN_ZOOM - 1) * ease(p), aura: 0 };
+    case 'reel':
+      return { whiteout: 0, dim: 0.35, zoom: 1 + (MEAL_ZOOM - 1) * ease(p), aura: 0 };
+    case 'chew':
+      return { whiteout: 0, dim: 0.45, zoom: MEAL_ZOOM, aura: 0 };
+    case 'recover':
+      return { whiteout: 0, dim: 0.45 * (1 - ease(p)), zoom: MEAL_ZOOM - (MEAL_ZOOM - 1) * ease(p), aura: 0 };
+  }
+}
+
+export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = []): Cinematic {
   const combo = combos.find((c) => c.alive);
   if (combo === undefined) {
     const beam = beams.find((b) => b.alive);
-    return beam === undefined ? NO_CINEMATIC : beamCinematic(beam);
+    if (beam !== undefined) return beamCinematic(beam);
+    const devour = devours.find((d) => d.alive);
+    return devour === undefined ? NO_CINEMATIC : devourCinematic(devour);
   }
   const p = stageProgress(combo);
   const landed = combo.victimId !== null;

@@ -1,7 +1,8 @@
 /**
  * Melee rows of the ultraplan rev 2 roster: fire punch (uppercut that cuts the land above) and
- * baseball bat (30 damage, calibrated to throw a worm 643 px at 45 degrees), plus Ryuko Ranbu,
- * the Kyokugen style super move: the screen goes white while the worm beats its victim senseless.
+ * baseball bat (30 damage, calibrated to throw a worm 643 px at 45 degrees), plus two supers:
+ * Ryuko Ranbu, the Kyokugen style rush where the screen goes white while the worm beats its victim
+ * senseless, and Gear 5, where the worm awakens white and rubbery, grabs a worm and eats it.
  */
 
 import type { WeaponDef, WeaponId } from '../types.ts';
@@ -133,8 +134,60 @@ const RYUKO_RANBU: WeaponDef = defineWeapon({
   sfx: { fire: 'wpn_firepunch_whoosh', impact: 'wpn_firepunch_thud' },
 });
 
+/**
+ * Gear 5: the drums of liberation, the worm turns white and rubbery, its arm stretches to the
+ * nearest enemy in plain sight within reach, reels it into a giant mouth, bites it four times and
+ * swallows it: a worm eaten is gone, whatever its health. It is the strongest super, so it comes
+ * last, from turn 4, and its arm reaches only a little farther than the Ryuko Ranbu's rush.
+ */
+const GEAR_FIVE_RANGE_PX = 200;
+const GEAR_FIVE_CHOMPS = 4;
+const GEAR_FIVE_CHOMP_DAMAGE = 25;
+
+const GEAR_FIVE: WeaponDef = defineWeapon({
+  id: 'gear_five',
+  name: 'Gear 5',
+  kind: 'MELEE',
+  category: 'melee',
+  icon: iconFrame('gear_five'),
+  /** Bare rubber hands: nothing to hold. */
+  heldSprite: null,
+  ammo: 1,
+  /** The awakening takes a long fight to come: never before the fourth turn. */
+  delayTurns: 4,
+  charged: false,
+  maxPower: 0,
+  windAffected: false,
+  gravityScale: 1,
+  shotsPerTurn: 1,
+  endsTurnOnFire: true,
+  requiresTargetSelect: false,
+  /** One per worm, from the loadout only: a weapon crate never hands out another super. */
+  crateWeight: 0,
+  /** What the heuristic and the panel read: the arm's reach and the bites (the swallow takes the rest). */
+  melee: {
+    reachPx: GEAR_FIVE_RANGE_PX,
+    arcDeg: 360,
+    damage: GEAR_FIVE_CHOMPS * GEAR_FIVE_CHOMP_DAMAGE,
+    knockback: { x: 0, y: 0 },
+  },
+  devour: {
+    rangePx: GEAR_FIVE_RANGE_PX,
+    awakenMs: 2200,
+    drums: 4,
+    stretchMs: 320,
+    reelMs: 420,
+    chomps: GEAR_FIVE_CHOMPS,
+    chompIntervalMs: 320,
+    chompDamage: GEAR_FIVE_CHOMP_DAMAGE,
+    recoverMs: 1500,
+  },
+  sfx: { fire: 'wpn_firepunch_thud', impact: 'wpn_bat_crack' },
+});
+
 export const MELEE = Object.freeze({
   fire_punch: FIRE_PUNCH,
   baseball_bat: BASEBALL_BAT,
   ryuko_ranbu: RYUKO_RANBU,
+  gear_five: GEAR_FIVE,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;

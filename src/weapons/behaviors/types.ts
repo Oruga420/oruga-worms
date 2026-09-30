@@ -39,8 +39,9 @@ export interface FireResult {
   /** True while a controlled descent (parachute, jetpack) is active, so Resolving does not force settle it. */
   readonly controlledDescent?: boolean;
   /**
-   * True when the shot plays out in the sim over many ticks (a super move or a beam): the caller
-   * keeps the shot open while world.combos or world.beams has a live one and closes it once done.
+   * True when the shot plays out in the sim over many ticks (a super move, a beam or Gear 5): the
+   * caller keeps the shot open while world.combos, world.beams or world.devours has a live one and
+   * closes it once done.
    */
   readonly sequence?: boolean;
 }

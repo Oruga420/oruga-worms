@@ -115,6 +115,40 @@ describe('decideHeuristic: the kamehameha', () => {
   });
 });
 
+describe('decideHeuristic: gear 5', () => {
+  const ammo = [
+    { weapon: 'bazooka' as WeaponId, count: -1 },
+    { weapon: 'ryuko_ranbu' as WeaponId, count: 1 },
+    { weapon: 'gear_five' as WeaponId, count: 1 },
+  ];
+
+  it('eats an enemy in reach and in plain sight, over the rush that would only beat it', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(req, worms)).weapon).toBe('gear_five');
+  });
+
+  it('keeps it when the arm cannot reach anyone, or only through a wall', () => {
+    const far = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.gear_five.devour!.rangePx + 60, y: 299, hp: 100, alive: true },
+    ];
+    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
+    expect(decideHeuristic(input(farReq, far)).weapon).not.toBe('gear_five');
+    const walled = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    const mask = flatMask(req.world.w, req.world.h, 300);
+    for (let y = 200; y < 300; y += 1) setSpan(mask, y, 260, 266, SOLID);
+    expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: walled }).weapon).not.toBe('gear_five');
+  });
+});
+
 describe('decideHeuristic', () => {
   it('aims a bazooka toward the enemy and reports a legal response', () => {
     const decision = decideHeuristic(input(request(), flatWorms));

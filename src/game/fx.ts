@@ -3,8 +3,9 @@
  * and become the beats the eye reads. A hurt worm grimaces and flashes, a gun kicks and flashes
  * at the muzzle and spits a casing, bullets leave tracers, blows leave swing arcs, blasts get a
  * flash and a shock ring, damage floats up as numbers, drowned worms sink with bubbles, rockets
- * trail smoke, and a super move gets its name card, its hit counter and its K.O. The gore layer
- * (gore.ts) gets the blood of every hit from here too.
+ * trail smoke, and a super move gets its name card, its hit counter and its K.O. Gear 5 gets its
+ * drums, its name, CHOMP! on every bite and the verdict. The gore layer (gore.ts) gets the blood of
+ * every hit from here too, and what a swallowed worm leaves when it is burped back up.
  *
  * Everything runs on its own clock advanced by the fixed tick (advanceFx), so the effects are as
  * deterministic as the sim and stop when the game pauses.
@@ -24,7 +25,7 @@ import type { SimWorld } from '../sim/world.ts';
 import { WEAPONS, getWeapon, isWeaponId } from '../weapons/registry.ts';
 import type { WeaponId } from '../weapons/types.ts';
 import type { GameEvent } from './controller.ts';
-import { bloodBurst, dripFrom, ejectCasing, gibBurst, splatterLens, type GoreSystem } from './gore.ts';
+import { BITE_SPIT, BURP_SPIT, bloodBurst, dripFrom, ejectCasing, gibBurst, spitOut, splatterLens, type GoreSystem } from './gore.ts';
 import type { CharacterSprites } from './render.ts';
 
 export const TRACER_MS = 90;
@@ -38,6 +39,12 @@ export const SINK_MS = 1800;
 export const SUPER_CARD_MS = 1100;
 export const KO_MS = 2000;
 export const COMBO_HUD_LINGER_MS = 1400;
+/** How long a drum's DON! and Gear 5's name stay up, and the verdict on a worm eaten. */
+export const DRUM_CALL_MS = 520;
+export const GEAR_CALL_MS = 1100;
+export const DEVOURED_MS = 1700;
+/** How long a sound effect written into the world (CHOMP!, GULP!, BURP!) stays up. */
+export const POP_MS = 750;
 
 export interface WormFxTimers {
   hurtAt: number;
@@ -129,6 +136,33 @@ export interface BeamShow {
   endedAt: number | null;
 }
 
+/** Gear 5 on screen: when each drum beat, when it awoke, whether the arm caught anything, and the swallow. */
+export interface DevourShow {
+  readonly devourId: number;
+  readonly attackerId: string;
+  readonly victimId: string | null;
+  readonly startedAt: number;
+  readonly drums: number[];
+  awakeAt: number | null;
+  missedAt: number | null;
+  gulpAt: number | null;
+  endedAt: number | null;
+}
+
+/** A sound effect written into the world, comic style: CHOMP!, GULP!, BURP!, HAHAHA! */
+export interface Pop {
+  readonly text: string;
+  readonly x: number;
+  readonly y: number;
+  readonly bornAt: number;
+  /** Letter height in screen px at the default zoom. */
+  readonly size: number;
+  readonly fill: string;
+  readonly outline: string;
+  /** Radians. */
+  readonly tilt: number;
+}
+
 export interface ComboShow {
   readonly comboId: number;
   /** The super being played, for its name card. */
@@ -154,6 +188,8 @@ export interface FxState {
   readonly sinkers: Sinker[];
   combo: ComboShow | null;
   beam: BeamShow | null;
+  devour: DevourShow | null;
+  readonly pops: Pop[];
   /** A full screen flash: white for the super, colour and strength per event. */
   screenFlash: { readonly at: number; readonly strength: number; readonly color: string; readonly ms: number } | null;
   /** Red at the screen's edges after a heavy hit. */
@@ -161,7 +197,7 @@ export interface FxState {
 }
 
 export function createFx(): FxState {
-  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, screenFlash: null, redPulse: null };
+  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, pops: [], screenFlash: null, redPulse: null };
 }
 
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
@@ -335,6 +371,84 @@ function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comb
   if (e.hit % 5 === 0) splatterLens(deps.gore, 1, 0.5, deps.rng);
 }
 
+function pop(fx: FxState, text: string, x: number, y: number, size: number, fill: string, outline: string, tilt: number): void {
+  fx.pops.push({ text, x, y, bornAt: fx.now, size, fill, outline, tilt });
+}
+
+/** Puffs of white steam in a ring round (x, y), clear of the worm in the middle so it stays in view. */
+function whitePuffs(deps: FxDeps, x: number, y: number, count: number, radius: number): void {
+  for (let i = 0; i < count; i += 1) {
+    const a = deps.rng.nextFloat(0, TWO_PI);
+    const d = radius * deps.rng.nextFloat(0.8, 1.2);
+    deps.particles.spawn((p) => initPuff(p, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.6, deps.rng, 1.8, '#ffffff', 26));
+  }
+}
+
+function onDevour(fx: FxState, e: Extract<GameEvent, { type: 'devourStart' | 'devourBeat' | 'devourEnd' }>, deps: FxDeps): void {
+  if (e.type === 'devourStart') {
+    fx.devour = { devourId: e.devourId, attackerId: e.attackerId, victimId: e.victimId, startedAt: fx.now, drums: [], awakeAt: null, missedAt: null, gulpAt: null, endedAt: null };
+    return;
+  }
+  const show = fx.devour;
+  if (show === null || show.devourId !== e.devourId) return;
+  if (e.type === 'devourEnd') {
+    show.endedAt = fx.now;
+    return;
+  }
+  const spit = { x: e.x, y: e.y, facing: e.facing, colorIndex: e.colorIndex };
+  switch (e.beat) {
+    case 'drum':
+      // The drums of liberation: a shock ring and a puff of white steam on every beat.
+      show.drums.push(fx.now);
+      fx.rings.push({ x: e.x, y: e.y, radius: 34, bornAt: fx.now, color: '#ffffff' });
+      whitePuffs(deps, e.x, e.y, 4, 16);
+      return;
+    case 'awake':
+      show.awakeAt = fx.now;
+      fx.screenFlash = { at: fx.now, strength: 0.9, color: '#ffffff', ms: 340 };
+      fx.rings.push({ x: e.x, y: e.y, radius: 70, bornAt: fx.now, color: '#fff3b0' });
+      whitePuffs(deps, e.x, e.y, 10, 20);
+      for (let i = 0; i < 26; i += 1) {
+        const a = deps.rng.nextFloat(0, TWO_PI);
+        const speed = deps.rng.nextFloat(90, 300);
+        deps.particles.spawn((p) => initSpark(p, e.x, e.y, Math.cos(a) * speed, Math.sin(a) * speed, deps.rng, i % 2 === 0 ? '#ffffff' : '#ffe27a', 0.5));
+      }
+      return;
+    case 'stretch':
+      pop(fx, 'BOING!', e.x + e.facing * 10, e.y - 14, 15, '#ffffff', '#4b2a88', -e.facing * 0.2);
+      return;
+    case 'grab':
+      fx.flashes.push({ x: e.x, y: e.y, angle: 0, size: 11, bornAt: fx.now, kind: 'impact' });
+      return;
+    case 'snap':
+      show.missedAt = fx.now;
+      return;
+    case 'chomp':
+      // The blood comes with the bite's damage; this is the rest: CHOMP!, a scrap torn off, blood on the lens.
+      pop(fx, 'CHOMP!', e.x + e.facing * 8, e.y - 8, 15 + e.n * 1.5, '#ff3b30', '#2a0000', (e.n % 2 === 0 ? 1 : -1) * 0.22);
+      spitOut(deps.gore, spit, BITE_SPIT, deps.rng);
+      if (deps.onScreen(e.x, e.y)) {
+        fx.redPulse = { at: fx.now, strength: 0.55 };
+        if (e.n % 2 === 0) splatterLens(deps.gore, 1, 0.7, deps.rng);
+      }
+      return;
+    case 'gulp':
+      show.gulpAt = fx.now;
+      pop(fx, 'GULP!', e.x, e.y - 14, 20, '#ffffff', '#4b2a88', e.facing * 0.15);
+      bloodBurst(deps.gore, { x: e.x, y: e.y, dx: e.facing * 0.5, dy: -0.85, amount: 40, cause: 'melee' }, deps.rng);
+      if (deps.onScreen(e.x, e.y)) {
+        fx.redPulse = { at: fx.now, strength: 0.9 };
+        splatterLens(deps.gore, 2, 1, deps.rng);
+      }
+      return;
+    case 'burp':
+      pop(fx, 'BURP!', e.x + e.facing * 10, e.y - 10, 24, '#d8f06a', '#233300', -e.facing * 0.18);
+      spitOut(deps.gore, spit, BURP_SPIT, deps.rng);
+      for (let i = 0; i < 8; i += 1) deps.particles.spawn((p) => initPuff(p, e.x + e.facing * deps.rng.nextFloat(2, 12), e.y + deps.rng.nextFloat(-4, 4), deps.rng, 2.2, '#c9dc8a', 14));
+      return;
+  }
+}
+
 /** Routes one tick's GameEvents into the effects and the gore. */
 export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: FxDeps): void {
   for (const e of events) {
@@ -397,6 +511,11 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'beamEnd':
         if (fx.beam !== null && fx.beam.beamId === e.beamId) fx.beam.endedAt = fx.now;
         break;
+      case 'devourStart':
+      case 'devourBeat':
+      case 'devourEnd':
+        onDevour(fx, e, deps);
+        break;
       default:
         break;
     }
@@ -457,6 +576,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
     }
     emitTrails(scene.world, deps);
     emitKi(scene.world, deps);
+    emitGearSteam(fx, scene.world, deps);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
@@ -469,6 +589,8 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   prune(fx.sinkers, fx.now, SINK_MS);
   if (fx.combo !== null && fx.combo.endedAt !== null && fx.now - fx.combo.endedAt > Math.max(COMBO_HUD_LINGER_MS, fx.combo.ko ? KO_MS : 0)) fx.combo = null;
   if (fx.beam !== null && fx.beam.endedAt !== null && fx.now - Math.max(fx.beam.endedAt, (fx.beam.firedAt ?? 0) + BEAM_SHOUT_MS) > 0) fx.beam = null;
+  if (fx.devour !== null && fx.devour.endedAt !== null && fx.now - Math.max(fx.devour.endedAt, (fx.devour.gulpAt ?? -Infinity) + DEVOURED_MS, fx.devour.endedAt + COMBO_HUD_LINGER_MS) > 0) fx.devour = null;
+  prune(fx.pops, fx.now, POP_MS);
   if (fx.screenFlash !== null && fx.now - fx.screenFlash.at > fx.screenFlash.ms) fx.screenFlash = null;
   if (fx.redPulse !== null && fx.now - fx.redPulse.at > 600) fx.redPulse = null;
 }
@@ -634,6 +756,19 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  for (const p of fx.pops) {
+    const t = clamp((fx.now - p.bornAt) / POP_MS, 0, 1);
+    const grow = 1 + Math.max(0, 0.22 - t) * 2.4;
+    const size = Math.round(clamp(p.size * (z / 2.5), 10, 44) * grow);
+    ctx.save();
+    ctx.globalAlpha = t < 0.65 ? 1 : 1 - (t - 0.65) / 0.35;
+    ctx.translate(sx(p.x), sy(p.y) - t * 10 * z);
+    ctx.rotate(p.tilt);
+    ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
+    outlinedText(ctx, p.text, 0, 0, p.fill, p.outline, Math.max(2, size / 9));
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
   for (const number of fx.numbers) {
     const { rise, alpha } = numberLook(number, fx.now);
     const pop = 1 + Math.max(0, 1 - (fx.now - number.lastAt) / 180) * 0.45;
@@ -685,6 +820,64 @@ function drawBeamShout(ctx: Ctx2D, fx: FxState, show: BeamShow, viewport: Size, 
   ctx.globalAlpha = 1;
 }
 
+/**
+ * Gear 5's calls: DON! on every drum, left and right in turn, then its name as it awakens, and
+ * DEVOURED! when the meal goes down (MISS when the arm grabbed air). On a phone they are smaller
+ * and sit lower, under the row of buttons along the top.
+ */
+function drawDevourCalls(ctx: Ctx2D, fx: FxState, show: DevourShow, viewport: Size, touch: boolean): void {
+  const w = viewport.w;
+  const h = viewport.h;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  show.drums.forEach((at, i) => {
+    const t = (fx.now - at) / DRUM_CALL_MS;
+    if (t < 0 || t >= 1) return;
+    const grow = 1 + Math.max(0, 0.2 - t) * 2;
+    const size = Math.round((touch ? clamp(w / 16, 28, 64) : clamp(w / 15, 30, 84)) * grow);
+    ctx.save();
+    ctx.globalAlpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+    ctx.translate(w * (i % 2 === 0 ? 0.3 : 0.7), h * (touch ? 0.36 : 0.24) + (i % 2) * h * 0.05);
+    ctx.rotate((i % 2 === 0 ? -1 : 1) * 0.12);
+    ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
+    outlinedText(ctx, 'DON!', 0, 0, '#ffffff', '#1a0b2e', Math.max(3, size / 14));
+    ctx.restore();
+  });
+  if (show.awakeAt !== null && show.missedAt === null && show.gulpAt === null) {
+    const t = (fx.now - show.awakeAt) / GEAR_CALL_MS;
+    if (t < 1) {
+      const grow = 1 + Math.max(0, 0.18 - t) * 2.5;
+      const y = h * (touch ? 0.34 : 0.19);
+      ctx.globalAlpha = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+      const size = Math.round((touch ? clamp(w / 14, 34, 80) : clamp(w / 12, 40, 104)) * grow);
+      ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
+      outlinedText(ctx, 'GEAR 5!', w / 2, y, '#ffffff', '#4b2a88', Math.max(4, size / 18));
+      ctx.font = `italic 900 ${Math.round(clamp(w / 36, 13, 30))}px system-ui, sans-serif`;
+      outlinedText(ctx, 'SUN GOD NIKA', w / 2, y + size * 0.62, '#ffe27a', '#2a1600', 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (show.gulpAt !== null) {
+    const t = (fx.now - show.gulpAt) / DEVOURED_MS;
+    if (t < 1) {
+      const grow = 1 + Math.max(0, 0.2 - t) * 2.5;
+      ctx.globalAlpha = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+      ctx.font = `italic 900 ${Math.round((touch ? clamp(w / 14, 32, 80) : clamp(w / 13, 36, 96)) * grow)}px system-ui, sans-serif`;
+      outlinedText(ctx, 'DEVOURED!', w / 2, h * (touch ? 0.38 : 0.22), '#e00000', '#120000', 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (show.missedAt !== null && show.endedAt !== null) {
+    const t = (fx.now - show.endedAt) / COMBO_HUD_LINGER_MS;
+    if (t < 1) {
+      ctx.globalAlpha = 1 - t;
+      ctx.font = 'italic 900 48px system-ui, sans-serif';
+      outlinedText(ctx, 'MISS', w / 2, h * 0.4 - t * 20, '#d8d8d8', '#202020', 3);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
 /** Ki drawn in from all around a charging beam, and sparks thrown off the sides of a live one. */
 function emitKi(world: SimWorld, deps: FxDeps): void {
   for (const beam of world.beams ?? []) {
@@ -706,6 +899,30 @@ function emitKi(world: SimWorld, deps: FxDeps): void {
       const y = beam.y0 + beam.dy * t + ny * beam.spec.radiusPx;
       const out = deps.rng.nextFloat(60, 170);
       deps.particles.spawn((p) => initSpark(p, x, y, nx * out + beam.dx * 90, ny * out + beam.dy * 90, deps.rng, '#bff0ff', 0.3));
+    }
+  }
+}
+
+/**
+ * Gear 5's steam: white puffs rising off the worm while it awakens and while it is awake, and the
+ * laugh once it has eaten, or missed, as HAHAHA! floating up.
+ */
+function emitGearSteam(fx: FxState, world: SimWorld, deps: FxDeps): void {
+  for (const devour of world.devours ?? []) {
+    if (!devour.alive) continue;
+    const x = devour.holdX;
+    const y = devour.holdY - WORM_HEIGHT * 0.7;
+    // Off the top of the head, so the worm itself stays in view as it turns white.
+    const rate = devour.stage === 'awaken' ? 0.18 : devour.stage === 'recover' ? 0.06 : 0.1;
+    if (deps.rng.next() < rate) deps.particles.spawn((p) => initPuff(p, x + deps.rng.nextFloat(-5, 5), devour.holdY - WORM_HEIGHT * 1.15, deps.rng, 1.4, '#ffffff', 34));
+    if (devour.stage === 'awaken' && deps.rng.next() < 0.3) {
+      const a = deps.rng.nextFloat(0, TWO_PI);
+      deps.particles.spawn((p) => initSpark(p, x + Math.cos(a) * 16, y + Math.sin(a) * 16, -Math.cos(a) * 60, -Math.sin(a) * 60 - 20, deps.rng, '#ffe27a', 0.4));
+    }
+    // The laugh, every half second or so: after the burp, or after grabbing at the air.
+    const laughing = devour.stage === 'recover' && (devour.burped || devour.victimId === null);
+    if (laughing && devour.stageTicks % 26 === 1 && fx.pops.filter((p) => p.text === 'HAHAHA!').length < 2) {
+      pop(fx, 'HAHAHA!', x - devour.facing * 6, devour.holdY - WORM_HEIGHT * 1.6, 13, '#ffffff', '#4b2a88', -devour.facing * 0.12);
     }
   }
 }
@@ -813,6 +1030,7 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: F
     ctx.globalAlpha = 1;
   }
   if (fx.beam !== null) drawBeamShout(ctx, fx, fx.beam, viewport, touch);
+  if (fx.devour !== null) drawDevourCalls(ctx, fx, fx.devour, viewport, touch);
 
   if (fx.screenFlash !== null) {
     const t = (fx.now - fx.screenFlash.at) / fx.screenFlash.ms;

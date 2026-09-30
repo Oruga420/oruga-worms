@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_AIM } from '@/game/aim.ts';
-import { drawGame, fightRoles, holdPose, poseFor, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
+import { devourRoles, drawGame, fightRoles, holdPose, poseFor, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
 import type { WormAnim } from '@/game/fx.ts';
 import { quickGame } from '@/game/setup.ts';
 import { createCamera } from '@/engine/camera.ts';
@@ -10,7 +10,10 @@ import type { ImageSource } from '@/engine/canvas-types.ts';
 import type { MatchState } from '@/match/state.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
-import type { BeamBody, ComboBody } from '@/sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody } from '@/sim/types.ts';
+import type { Ctx2D } from '@/engine/canvas-types.ts';
+import { drumTicks } from '@/sim/devour.ts';
+import { addWorm } from '@/sim/world.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 import { createRecordingContext } from '../ui/recording-context.ts';
 
@@ -217,5 +220,112 @@ describe('kamehameha', () => {
     const firing = draw();
     // The beam's bands: more filled paths than while it only charged.
     expect(firing.calls.filter((c) => c.name === 'fill').length).toBeGreaterThan(charging.calls.filter((c) => c.name === 'fill').length);
+  });
+});
+
+describe('gear 5', () => {
+  const SPEC = WEAPONS.gear_five.devour!;
+  const ticks = (ms: number): number => Math.max(1, Math.round((ms * 60) / 1000));
+  function devourBody(stage: DevourBody['stage'], stageTicks: number, extra: Partial<DevourBody> = {}): DevourBody {
+    return { id: 7, weaponId: 'gear_five', attackerId: 'a', ownerTeamId: 't', victimId: 'v', spec: SPEC, stage, stageTicks, holdX: 100, holdY: 100, facing: 1, shoulderX: 104, shoulderY: 91, reachX: 200, reachY: 92, grabX: 200, grabY: 100, mouthX: 111, mouthY: 93, chomps: 0, swallowed: false, burped: false, alive: true, ...extra };
+  }
+  const eater = (d: DevourBody) => ({ role: 'eater' as const, devour: d });
+  const prey = (d: DevourBody) => ({ role: 'prey' as const, devour: d });
+
+  /** Every colour the drawing filled with, in order, from a recording context that notes fillStyle on each fill. */
+  function fills(draw: (ctx: Ctx2D) => void): string[] {
+    const ctx = createRecordingContext();
+    const out: string[] = [];
+    const spy = new Proxy(ctx, {
+      get(target, name) {
+        if (name === 'fill') return () => out.push(String(target.fillStyle));
+        const value: unknown = Reflect.get(target, name);
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+      set(target, name, value) {
+        return Reflect.set(target, name, value);
+      },
+    }) as Ctx2D;
+    draw(spy);
+    return out;
+  }
+
+  it('knows who is eating whom, and lets the meal go once it is swallowed', () => {
+    const live = devourBody('chew', 3);
+    expect(devourRoles([live]).get('a')?.role).toBe('eater');
+    expect(devourRoles([live]).get('v')?.role).toBe('prey');
+    expect(devourRoles([{ ...live, swallowed: true }]).has('v')).toBe(false);
+    expect(devourRoles([{ ...live, alive: false }]).size).toBe(0);
+  });
+
+  it('turns the eater white and bounces it on the drums, then throws its arm out', () => {
+    const early = poseFor({ worm: WORM, devour: eater(devourBody('awaken', 1)), timeMs: 0 });
+    const late = poseFor({ worm: WORM, devour: eater(devourBody('awaken', ticks(SPEC.awakenMs) - 1)), timeMs: 0 });
+    expect(late.tint).toBe('#ffffff');
+    expect(late.tintAlpha).toBeGreaterThan(early.tintAlpha);
+    const onDrum = poseFor({ worm: WORM, devour: eater(devourBody('awaken', drumTicks(SPEC)[0]!)), timeMs: 0 });
+    expect(onDrum.stretchY).toBeLessThan(0.85);
+    const stretching = poseFor({ worm: WORM, devour: eater(devourBody('stretch', 3)), timeMs: 0 });
+    expect(stretching.frame).toBe('hold_melee');
+    expect(stretching.tintAlpha).toBeGreaterThan(0.9);
+  });
+
+  it('makes the meal tremble, tumble in shrinking, and lie across the mouth flashing red on a bite', () => {
+    expect(poseFor({ worm: WORM, devour: prey(devourBody('awaken', 10)), timeMs: 0 }).frame).toBe('hurt');
+    const reeled = poseFor({ worm: WORM, devour: prey(devourBody('reel', ticks(SPEC.reelMs) - 2)), timeMs: 0 });
+    expect(reeled.frame).toBe('knocked');
+    expect(reeled.rotation).not.toBe(0);
+    expect(reeled.stretchY).toBeLessThan(0.8);
+    const bitten = poseFor({ worm: { ...WORM, x: 111, y: 93 }, devour: prey(devourBody('chew', 1)), timeMs: 0 });
+    expect(bitten.tint).toBe('#ff1a1a');
+    expect(bitten.tintAlpha).toBeGreaterThan(0.5);
+    expect(bitten.stretchY).toBeLessThan(0.75);
+    // Drawn in the mouth, ahead of the eater's face and up at head height.
+    expect(111 + bitten.offsetX).toBeGreaterThan(100);
+    expect(93 + bitten.offsetY).toBeLessThan(100);
+  });
+
+  it('draws the halo, then the arm, then the giant head with the hat as the meal goes on', () => {
+    const game = scene();
+    const eaterBody = game.world.worms[0];
+    if (eaterBody === undefined) throw new Error('no worm');
+    const victim = game.world.worms.find((w) => w.teamId !== eaterBody.teamId);
+    if (victim === undefined) throw new Error('no enemy');
+    victim.x = eaterBody.x + 60;
+    victim.y = eaterBody.y;
+    const mask = game.world.terrain.mask;
+    for (let x = Math.round(eaterBody.x) - 2; x <= Math.round(victim.x) + 2; x += 1) for (let y = Math.round(eaterBody.y) - 30; y < Math.round(eaterBody.y) - 1; y += 1) mask.data[y * mask.width + x] = 0;
+    fire(game.world, eaterBody, WEAPONS.gear_five, { angleDeg: 0, power: 1 });
+    const live = game.world.devours[0];
+    if (live === undefined || live.victimId !== victim.id) throw new Error('no devour on the victim');
+    const draw = (): string[] => fills((ctx) => drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: eaterBody.x, y: eaterBody.y }), { state: game.state, world: game.world, aim: INITIAL_AIM, timeMs: 0, dim: 0.3 }));
+    live.stageTicks = ticks(SPEC.awakenMs) - 5;
+    const awakening = draw();
+    expect(awakening).toContain('#fff8d6');
+    expect(awakening).not.toContain('#4a0010');
+    live.stage = 'stretch';
+    live.stageTicks = 10;
+    const stretching = draw();
+    expect(stretching.filter((c) => c === '#fbfbff').length).toBeGreaterThan(awakening.filter((c) => c === '#fbfbff').length + 10);
+    expect(stretching).toContain('#f2c14e');
+    live.stage = 'chew';
+    live.stageTicks = 8;
+    const chewing = draw();
+    expect(chewing).toContain('#4a0010');
+    expect(chewing).toContain('#f2c14e');
+    expect(chewing).toContain('#e0607a');
+  });
+
+  it('shows the lock on the nearest enemy in reach while Gear 5 is picked', () => {
+    const game = scene();
+    const active = game.world.worms[0];
+    if (active === undefined) throw new Error('no worm');
+    addWorm(game.world, { id: 'near', teamId: 'nobody', x: active.x + 30, y: active.y });
+    const ctx = createRecordingContext();
+    const state: MatchState = { ...game.state, phase: 'Active' };
+    drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: active.x, y: active.y }), { state, world: game.world, aim: INITIAL_AIM, timeMs: 0, weapon: 'gear_five', aimAssist: true });
+    // The dashed reach circle is drawn in arcs of the lock range.
+    const reach = WEAPONS.gear_five.devour!.rangePx;
+    expect(ctx.calls.some((c) => c.name === 'arc' && Math.abs(Number(c.args[2]) - reach * 2.5) < 1)).toBe(true);
   });
 });

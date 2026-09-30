@@ -1,6 +1,6 @@
 ﻿# Oruga Worms
 
-A browser artillery game with destructible terrain, 28 weapons and utilities, animated worms,
+A browser artillery game with destructible terrain, 29 weapons and utilities, animated worms,
 local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2D.
 
 **Content warning:** the game shows cartoon blood and gore (blood sprays, stains, and worms bursting
@@ -27,11 +27,20 @@ and start the match.
 | Target teleport, girder, or strike | Select weapon, then tap the destination |
 | Super move (Ryuko Ranbu) | Pick it in Weapons, then press and release FIRE |
 | Kamehameha | Pick it in Weapons, aim with ▲ ▼, then press and release FIRE |
+| Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **Gear 5**, a super after Luffy's Sun God Nika (one per worm, unlocked from turn 4). The drums of
+  liberation beat four times (DON!) while the worm turns white, the sun god's rays spin behind it
+  and a cloud of white steam wraps its neck; it awakens with GEAR 5! and the straw hat pops on. Its
+  rubber arm shoots out to the nearest enemy in plain sight within 200 px (a LOCK ON marker shows
+  who), grabs it and reels it into a giant mouth that bites it four times (CHOMP!, and blood
+  everywhere) and swallows it whole: a worm eaten is gone, whatever its health. Then the worm burps
+  the bandana, the bones and an eye back up, and laughs. With nobody in reach the arm grabs at the
+  air. The CPU eats whoever it can reach.
 - **Kamehameha**, a beam super (one per worm, unlocked from turn 3). Aim it like a gun and fire:
   the worm cups a ball of ki in its hands while it chants KA... ME... HA... ME..., then shouts HA!!!,
   the screen flashes and the beam leaves. It races 640 px along the aim, bores a tunnel through the
@@ -92,6 +101,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Zoom / pan camera | Mouse wheel / drag |
 | Super move (Ryuko Ranbu) | Select it in the inventory, then press and release Space |
 | Kamehameha | Select it in the inventory, aim with Up/Down, then press and release Space |
+| Gear 5 | Select it in the inventory, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -128,6 +138,8 @@ heuristic remains available. Never commit real `.env` files or API keys.
   supers' camera work (`cinematic.ts`), input, sound, and HUD.
 - `src/sim/combo.ts`, `src/weapons/behaviors/combo.ts`: the Ryuko Ranbu's timeline and target lock.
 - `src/sim/beam.ts`, `src/weapons/behaviors/beam.ts`: the Kamehameha's charge, flight, tunnel and hits.
+- `src/sim/devour.ts`, `src/weapons/behaviors/devour.ts`, `src/game/gear-five.ts`: Gear 5's timeline,
+  its grab, and its look (the white, the cloud, the hat, the rubber arm and the giant mouth).
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

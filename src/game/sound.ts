@@ -97,7 +97,9 @@ export function createSoundDirector(deps: SoundDirectorDeps): SoundDirector {
     handleEvents(events) {
       for (const event of events) {
         if (event.type === 'sound') {
-          if (event.id !== undefined && deps.has(event.id)) deps.mixer.play(event.id, { pan: deps.panAt(event.x) });
+          // A cue from the sim is a one shot, even when it names a loop asset (the jet the Kamehameha
+          // fires with is one): played with the asset's own loop flag, it never stopped.
+          if (event.id !== undefined && deps.has(event.id)) deps.mixer.play(event.id, { pan: deps.panAt(event.x), loop: false });
         } else if (event.type === 'explosion') {
           const id = boomFor(event.radius ?? 40);
           if (deps.has(id)) deps.mixer.play(id, { pan: deps.panAt(event.x) });

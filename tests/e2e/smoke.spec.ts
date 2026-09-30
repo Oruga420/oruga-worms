@@ -99,7 +99,7 @@ async function startGame(page: import('@playwright/test').Page): Promise<void> {
 
 /**
  * The widest test in the suite and it keeps growing: title to team setup to match, the CSP and
- * health checks, all 28 panel weapons fired, crates, drowning, sudden death, a CPU turn, the
+ * health checks, all 29 panel weapons fired, crates, drowning, sudden death, a CPU turn, the
  * camera ride and the restart. It sat just under Playwright's 60 s default and now runs past it,
  * so it gets a budget of its own rather than being trimmed.
  */
@@ -273,9 +273,9 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
     .toBeLessThan(aliveBefore);
 
   // Every panel weapon fires in a real browser without throwing: the Goal's 23 slots plus the
-  // tank cannon, napalm gun, sonic blast gun and the two supers, Ryuko Ranbu and the Kamehameha.
+  // tank cannon, napalm gun, sonic blast gun and the three supers, Ryuko Ranbu, the Kamehameha and Gear 5.
   const fired = await page.evaluate(() => window.__orugas?.fireAll() ?? []);
-  expect(fired).toHaveLength(28);
+  expect(fired).toHaveLength(29);
   expect(fired.filter((entry) => !entry.ok)).toEqual([]);
   await page.waitForTimeout(500);
 
@@ -504,7 +504,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
   );
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
   await waitForHook(page);
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(28);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(29);
   await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
   expect(requested.some((r) => r.startsWith('/sprites/weapons/sheet.png?v='))).toBe(true);
   expect(requested.filter((r) => !/\?v=[0-9a-f]{10}$/.test(r))).toEqual([]);
@@ -516,7 +516,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(28);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(29);
 
   // Title to the team setup card.
   await page.keyboard.press('Enter');
@@ -776,6 +776,63 @@ test('kamehameha from the inventory: aimed with the keys, it charges, fires and 
   expect(errors).toEqual([]);
 });
 
+test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
+  const stage = await page.locator('#stage').boundingBox();
+  const setup = await page.evaluate(() => window.__orugas!.teamSetupCells());
+  const human = setup.find((cell) => cell.id === 'team:1:controller');
+  if (stage === null || human === undefined) throw new Error('Missing team setup');
+  await page.mouse.click(stage.x + human.x + human.w / 2, stage.y + human.y + human.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // Gear 5 unlocks on turn 4 (its scheme delay): end the first three turns.
+  for (let ended = 0; ended < 3; ended += 1) {
+    const turn = await page.evaluate(() => window.__orugas!.turn());
+    await page.evaluate(() => window.__orugas!.endTurn());
+    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
+    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  }
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(60));
+  if (victim === null) throw new Error('No enemy to line up');
+  await page.waitForTimeout(600);
+  expect(await page.evaluate((id: string) => window.__orugas!.wormHp(id), victim)).toBeGreaterThan(0);
+  const eater = await page.evaluate(() => window.__orugas!.inventory().activeId);
+
+  // Picked from the inventory like any weapon, fired with the fire key: no aim, the arm finds its meal.
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const cell = (await page.evaluate(() => window.__orugas!.panelCells())).find((c) => c.id === 'gear_five');
+  if (cell === undefined) throw new Error('Missing Gear 5 inventory cell');
+  expect(cell.enabled).toBe(true);
+  await page.mouse.click(stage.x + cell.x + cell.w / 2, stage.y + cell.y + cell.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.selectedWeapon())).toBe('gear_five');
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.devours()), { timeout: 3000 }).toBe(1);
+  // The drums and the white, then the meal in the giant mouth.
+  await page.waitForTimeout(1800);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/gear-five-awaken.png') });
+  await page.waitForTimeout(1400);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/gear-five-meal.png') });
+  await expect.poll(() => page.evaluate((id: string) => window.__orugas!.wormHp(id), victim), { timeout: 10000 }).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.devours()), { timeout: 10000 }).toBe(0);
+  const inventory = await page.evaluate(() => window.__orugas!.inventory());
+  expect(inventory.worms.find((worm) => worm.id === eater)?.ammo['gear_five']).toBe(0);
+  // The bites and the burp leave their mess on the land.
+  const gore = await page.evaluate(() => window.__orugas!.goreCount());
+  expect(gore.bits + gore.stains).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 test('individual inventories, fuse controls, and the third-turn parachute drop', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
@@ -914,7 +971,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(28);
+    expect(cells.length).toBe(29);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);

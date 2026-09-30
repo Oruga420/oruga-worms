@@ -2,7 +2,8 @@
  * Melee weapons (fire punch, baseball bat): an arc hit test in front of the worm that damages
  * and throws the worms it catches. The bat's huge horizontal knockback is the classic water kill
  * (throwRangePx documents the 643 px at 45 degrees). Fire punch cuts the land above it. A melee
- * row with a combo block is a super move and plays out over time instead (combo.ts).
+ * row with a combo block is a super move and plays out over time instead (combo.ts), and so is
+ * one with a devour block, Gear 5 (devour.ts).
  */
 
 import { degToRad } from '../../core/math.ts';
@@ -10,6 +11,7 @@ import { MELEE_KNOCKBACK_SCALE, WORM_HEIGHT } from '../../sim/constants.ts';
 import { carve } from '../../terrain/terrain.ts';
 import type { MeleeSpec } from '../types.ts';
 import { fireCombo } from './combo.ts';
+import { fireDevour } from './devour.ts';
 import { endsAfter, muzzlePoint, type FireContext, type FireResult } from './types.ts';
 
 function withinArc(ctx: FireContext, melee: MeleeSpec, wx: number, wy: number): boolean {
@@ -26,6 +28,7 @@ function withinArc(ctx: FireContext, melee: MeleeSpec, wx: number, wy: number): 
 
 export function fireMelee(ctx: FireContext): FireResult {
   if (ctx.def.combo !== undefined) return fireCombo(ctx);
+  if (ctx.def.devour !== undefined) return fireDevour(ctx);
   const melee = ctx.def.melee;
   if (melee === undefined) return endsAfter(0);
   const muzzle = muzzlePoint(ctx.worm);

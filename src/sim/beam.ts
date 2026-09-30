@@ -23,7 +23,7 @@ import type { BeamSpec } from '../weapons/types.ts';
 export const BEAM_SOUNDS = Object.freeze({
   charge: 'ui_power_charge',
   crackle: 'wpn_teleport_zap',
-  fire: Object.freeze(['wpn_holy_blast', 'wpn_supersheep_jet']),
+  fire: Object.freeze(['wpn_holy_blast', 'wpn_firepunch_whoosh']),
   tip: 'exp_large',
 });
 

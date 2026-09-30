@@ -1,7 +1,7 @@
 /**
  * The simulation world (architecture.md section C): owns the terrain, the wind, gravity, the
  * seeded rng and the entity lists, and steps everything once per tick in a fixed order (worms,
- * combos, projectiles, crates, mines, sheep, crate pickups). Events accumulate in `events` and are
+ * combos, beams, devours, projectiles, crates, mines, sheep, crate pickups). Events accumulate in `events` and are
  * drained by the caller after each tick; the match reducer, the audio mixer and the particles
  * read them. Entity arrays are compacted after each step so dead bodies do not linger.
  */
@@ -14,11 +14,12 @@ import { GRAVITY_PX_PER_S2, TICK_S } from './constants.ts';
 import { heldByBeams, stepBeam } from './beam.ts';
 import { heldWormIds, stepCombo } from './combo.ts';
 import { collectCrates, stepCrate } from './crate.ts';
+import { heldByDevours, stepDevour } from './devour.ts';
 import { stepMine } from './mine.ts';
 import { stepProjectile } from './projectile.ts';
 import { allAtRest } from './rest.ts';
 import { stepSheep } from './sheep.ts';
-import { IDLE_INTENT, type BeamBody, type ComboBody, type CrateBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type WormBody, type WormIntent } from './types.ts';
+import { IDLE_INTENT, type BeamBody, type ComboBody, type CrateBody, type DevourBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type WormBody, type WormIntent } from './types.ts';
 import { stepWorm } from './worm-controller.ts';
 
 export interface SimWorld {
@@ -36,6 +37,8 @@ export interface SimWorld {
   combos: ComboBody[];
   /** Beam supers in progress (sim/beam.ts); they hold their attackers while they play. */
   beams: BeamBody[];
+  /** Gear 5 in progress (sim/devour.ts); it holds the eater, and the victim until it is swallowed. */
+  devours: DevourBody[];
   readonly events: SimEvent[];
   tick: number;
   nextId(): number;
@@ -61,6 +64,7 @@ export function createWorld(terrain: TerrainData, options: WorldOptions): SimWor
     sheep: [],
     combos: [],
     beams: [],
+    devours: [],
     events: [],
     tick: 0,
     nextId: () => {
@@ -113,12 +117,14 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   const dt = TICK_S;
   world.tick += 1;
   // Snapshots: bodies spawned during this tick (cluster children, strike bombs) step from the next tick.
-  // A worm a combo or a beam holds is placed by it instead, right after the others moved.
+  // A worm a combo, a beam or a devour holds is placed by it instead, right after the others moved.
   const held = heldWormIds(world.combos);
   const beaming = heldByBeams(world.beams);
-  for (const worm of world.worms) if (!held.has(worm.id) && !beaming.has(worm.id)) stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
+  const eating = heldByDevours(world.devours);
+  for (const worm of world.worms) if (!held.has(worm.id) && !beaming.has(worm.id) && !eating.has(worm.id)) stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
   for (const combo of [...world.combos]) stepCombo(world, combo);
   for (const beam of [...world.beams]) stepBeam(world, beam);
+  for (const devour of [...world.devours]) stepDevour(world, devour);
   for (const projectile of [...world.projectiles]) stepProjectile(world, projectile, dt);
   for (const crate of [...world.crates]) stepCrate(world, crate, dt);
   for (const mine of [...world.mines]) stepMine(world, mine, dt);
@@ -130,6 +136,7 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   world.sheep = world.sheep.filter((s) => s.alive);
   world.combos = world.combos.filter((c) => c.alive);
   world.beams = world.beams.filter((b) => b.alive);
+  world.devours = world.devours.filter((d) => d.alive);
   const events = world.events.splice(0, world.events.length);
   return events;
 }

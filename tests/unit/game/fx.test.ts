@@ -6,6 +6,10 @@ import type { GameEvent } from '@/game/controller.ts';
 import {
   BEAM_SHOUT_MS,
   COMBO_HUD_LINGER_MS,
+  DEVOURED_MS,
+  DRUM_CALL_MS,
+  GEAR_CALL_MS,
+  POP_MS,
   TRACER_MS,
   advanceFx,
   applyFxEvents,
@@ -312,5 +316,119 @@ describe('fx: the beam', () => {
     const d = deps();
     applyFxEvents(fx, [start, end], d);
     expect(said(fx).some((t) => t.startsWith('KA') || t === 'HA!!!')).toBe(false);
+  });
+});
+
+describe('fx: gear 5', () => {
+  const chunksOf = (d: FxDeps): GoreBit[] => {
+    const out: GoreBit[] = [];
+    d.gore.bits.forEach((bit) => {
+      if (bit.kind === 'chunk') out.push(bit);
+    });
+    return out;
+  };
+  const start: GameEvent = { type: 'devourStart', devourId: 9, weapon: 'gear_five', attackerId: 'a', victimId: 'v', x: 0, y: 0 };
+  const beat = (kind: 'drum' | 'awake' | 'stretch' | 'grab' | 'snap' | 'chomp' | 'gulp' | 'burp', n = 0): GameEvent => ({
+    type: 'devourBeat',
+    devourId: 9,
+    attackerId: 'a',
+    victimId: kind === 'snap' ? null : 'v',
+    beat: kind,
+    n,
+    x: 100,
+    y: 100,
+    facing: 1,
+    colorIndex: 1,
+  });
+  const said = (fx: ReturnType<typeof createFx>, touch = false): string[] => {
+    const ctx = createRecordingContext();
+    drawFxScreen(ctx, fx, touch ? { w: 844, h: 390 } : { w: 1280, h: 720 }, { touch });
+    return ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+  };
+  const written = (fx: ReturnType<typeof createFx>): string[] => {
+    const ctx = createRecordingContext();
+    drawFxWorld(ctx, fx, createCamera({ x: 100, y: 100 }), { w: 640, h: 360 });
+    return ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+  };
+
+  it('beats a DON! and a ring of steam on every drum, then calls its name with a flash as it awakens', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('drum', 1)], d);
+    expect(said(fx)).toContain('DON!');
+    expect(fx.rings).toHaveLength(1);
+    expect(d.particles.count()).toBeGreaterThan(0);
+    advanceFx(fx, DRUM_CALL_MS + 10, null, d);
+    expect(said(fx)).not.toContain('DON!');
+    applyFxEvents(fx, [beat('awake')], d);
+    expect(fx.screenFlash).not.toBeNull();
+    expect(said(fx)).toEqual(expect.arrayContaining(['GEAR 5!', 'SUN GOD NIKA']));
+    advanceFx(fx, GEAR_CALL_MS + 10, null, d);
+    expect(said(fx)).not.toContain('GEAR 5!');
+  });
+
+  it('writes CHOMP! into the world and tears a scrap off on every bite, then GULP! and DEVOURED!', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('awake'), beat('grab'), beat('chomp', 1)], d);
+    expect(written(fx)).toContain('CHOMP!');
+    expect(chunksOf(d).length).toBeGreaterThan(0);
+    applyFxEvents(fx, [beat('gulp')], d);
+    expect(written(fx)).toContain('GULP!');
+    expect(said(fx)).toContain('DEVOURED!');
+    // The swallow's call replaces the name at once.
+    expect(said(fx)).not.toContain('GEAR 5!');
+    expect(d.gore.lens.length).toBeGreaterThan(0);
+    advanceFx(fx, POP_MS + 10, null, d);
+    expect(written(fx)).not.toContain('CHOMP!');
+    advanceFx(fx, DEVOURED_MS, null, d);
+    expect(said(fx)).not.toContain('DEVOURED!');
+  });
+
+  it('burps the remains back up: the bandana, bones and an eye', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('gulp'), beat('burp')], d);
+    expect(written(fx)).toContain('BURP!');
+    const shapes = new Set(chunksOf(d).map((b) => b.shape));
+    expect(shapes).toEqual(new Set(['bandana', 'bone', 'eye', 'flesh']));
+  });
+
+  it('keeps the calls clear of the phone buttons along the top', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('awake')], d);
+    const ctx = createRecordingContext();
+    drawFxScreen(ctx, fx, { w: 844, h: 390 }, { touch: true });
+    const name = ctx.calls.find((c) => c.name === 'fillText' && c.args[0] === 'GEAR 5!');
+    expect(Number(name?.args[2])).toBeGreaterThan(390 * 0.3);
+  });
+
+  it('says MISS when the arm grabbed at the air, and lets the show go after', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [start, beat('awake'), beat('snap')], d);
+    expect(said(fx)).not.toContain('GEAR 5!');
+    applyFxEvents(fx, [{ type: 'devourEnd', devourId: 9, attackerId: 'a', victimId: null, eaten: false }], d);
+    expect(said(fx)).toContain('MISS');
+    advanceFx(fx, COMBO_HUD_LINGER_MS + 20, null, d);
+    expect(fx.devour).toBeNull();
+    expect(said(fx)).not.toContain('MISS');
+  });
+
+  it('floats the laugh off the worm once it has eaten', () => {
+    const fx = createFx();
+    const d = deps();
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    const hero = addWorm(world, { id: 'hero', teamId: 'a', x: 200, y: 199 });
+    addWorm(world, { id: 'meal', teamId: 'b', x: 260, y: 199 });
+    fire(world, hero, WEAPONS.gear_five, { angleDeg: 0, power: 1 });
+    const devour = world.devours[0]!;
+    devour.stage = 'recover';
+    devour.swallowed = true;
+    devour.burped = true;
+    devour.stageTicks = 1;
+    advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
+    expect(fx.pops.map((p) => p.text)).toContain('HAHAHA!');
   });
 });

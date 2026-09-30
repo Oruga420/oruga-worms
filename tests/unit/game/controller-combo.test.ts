@@ -343,3 +343,85 @@ describe('controller: kamehameha', () => {
     expect(controller.drainEvents().some((e) => e.type === 'beamEnd')).toBe(true);
   });
 });
+
+describe('controller: gear 5', () => {
+  const SPEC = WEAPONS.gear_five.devour!;
+
+  /** Picks Gear 5, lets the lined up victim settle where it landed, then presses and releases fire. */
+  function fireGear(controller: Controller): GameEvent[] {
+    controller.selectWeapon('gear_five');
+    expect(controller.selectedWeapon()).toBe('gear_five');
+    for (let i = 0; i < 90; i += 1) controller.tick(IDLE);
+    controller.drainEvents();
+    controller.tick({ ...IDLE, fireHeld: true });
+    controller.tick({ ...IDLE, fireReleased: true });
+    return controller.drainEvents();
+  }
+
+  it('is refused before its scheme delay has elapsed', () => {
+    const controller = makeController({ turn: 3 });
+    tickUntil(controller, 'Active');
+    controller.selectWeapon('gear_five');
+    expect(controller.selectedWeapon()).not.toBe('gear_five');
+  });
+
+  it('holds the shot open through the whole meal, eats the victim without a burst, then moves on', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    const { victimId } = lineUp(controller);
+    const fired = fireGear(controller);
+    // Nothing leaves the hands at the press: no muzzle flash, the awakening starts instead.
+    expect(fired.some((e) => e.type === 'fired')).toBe(false);
+    expect(fired.some((e) => e.type === 'devourStart' && e.victimId === victimId)).toBe(true);
+    // Still Firing two seconds in, mid awakening: the reducer has not been told the shot is over.
+    for (let i = 0; i < 120; i += 1) controller.tick(IDLE);
+    expect(controller.state().phase).toBe('Firing');
+    expect(controller.world().devours).toHaveLength(1);
+    const events: GameEvent[] = [];
+    tickUntil(controller, 'TurnEnd', events);
+    expect(hpOf(controller.state(), victimId)).toBe(0);
+    const beats = events.flatMap((e) => (e.type === 'devourBeat' ? [e.beat] : []));
+    expect(beats).toEqual(['drum', 'drum', 'drum', 'drum', 'awake', 'stretch', 'grab', 'chomp', 'chomp', 'chomp', 'chomp', 'gulp', 'burp']);
+    // Swallowed whole: no burst on the ground, and the body is out of the world.
+    expect(events.some((e) => e.type === 'gib' && e.wormId === victimId)).toBe(false);
+    expect(findWorm(controller.world(), victimId)?.alive).toBe(false);
+    expect(events.some((e) => e.type === 'devourEnd' && e.eaten)).toBe(true);
+    const bites = controller.state().log.filter((entry) => entry.kind === 'damage' && entry.text.includes(`takes ${SPEC.chompDamage}`));
+    expect(bites.length).toBe(SPEC.chomps);
+    expect(controller.state().log.some((entry) => entry.kind === 'retreat')).toBe(true);
+  });
+
+  it('eats a worm a health crate topped up past full, all of it', () => {
+    const controller = makeController({ turn: 5, enemyHp: 180 });
+    tickUntil(controller, 'Active');
+    const { victimId } = lineUp(controller);
+    fireGear(controller);
+    const events: GameEvent[] = [];
+    tickUntil(controller, 'TurnEnd', events);
+    expect(hpOf(controller.state(), victimId)).toBe(0);
+    expect(events.some((e) => e.type === 'gib' && e.wormId === victimId)).toBe(false);
+    // The swallow's number shows what the bites left, not the million the sim sends.
+    const numbers = events.flatMap((e) => (e.type === 'damage' && e.wormId === victimId ? [e.lost] : []));
+    expect(numbers.reduce((sum, lost) => sum + lost, 0)).toBe(180);
+  });
+
+  it('a surrender mid meal ends it and lets the uneaten victim go', () => {
+    const controller = makeController({ turn: 5 });
+    tickUntil(controller, 'Active');
+    const { victimId } = lineUp(controller);
+    fireGear(controller);
+    for (let i = 0; i < 1000 && controller.world().devours[0]?.stage !== 'chew'; i += 1) controller.tick(IDLE);
+    expect(controller.world().devours[0]?.stage).toBe('chew');
+    controller.tick(IDLE);
+    controller.drainEvents();
+    const team = activeTeamOf(controller.state());
+    if (team === undefined) throw new Error('no active team');
+    controller.surrender(team.id);
+    expect(controller.state().phase).toBe('MatchEnd');
+    expect(controller.world().devours).toHaveLength(0);
+    const events = controller.drainEvents();
+    expect(events.some((e) => e.type === 'devourEnd' && !e.eaten)).toBe(true);
+    expect(findWorm(controller.world(), victimId)?.alive).toBe(true);
+    expect(hpOf(controller.state(), victimId)).toBeGreaterThan(0);
+  });
+});
