@@ -6,6 +6,7 @@ import {
   updateCameraTarget,
 } from '@/game/camera-target.ts';
 import type { SimWorld } from '@/sim/world.ts';
+import { WEAPONS } from '@/weapons/registry.ts';
 
 /** Only world.projectiles is read, so a stub keeps the test honest and small. */
 function world(projectiles: readonly { id: number; x: number; y: number }[]): SimWorld {
@@ -111,5 +112,49 @@ describe('camera director: the beam', () => {
     expect(up.target).toEqual({ x: 306, y: 267 });
     // With no view to fit, the middle of the beam.
     expect(updateCameraTarget(INITIAL_DIRECTOR, beamWorld('fire', 640), TICK).target).toEqual({ x: 626, y: 339 });
+  });
+});
+
+describe('camera director: gear 5', () => {
+  const devourWorld = (stage: 'awaken' | 'stretch' | 'chew', stageTicks: number, alive = true): SimWorld =>
+    ({
+      projectiles: [],
+      worms: [{ id: 'hero', x: 300, y: 349 }],
+      devours: [
+        {
+          attackerId: 'hero',
+          victimId: 'enemy',
+          stage,
+          stageTicks,
+          spec: WEAPONS.gear_five.devour,
+          holdX: 300,
+          holdY: 349,
+          facing: 1,
+          shoulderX: 304,
+          shoulderY: 340,
+          reachX: 440,
+          reachY: 341,
+          grabX: 440,
+          grabY: 349,
+          mouthX: 311,
+          mouthY: 342,
+          alive,
+        },
+      ],
+    }) as unknown as SimWorld;
+
+  it('frames the worm as it awakens, the arm and its catch, then the mouth, then sits where it was', () => {
+    const awakening = updateCameraTarget(INITIAL_DIRECTOR, devourWorld('awaken', 10), TICK);
+    expect(awakening.director.focus).toBe('devour');
+    expect(awakening.target?.x).toBe(300);
+    expect(awakening.target?.y).toBeCloseTo(349 - 16 * 0.6);
+    // The arm at full stretch: half way between the worm and the hand.
+    const stretched = updateCameraTarget(awakening.director, devourWorld('stretch', 1000), TICK);
+    expect(stretched.target?.x).toBeCloseTo((300 + 440) / 2);
+    const chewing = updateCameraTarget(stretched.director, devourWorld('chew', 5), TICK);
+    expect(chewing.target).toEqual({ x: 306, y: 333 });
+    const after = updateCameraTarget(chewing.director, devourWorld('chew', 5, false), TICK);
+    expect(after.director.focus).toBe('impact');
+    expect(after.target).toEqual({ x: 306, y: 333 });
   });
 });

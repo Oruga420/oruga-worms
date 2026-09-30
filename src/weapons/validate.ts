@@ -1,11 +1,12 @@
 /**
  * Registry invariants (architecture.md section D), run at boot and in the tests: every kind has
- * its spec block, a combo only rides a melee row and a beam a hitscan row, fuses are consistent,
- * cluster children never cluster again and never name a registry weapon, sprites are named, every
- * number is finite and non negative (ammo may be -1), infinite weapons never drop from crates,
- * multi shot weapons do not end the turn early, charged weapons have a launch speed, keys match
- * ids, the panel is complete, and the sidecar metadata table (sidecar/weapon-meta.ts) agrees on
- * target selection and fuse options so the two sources cannot drift.
+ * its spec block, a combo or a devour only rides a melee row (never both) and a beam a hitscan
+ * row, fuses are consistent, cluster children never cluster again and never name a registry
+ * weapon, sprites are named, every number is finite and non negative (ammo may be -1), infinite
+ * weapons never drop from crates, multi shot weapons do not end the turn early, charged weapons
+ * have a launch speed, keys match ids, the panel is complete, and the sidecar metadata table
+ * (sidecar/weapon-meta.ts) agrees on target selection and fuse options so the two sources cannot
+ * drift.
  */
 
 import { err, ok, type Result } from '../core/result.ts';
@@ -67,6 +68,13 @@ function checkKindSpecs(id: string, def: WeaponDef, out: string[]): void {
   if (def.beam !== undefined) {
     if (def.kind !== 'HITSCAN') out.push(`${id}: a beam block belongs on a HITSCAN row, not ${def.kind}`);
     if (!(def.beam.rangePx > 0) || !(def.beam.radiusPx > 0) || !(def.beam.speedPxPerS > 0)) out.push(`${id}: beam.rangePx, radiusPx and speedPxPerS must be positive`);
+  }
+  if (def.devour !== undefined) {
+    if (def.kind !== 'MELEE') out.push(`${id}: a devour block belongs on a MELEE row, not ${def.kind}`);
+    if (def.combo !== undefined) out.push(`${id}: a row is a combo or a devour, not both`);
+    if (!Number.isInteger(def.devour.chomps) || def.devour.chomps < 1) out.push(`${id}: devour.chomps must be a positive integer`);
+    if (!Number.isInteger(def.devour.drums) || def.devour.drums < 0) out.push(`${id}: devour.drums must be a whole number`);
+    if (!(def.devour.rangePx > 0)) out.push(`${id}: devour.rangePx must be positive`);
   }
 }
 

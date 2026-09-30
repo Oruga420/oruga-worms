@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -176,6 +176,48 @@ export interface BeamBody {
   alive: boolean;
 }
 
+/**
+ * Gear 5 in progress (sim/devour.ts). The eater is held from the awakening to the end; the victim
+ * is held from the start until it is swallowed, and once swallowed its body is out of the world.
+ */
+export type DevourStage = 'awaken' | 'stretch' | 'reel' | 'chew' | 'recover';
+
+/** The beats of Gear 5 the presentation plays: each drum, the awakening, the arm, every bite, the swallow, the burp. */
+export type DevourBeat = 'drum' | 'awake' | 'stretch' | 'grab' | 'snap' | 'chomp' | 'gulp' | 'burp';
+
+export interface DevourBody {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly attackerId: string;
+  readonly ownerTeamId: string;
+  /** Null when nobody was in reach and in sight: the arm grabs at the air. */
+  readonly victimId: string | null;
+  readonly spec: DevourSpec;
+  stage: DevourStage;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  /** Where the eater stands through it all, and which way it faces. */
+  readonly holdX: number;
+  readonly holdY: number;
+  readonly facing: 1 | -1;
+  /** Where the arm leaves the body, and where the hand goes: the victim's middle, or as far as it got. */
+  readonly shoulderX: number;
+  readonly shoulderY: number;
+  readonly reachX: number;
+  readonly reachY: number;
+  /** The victim's feet where it was grabbed, and where they are held in the mouth for the chewing. */
+  readonly grabX: number;
+  readonly grabY: number;
+  readonly mouthX: number;
+  readonly mouthY: number;
+  /** Bites taken so far. */
+  chomps: number;
+  /** The victim went down the throat, and the burp has come back up. */
+  swallowed: boolean;
+  burped: boolean;
+  alive: boolean;
+}
+
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
   readonly x: number;
@@ -207,7 +249,12 @@ export type SimEvent =
   | { readonly type: 'beamStart'; readonly beamId: number; readonly weaponId: string; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
   /** The charge is spent: the beam leaves the hands. */
   | { readonly type: 'beamFire'; readonly beamId: number; readonly attackerId: string; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
-  | { readonly type: 'beamEnd'; readonly beamId: number; readonly attackerId: string; readonly hits: number };
+  | { readonly type: 'beamEnd'; readonly beamId: number; readonly attackerId: string; readonly hits: number }
+  /** Gear 5 starts: the eater, and the victim its arm will grab (null for a whiff). */
+  | { readonly type: 'devourStart'; readonly devourId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
+  /** One beat of Gear 5 at (x, y); n counts the drums and the bites from 1, 0 for the rest. Presentation only. */
+  | { readonly type: 'devourBeat'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: DevourBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'devourEnd'; readonly devourId: number; readonly attackerId: string; readonly victimId: string | null; readonly eaten: boolean };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

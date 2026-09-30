@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 28 panel slots: 23 combat weapons plus 5 utilities, in panel order. */
+/** The 29 panel slots: 24 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -27,6 +27,7 @@ export const PANEL_WEAPON_IDS = [
   'fire_punch',
   'baseball_bat',
   'ryuko_ranbu',
+  'gear_five',
   'dynamite',
   'mine',
   'sheep',
@@ -122,6 +123,8 @@ export interface WeaponDef {
   readonly combo?: ComboSpec;
   /** A HITSCAN row fired as a charged energy beam over several ticks (Kamehameha). */
   readonly beam?: BeamSpec;
+  /** A MELEE row played out as a transformation that grabs a worm and eats it (Gear 5). */
+  readonly devour?: DevourSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -315,6 +318,30 @@ export interface BeamSpec {
   readonly fadeMs: number;
   /** Where the beam ends at full reach, it bursts. */
   readonly tipBlast: BlastSpec;
+}
+
+/**
+ * Gear 5: the worm awakens to the drums of liberation, turns white and rubbery, shoots its arm out
+ * to the nearest enemy in plain sight within reach, reels it into a giant mouth, chews it and
+ * swallows it whole. A FIELD on a MELEE row, like the combo: the row's melee block states the reach
+ * the CPU and the panel read; this block is the timeline the sim plays (sim/devour.ts). A worm
+ * swallowed is gone, whatever health it had left. Durations are ms, rounded to ticks by the sim.
+ */
+export interface DevourSpec {
+  /** Lock and arm reach, worm centre to worm centre, world px. The victim must be in plain sight. */
+  readonly rangePx: number;
+  /** The transformation, and the drum beats spread over it. */
+  readonly awakenMs: number;
+  readonly drums: number;
+  /** The rubber arm's flight out to the victim, and back with it. */
+  readonly stretchMs: number;
+  readonly reelMs: number;
+  /** Bites while the victim is in the mouth, the time between two of them, and what each takes. */
+  readonly chomps: number;
+  readonly chompIntervalMs: number;
+  readonly chompDamage: number;
+  /** After the swallow: the lump going down, the burp, and the white wearing off. */
+  readonly recoverMs: number;
 }
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

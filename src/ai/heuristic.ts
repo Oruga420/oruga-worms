@@ -144,6 +144,20 @@ function evaluateCombo(input: HeuristicInput, def: WeaponDef, from: WormPoint, f
   return { weapon: def.id, angleDeg: 0, power: 1, score, confidence: clamp(score / Math.max(1, total), 0, 1) };
 }
 
+/**
+ * Gear 5 takes no aim either: the arm grabs whom the sim's lock rule picks, and a worm it grabs is
+ * eaten, however much health it has. Score that victim's whole health, and nobody else's.
+ */
+function evaluateDevour(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const devour = def.devour;
+  if (devour === undefined) return null;
+  const request = input.request;
+  const enemies = input.worms.filter((w) => w.alive && w.teamId !== request.active.team && w.y < request.waterY);
+  const victim = pickLockTarget(input.mask, { x: from.x, y: from.y, facing }, enemies, devour.rangePx);
+  if (victim === null || victim.hp <= 0) return null;
+  return { weapon: def.id, angleDeg: 0, power: 1, score: victim.hp, confidence: 1 };
+}
+
 /** A beam is thin: sweep the aim finer than a shell's. */
 const BEAM_ANGLE_STEP = 2;
 
@@ -208,6 +222,7 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
       let candidate: Candidate | null = null;
       if (def.kind === 'PROJECTILE' || def.kind === 'TIMED') candidate = evaluateBallistic(input, def, from, facing, env);
       else if (def.combo !== undefined) candidate = evaluateCombo(input, def, from, facing);
+      else if (def.devour !== undefined) candidate = evaluateDevour(input, def, from, facing);
       else if (def.beam !== undefined) candidate = evaluateBeam(input, def, from, facing);
       else if (def.kind === 'HITSCAN' || def.kind === 'MELEE') candidate = evaluateDirect(input, def, from);
       else if (def.kind === 'TARGETED' && def.strike !== undefined) candidate = evaluateTargeted(input, def);
