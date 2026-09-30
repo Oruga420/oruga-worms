@@ -45,8 +45,11 @@ export const GAME_CONFIG = deepFreeze({
   },
   /** 21 discrete steps (-10..10); step 10 is 119 percent of gravity on a bazooka shell. Rerolled every turn. */
   wind: { steps: 21, maxFractionOfGravity: 1.19 },
-  /** Scheduled supply drop every three completed turns; percentages weight the random kind. */
-  crates: { weaponPct: 20, healthPct: 8, utilityPct: 8, maxOnMap: 5, healthAmount: 25, dropEveryTurns: 3 },
+  /**
+   * Scheduled supply drop every three completed turns; percentages weight the random kind. About
+   * one drop in three is a power orb, which recharges a super (match/crates.ts rollPower).
+   */
+  crates: { weaponPct: 20, healthPct: 8, utilityPct: 8, powerPct: 18, maxOnMap: 5, healthAmount: 25, dropEveryTurns: 3 },
   /**
    * Movement budget per turn. A step is stepPx of real
    * horizontal displacement while walking; at the 60 px per second walk speed 10 steps of 32 px

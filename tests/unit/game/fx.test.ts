@@ -5,6 +5,7 @@ import { createParticleSystem } from '@/engine/particles.ts';
 import type { GameEvent } from '@/game/controller.ts';
 import {
   BEAM_SHOUT_MS,
+  CALLOUT_MS,
   COMBO_HUD_LINGER_MS,
   DEVOURED_MS,
   DRUM_CALL_MS,
@@ -23,6 +24,7 @@ import {
   type FxDeps,
 } from '@/game/fx.ts';
 import { createGore, goreCount, type GoreBit } from '@/game/gore.ts';
+import { spawnCrate } from '@/sim/crate.ts';
 import { LAUGH_TICK } from '@/sim/hex.ts';
 import { addWorm } from '@/sim/world.ts';
 import { fire } from '@/weapons/fire.ts';
@@ -545,5 +547,64 @@ describe('fx: the freezer', () => {
     hex.stageTicks = LAUGH_TICK;
     advanceFx(fx, TICK, { world, hpOf: () => 100, maxHp: 100 }, d);
     expect(fx.pops.map((p) => p.text)).toContain('HO HO HO!');
+  });
+});
+
+describe('fx: crates and power orbs', () => {
+  const opened = (crate: 'weapon' | 'health' | 'power', weapon: 'kamehameha' | 'bazooka' | null, healed = 0): GameEvent =>
+    ({ type: 'crateOpened', wormId: 'w', crate, weapon, healed, x: 200, y: 180 });
+
+  it('a power orb goes off in gold and rises +1 KAMEHAMEHA! over the worm, long enough to read', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [opened('power', 'kamehameha')], d);
+    const callout = fx.pops.find((p) => p.text === '+1 KAMEHAMEHA!');
+    expect(callout).toBeDefined();
+    expect(callout?.ms).toBe(CALLOUT_MS);
+    expect(callout?.y).toBeLessThan(180);
+    expect(fx.rings.length).toBeGreaterThanOrEqual(2);
+    expect(fx.screenFlash).not.toBeNull();
+    expect(d.particles.count()).toBeGreaterThan(20);
+    // Still up past a plain pop's life, gone after its own.
+    for (let t = 0; t < POP_MS + 100; t += TICK) advanceFx(fx, TICK, null, d);
+    expect(fx.pops.map((p) => p.text)).toContain('+1 KAMEHAMEHA!');
+    for (let t = 0; t < CALLOUT_MS; t += TICK) advanceFx(fx, TICK, null, d);
+    expect(fx.pops.map((p) => p.text)).not.toContain('+1 KAMEHAMEHA!');
+  });
+
+  it('a weapon crate names its weapon and a health crate its hp, without the gold', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [opened('weapon', 'bazooka'), opened('health', null, 25)], d);
+    expect(fx.pops.map((p) => p.text)).toEqual(['+1 BAZOOKA', '+25']);
+    expect(fx.screenFlash).toBeNull();
+    const ctx = createRecordingContext();
+    drawFxWorld(ctx, fx, createCamera({ x: 0, y: 0 }), { w: 800, h: 600 });
+    const texts = ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
+    expect(texts).toContain('+1 BAZOOKA');
+    expect(texts).toContain('+25');
+  });
+
+  it('a power orb sheds gold sparkles as it falls and where it rests; a plain crate sheds none', () => {
+    const world = flatWorld({ width: 600, height: 300, floorY: 200, waterY: 280 });
+    const scene = { world, hpOf: () => 100, maxHp: 100 };
+    const plain = deps();
+    const quiet = createFx();
+    spawnCrate(world, 'weapon', 300);
+    for (let i = 0; i < 30; i += 1) advanceFx(quiet, TICK, scene, plain);
+    expect(plain.particles.count()).toBe(0);
+    const d = deps();
+    const fx = createFx();
+    const orb = spawnCrate(world, 'power', 200);
+    orb.y = 80;
+    for (let i = 0; i < 30; i += 1) advanceFx(fx, TICK, scene, d);
+    const falling = d.particles.count();
+    expect(falling).toBeGreaterThan(10);
+    orb.y = 199;
+    orb.landed = true;
+    const resting = deps();
+    for (let i = 0; i < 30; i += 1) advanceFx(fx, TICK, scene, resting);
+    expect(resting.particles.count()).toBeGreaterThan(0);
+    expect(resting.particles.count()).toBeLessThan(falling);
   });
 });

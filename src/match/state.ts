@@ -122,7 +122,7 @@ export interface MatchLogEntry {
 
 export const MATCH_LOG_CAP = 200;
 
-export const CRATE_TYPES = ['weapon', 'health', 'utility'] as const;
+export const CRATE_TYPES = ['weapon', 'health', 'utility', 'power'] as const;
 export type CrateType = (typeof CRATE_TYPES)[number];
 
 /**

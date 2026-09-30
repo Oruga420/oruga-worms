@@ -14,6 +14,7 @@ import { drawSprite } from '../engine/sprite.ts';
 import { SPRITE_SCALE } from '../config/units.ts';
 import { WEAPONS } from '../weapons/registry.ts';
 import type { CharacterSprites } from './render.ts';
+import { POWER_GOLD } from './power-orb.ts';
 import type { WeaponId } from '../weapons/types.ts';
 
 const TEAM_COLORS = ['#e05a4d', '#4d8fe0', '#57b85a', '#d9b23a'] as const;
@@ -89,7 +90,9 @@ export function drawHud(ctx: Ctx2D, viewport: Size, model: HudModel): void {
   ctx.textAlign = 'center';
   ctx.font = '10px system-ui, sans-serif';
   ctx.fillText('WIND', mid, 40);
-  ctx.fillText(state.crateDrop !== null ? 'SUPPLY INCOMING' : `SUPPLY | ${Math.max(0, (model.dropEveryTurns ?? 3) - state.turnsSinceCrateDrop)} TURNS`, mid, 56);
+  // A power orb on its way is announced in gold: it is the drop worth walking for.
+  if (state.crateDrop === 'power') ctx.fillStyle = POWER_GOLD;
+  ctx.fillText(state.crateDrop === 'power' ? 'POWER INCOMING' : state.crateDrop !== null ? 'SUPPLY INCOMING' : `SUPPLY | ${Math.max(0, (model.dropEveryTurns ?? 3) - state.turnsSinceCrateDrop)} TURNS`, mid, 56);
 
   // Weapon and power, bottom left.
   const activeIsHuman = activeTeamOf(state)?.controller === 'human';

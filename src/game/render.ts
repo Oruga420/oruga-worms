@@ -29,7 +29,7 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { BeamBody, ComboBody, DevourBody, HexBody, ProjectileBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, CrateKind, DevourBody, HexBody, ProjectileBody, WormMotion } from '../sim/types.ts';
 import { beamProgress } from '../sim/beam.ts';
 import { devourHand, devourProgress } from '../sim/devour.ts';
 import { hexLight, hexProgress } from '../sim/hex.ts';
@@ -62,6 +62,7 @@ import {
   type MouthLook,
 } from './gear-five.ts';
 import { HEX_PINK, TYRANT_WHITE, drawHexLight, drawHexTrail, drawInnerGlow, drawTyrantDome, innerGlow, swelling, tipCharge, tremble, tyrantForm } from './freezer.ts';
+import { drawPowerOrb } from './power-orb.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -1646,11 +1647,16 @@ function drawCrosshair(ctx: Ctx2D, viewport: Size, camera: Camera, pointer: { re
  * A supply crate: the weapon atlas's crate icon when it has loaded (health or weapon; the utility
  * crate borrows the weapon icon), otherwise a boxed primitive, both about a worm wide so the
  * player can see it. While it falls a canopy hangs over it. Before this a crate was a 12 px
- * rectangle with no parachute, which is why "crates never fall" was the report.
+ * rectangle with no parachute, which is why "crates never fall" was the report. The power orb
+ * needs no parachute: it comes down glowing (power-orb.ts).
  */
-function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, kind: 'weapon' | 'health' | 'utility', landed: boolean, model: RenderModel): void {
+function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, kind: CrateKind, landed: boolean, model: RenderModel): void {
   const p = worldToScreen(camera, viewport, { x, y });
   const z = camera.zoom;
+  if (kind === 'power') {
+    drawPowerOrb(ctx, p.x, p.y, z, model.timeMs, landed);
+    return;
+  }
   const size = 14 * z;
   const sprites = model.weaponSprites;
   const frameId = kind === 'health' ? 'weapon_icon_crate_health' : 'weapon_icon_crate_weapon';

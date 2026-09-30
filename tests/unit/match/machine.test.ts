@@ -72,6 +72,36 @@ describe('match reducer: crates give what they promise', () => {
     expect(['parachute', 'jetpack', 'teleport', 'girder']).toContain(gained[0]);
     expect(after.cratesOnMap).toBe(0);
   });
+
+  it('a power orb gives back the super the worm spent, to that worm alone', () => {
+    const { state, deps } = start();
+    const active = toActive(state, deps);
+    // R1 fires its Kamehameha (unlocked for the test) and later walks into a power orb.
+    const unlocked = { ...active, turn: 10 };
+    const fired = run(unlocked, deps, [{ type: 'FireStarted', weaponId: 'kamehameha', shotsRemaining: 0 }]);
+    const picker = fired.teams[0]?.worms[0];
+    if (picker === undefined) throw new Error('no picker');
+    expect(picker.ammo.kamehameha).toBe(0);
+    const after = run({ ...fired, cratesOnMap: 1 }, deps, [{ type: 'CratePicked', wormId: picker.id, crate: 'power' }]);
+    expect(after.teams[0]?.worms[0]?.ammo.kamehameha).toBe(1);
+    // Nothing else changed hands: the other supers stay at one, the team mate's table is untouched.
+    expect(after.teams[0]?.worms[0]?.ammo.freezer).toBe(1);
+    expect(after.teams[0]?.worms[1]?.ammo).toEqual(fired.teams[0]?.worms[1]?.ammo);
+    expect(after.log.at(-2)).toMatchObject({ kind: 'crate.weapon', text: 'R1 gets kamehameha' });
+    expect(after.cratesOnMap).toBe(0);
+  });
+
+  it('a power orb on a worm with every super in hand adds one more of one', () => {
+    const { state, deps } = start();
+    const active = toActive(state, deps);
+    const picker = active.teams[1]?.worms[1];
+    if (picker === undefined) throw new Error('no picker');
+    const after = run(active, deps, [{ type: 'CratePicked', wormId: picker.id, crate: 'power' }]);
+    const ammo = after.teams[1]?.worms[1]?.ammo;
+    const supers = (['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer'] as const).map((id) => ammo?.[id]);
+    expect(supers.filter((n) => n === 2)).toHaveLength(1);
+    expect(supers.filter((n) => n === 1)).toHaveLength(3);
+  });
 });
 
 describe('match reducer: a shot that keeps the turn', () => {

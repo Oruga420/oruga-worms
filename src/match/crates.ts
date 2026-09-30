@@ -2,14 +2,15 @@
  * Crate drops (tuning card: 6.7 percent weapon, 3.3 health, 3.3 utility per turn, at most 5 on
  * the map, health crate +25). One independent roll per TurnEnd against the configured odds; the
  * original draws from a 100 slot bag without replacement, the long run frequencies are the same.
- * Health crates stop in sudden death (prior-art.md Part B).
+ * Health crates stop in sudden death (prior-art.md Part B). The power orb is this game's own: it
+ * falls glowing out of the sky and recharges one of the supers.
  *
  * The utility table is the Worms Armageddon one, kept as a placeholder: Phase 2.3 maps the
  * entries onto the v1 utility effects the registry actually ships.
  */
 
 import type { Rng } from '../core/rng.ts';
-import { WEAPONS, isUtility } from '../weapons/registry.ts';
+import { WEAPONS, isSuper, isUtility } from '../weapons/registry.ts';
 import { PANEL_WEAPON_IDS, type WeaponId } from '../weapons/types.ts';
 import type { MatchConfig } from './deps.ts';
 import type { CrateType } from './state.ts';
@@ -36,6 +37,22 @@ export function rollCrateWeapon(rng: Rng, crate: 'weapon' | 'utility', ammo: Rea
   return candidates[candidates.length - 1] ?? null;
 }
 
+/**
+ * Which super a power orb recharges: one the worm has already used up when there is one (the orb
+ * gives back what was spent), otherwise any super it carries, for one more. Only supers the worm
+ * holds a count of qualify. Null when it carries none at all.
+ */
+export function rollPower(rng: Rng, ammo: Readonly<Partial<Record<WeaponId, number>>>): WeaponId | null {
+  const supers = PANEL_WEAPON_IDS.filter((id) => {
+    const count = ammo[id];
+    return isSuper(WEAPONS[id]) && count !== undefined && count >= 0;
+  });
+  const spent = supers.filter((id) => ammo[id] === 0);
+  const pool = spent.length > 0 ? spent : supers;
+  if (pool.length === 0) return null;
+  return pool[Math.min(pool.length - 1, Math.floor(rng.next() * pool.length))] ?? null;
+}
+
 export interface CrateRollOptions {
   /** No health crates once sudden death has started. */
   readonly suddenDeath?: boolean;
@@ -47,16 +64,18 @@ export interface CrateOdds {
   readonly weapon: number;
   readonly health: number;
   readonly utility: number;
+  readonly power: number;
   readonly none: number;
 }
 
 /** Per turn probabilities as fractions in 0..1. */
 export function crateOdds(config: MatchConfig): CrateOdds {
-  const { weaponPct, healthPct, utilityPct } = config.crates;
+  const { weaponPct, healthPct, utilityPct, powerPct } = config.crates;
   const weapon = weaponPct / 100;
   const health = healthPct / 100;
   const utility = utilityPct / 100;
-  return Object.freeze({ weapon, health, utility, none: Math.max(0, 1 - weapon - health - utility) });
+  const power = powerPct / 100;
+  return Object.freeze({ weapon, health, utility, power, none: Math.max(0, 1 - weapon - health - utility - power) });
 }
 
 export function canDropCrate(cratesOnMap: number, config: MatchConfig, pendingDrop = false): boolean {
@@ -72,10 +91,11 @@ export function rollCrate(
 ): CrateType | null {
   if (!canDropCrate(cratesOnMap, config, options.pendingDrop ?? false)) return null;
   const roll = rng.next() * 100;
-  const { weaponPct, healthPct, utilityPct } = config.crates;
+  const { weaponPct, healthPct, utilityPct, powerPct } = config.crates;
   if (roll < weaponPct) return 'weapon';
   if (roll < weaponPct + healthPct) return options.suddenDeath === true ? null : 'health';
   if (roll < weaponPct + healthPct + utilityPct) return 'utility';
+  if (roll < weaponPct + healthPct + utilityPct + powerPct) return 'power';
   return null;
 }
 
@@ -135,6 +155,7 @@ export function rollScheduledCrate(rng: Rng, config: MatchConfig, suddenDeath = 
   const items: { kind: CrateType; weight: number }[] = [
     { kind: 'weapon', weight: config.crates.weaponPct },
     { kind: 'utility', weight: config.crates.utilityPct },
+    { kind: 'power', weight: config.crates.powerPct },
     ...(suddenDeath ? [] : [{ kind: 'health' as const, weight: config.crates.healthPct }]),
   ];
   return rollWeighted(rng, items)?.kind ?? 'weapon';

@@ -88,7 +88,7 @@ interface OrugasDebug {
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
-  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>> }[]; drops: readonly { kind: string; landed: boolean }[] };
+  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>> }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
@@ -127,7 +127,8 @@ interface OrugasDebug {
   readonly panelOpen: () => boolean;
   /** Screen rects of the open panel's cells (empty when closed), so a test can click a real cell. */
   readonly panelCells: () => readonly { id: string; x: number; y: number; w: number; h: number; enabled: boolean }[];
-  readonly dropCrate: () => void;
+  /** Drops a crate (a health crate by default) at a free column, or dx world px in front of the active worm. */
+  readonly dropCrate: (kind?: string, dx?: number) => void;
   readonly drownOne: () => boolean;
   readonly crateCount: () => number;
   readonly forceSuddenDeath: () => void;
@@ -857,7 +858,7 @@ function boot(): void {
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),
         worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo }))),
-        drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed })),
+        drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed, x: crate.x, y: crate.y })),
       }),
       stepsRemaining: () => controller.stepsRemaining(),
       seed: () => controller.state().seed,
@@ -915,10 +916,12 @@ function boot(): void {
         }
         return results;
       },
-      dropCrate: () => {
+      dropCrate: (kind = 'health', dx?: number) => {
         const world = controller.world();
-        const x = pickCrateColumn(world) ?? Math.floor(world.terrain.width / 2);
-        spawnCrate(world, 'health', x);
+        const active = activeWormOf(controller.state());
+        const body = active === undefined ? undefined : findBody(world, active.id);
+        const x = dx !== undefined && body !== undefined ? Math.round(body.x + body.facing * dx) : (pickCrateColumn(world) ?? Math.floor(world.terrain.width / 2));
+        spawnCrate(world, kind === 'weapon' || kind === 'utility' || kind === 'power' ? kind : 'health', x);
       },
       // Sink a worm that is NOT the active one, so the turn is not forfeited mid checklist.
       drownOne: () => {

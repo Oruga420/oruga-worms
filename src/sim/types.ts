@@ -62,7 +62,8 @@ export interface ProjectileBody {
   chainTriggered: boolean;
 }
 
-export type CrateKind = 'weapon' | 'health' | 'utility';
+/** What a crate holds; power is the glowing orb that recharges a super (match/crates.ts rollPower). */
+export type CrateKind = 'weapon' | 'health' | 'utility' | 'power';
 
 export interface CrateBody {
   readonly id: number;

@@ -6,7 +6,9 @@
  * trail smoke, and a super move gets its name card, its hit counter and its K.O. Gear 5 gets its
  * drums, its name, CHOMP! on every bite and the verdict. The Freezer gets its light's sparkles, the
  * victim's ?! as the light goes in, a pink ring on every throb, the burst in pink and red, the
- * scream of a friend lost and the emperor's laugh. The gore layer (gore.ts) gets the blood of every
+ * scream of a friend lost and the emperor's laugh. A crate says what it gave over the worm that took
+ * it (+1 BAZOOKA, +25), and a power orb sheds gold as it falls and goes off in gold when taken, with
+ * the super it gave back rising as +1 KAMEHAMEHA!. The gore layer (gore.ts) gets the blood of every
  * hit from here too, what a swallowed worm leaves when it is burped back up, and what is left of one
  * that burst from inside.
  *
@@ -30,6 +32,7 @@ import type { WeaponId } from '../weapons/types.ts';
 import type { GameEvent } from './controller.ts';
 import { BITE_SPIT, BURP_SPIT, bloodBurst, burstOpen, dripFrom, ejectCasing, gibBurst, spitOut, splatterLens, type GoreSystem } from './gore.ts';
 import { HEX_CORE, HEX_PINK, HEX_PINK_SOFT } from './freezer.ts';
+import { ORB_RADIUS, POWER_GOLD, orbLift } from './power-orb.ts';
 import { LAUGH_TICK, hexLight } from '../sim/hex.ts';
 import type { CharacterSprites } from './render.ts';
 
@@ -50,6 +53,8 @@ export const GEAR_CALL_MS = 1100;
 export const DEVOURED_MS = 1700;
 /** How long a sound effect written into the world (CHOMP!, GULP!, BURP!) stays up. */
 export const POP_MS = 750;
+/** How long a crate's callout (+1 KAMEHAMEHA!, +25) stays up: long enough to read what it gave. */
+export const CALLOUT_MS = 1800;
 /** How long the scream stays up once the Freezer's victim bursts. */
 export const SCREAM_MS = 1900;
 /** How hard a worm the Freezer blew up bursts, against 1 for a normal death. */
@@ -182,6 +187,8 @@ export interface Pop {
   readonly outline: string;
   /** Radians. */
   readonly tilt: number;
+  /** How long it stays up, ms; POP_MS when absent. */
+  readonly ms?: number;
 }
 
 export interface ComboShow {
@@ -393,8 +400,30 @@ function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comb
   if (e.hit % 5 === 0) splatterLens(deps.gore, 1, 0.5, deps.rng);
 }
 
-function pop(fx: FxState, text: string, x: number, y: number, size: number, fill: string, outline: string, tilt: number): void {
-  fx.pops.push({ text, x, y, bornAt: fx.now, size, fill, outline, tilt });
+function pop(fx: FxState, text: string, x: number, y: number, size: number, fill: string, outline: string, tilt: number, ms?: number): void {
+  fx.pops.push(ms === undefined ? { text, x, y, bornAt: fx.now, size, fill, outline, tilt } : { text, x, y, bornAt: fx.now, size, fill, outline, tilt, ms });
+}
+
+/** What a crate gave, over the worm that took it: a power orb goes off in gold before its +1 KAMEHAMEHA! rises. */
+function onCrateOpened(fx: FxState, e: Extract<GameEvent, { type: 'crateOpened' }>, deps: FxDeps): void {
+  const power = e.crate === 'power';
+  if (power) {
+    const cy = e.y + WORM_HEIGHT / 2;
+    fx.rings.push({ x: e.x, y: cy, radius: 38, bornAt: fx.now, color: POWER_GOLD });
+    fx.rings.push({ x: e.x, y: cy, radius: 22, bornAt: fx.now, color: '#fff3c4' });
+    fx.flashes.push({ x: e.x, y: cy, angle: 0, size: 14, bornAt: fx.now, kind: 'impact' });
+    for (let i = 0; i < 28; i += 1) {
+      const a = deps.rng.nextFloat(0, TWO_PI);
+      const speed = deps.rng.nextFloat(80, 300);
+      deps.particles.spawn((p) => initSpark(p, e.x, cy, Math.cos(a) * speed, Math.sin(a) * speed - 60, deps.rng, i % 3 === 0 ? '#fff3c4' : POWER_GOLD, 0.6));
+    }
+    if (deps.onScreen(e.x, e.y)) fx.screenFlash = { at: fx.now, strength: 0.45, color: '#fff0b8', ms: 260 };
+  }
+  const text = e.weapon === null ? `+${Math.round(e.healed)}` : `+1 ${getWeapon(e.weapon).name.toUpperCase()}${power ? '!' : ''}`;
+  const fill = power ? POWER_GOLD : e.weapon === null ? '#7dff8f' : '#ffffff';
+  const outline = power ? '#6e1400' : '#10202a';
+  // Above the name tag, so the two never overlap.
+  pop(fx, text, e.x, e.y - 26, power ? 17 : 13, fill, outline, 0, CALLOUT_MS);
 }
 
 /** Puffs of white steam in a ring round (x, y), clear of the worm in the middle so it stays in view. */
@@ -603,6 +632,9 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'hexEnd':
         onHex(fx, e, deps);
         break;
+      case 'crateOpened':
+        onCrateOpened(fx, e, deps);
+        break;
       default:
         break;
     }
@@ -665,6 +697,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
     emitKi(scene.world, deps);
     emitGearSteam(fx, scene.world, deps);
     emitHexSparkles(fx, scene.world, deps);
+    emitPowerSparkles(fx, scene.world, deps);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
@@ -679,7 +712,10 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   if (fx.beam !== null && fx.beam.endedAt !== null && fx.now - Math.max(fx.beam.endedAt, (fx.beam.firedAt ?? 0) + BEAM_SHOUT_MS) > 0) fx.beam = null;
   if (fx.devour !== null && fx.devour.endedAt !== null && fx.now - Math.max(fx.devour.endedAt, (fx.devour.gulpAt ?? -Infinity) + DEVOURED_MS, fx.devour.endedAt + COMBO_HUD_LINGER_MS) > 0) fx.devour = null;
   if (fx.hex !== null && fx.hex.endedAt !== null && fx.now - Math.max((fx.hex.burstAt ?? -Infinity) + SCREAM_MS, fx.hex.endedAt + COMBO_HUD_LINGER_MS) > 0) fx.hex = null;
-  prune(fx.pops, fx.now, POP_MS);
+  for (let i = fx.pops.length - 1; i >= 0; i -= 1) {
+    const p = fx.pops[i];
+    if (p !== undefined && fx.now - p.bornAt > (p.ms ?? POP_MS)) fx.pops.splice(i, 1);
+  }
   if (fx.screenFlash !== null && fx.now - fx.screenFlash.at > fx.screenFlash.ms) fx.screenFlash = null;
   if (fx.redPulse !== null && fx.now - fx.redPulse.at > 600) fx.redPulse = null;
 }
@@ -846,7 +882,7 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const p of fx.pops) {
-    const t = clamp((fx.now - p.bornAt) / POP_MS, 0, 1);
+    const t = clamp((fx.now - p.bornAt) / (p.ms ?? POP_MS), 0, 1);
     const grow = 1 + Math.max(0, 0.22 - t) * 2.4;
     const size = Math.round(clamp(p.size * (z / 2.5), 10, 44) * grow);
     ctx.save();
@@ -1086,6 +1122,18 @@ function emitHexSparkles(fx: FxState, world: SimWorld, deps: FxDeps): void {
     if (hex.stage === 'recover' && hex.burst && hex.stageTicks >= LAUGH_TICK && (hex.stageTicks - LAUGH_TICK) % 26 === 0 && fx.pops.filter((p) => p.text === 'HO HO HO!').length < 2) {
       pop(fx, 'HO HO HO!', hex.holdX - hex.facing * 4, hex.holdY - WORM_HEIGHT * 1.7, 13, '#f3e6ff', '#5b1c95', -hex.facing * 0.12);
     }
+  }
+}
+
+/** The power orb sheds gold: a stream of sparkles off it as it falls, a few drifting up where it rests. */
+function emitPowerSparkles(fx: FxState, world: SimWorld, deps: FxDeps): void {
+  for (const crate of world.crates) {
+    if (!crate.alive || crate.kind !== 'power' || deps.rng.next() > (crate.landed ? 0.3 : 0.8)) continue;
+    const a = deps.rng.nextFloat(0, TWO_PI);
+    const x = crate.x + Math.cos(a) * ORB_RADIUS;
+    const y = crate.y - orbLift(crate.landed, fx.now) + Math.sin(a) * ORB_RADIUS;
+    const vy = crate.landed ? deps.rng.nextFloat(-45, -12) : deps.rng.nextFloat(-60, -20);
+    deps.particles.spawn((p) => initSpark(p, x, y, deps.rng.nextFloat(-18, 18), vy, deps.rng, deps.rng.next() < 0.5 ? POWER_GOLD : '#fff3c4', 0.7));
   }
 }
 

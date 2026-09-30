@@ -9,6 +9,7 @@ import { bombColumns, launchStrike } from '@/sim/strike.ts';
 import { addWorm, settle, stepWorld, worldAtRest } from '@/sim/world.ts';
 import { blast, contactProjectile } from '@/weapons/defs/shared.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
+import { BORDER_BEDROCK_PX, markBorderBedrock } from '@/terrain/mask.ts';
 import { flatWorld } from './fixture.ts';
 
 describe('world stepping and rest', () => {
@@ -74,5 +75,19 @@ describe('world stepping and rest', () => {
     expect(bombs).toHaveLength(WEAPONS.air_strike.strike!.count);
     const { events } = settle(world, 900);
     expect(events.filter((e) => e.type === 'explosion').length).toBe(bombs.length);
+  });
+
+  it('drops the air strike through to the land under the bedrock ceiling, one bomb after another', () => {
+    // A real level's bedrock ring closes the top with 2 px of rock: the bombs used to start on it and all go off up there.
+    const world = flatWorld({ floorY: 200 });
+    markBorderBedrock(world.terrain.mask);
+    const bombs = launchStrike(world, { weaponId: 'air_strike', ownerTeamId: 'a', ownerWormId: 'w', targetX: 200, direction: 1, strike: WEAPONS.air_strike.strike! });
+    // Every bomb starts clear under the ceiling, the first lowest.
+    for (const bomb of bombs) expect(bomb.y - bomb.spec.radiusPx).toBeGreaterThan(BORDER_BEDROCK_PX);
+    expect(bombs.map((b) => b.y)).toEqual([...bombs.map((b) => b.y)].sort((a, b) => b - a));
+    const { events } = settle(world, 900);
+    const blasts = events.filter((e) => e.type === 'explosion');
+    expect(blasts).toHaveLength(bombs.length);
+    for (const blast of blasts) if (blast.type === 'explosion') expect(blast.y).toBeGreaterThan(180);
   });
 });

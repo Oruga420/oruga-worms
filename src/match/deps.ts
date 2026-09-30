@@ -25,6 +25,8 @@ export interface MatchConfig {
     readonly weaponPct: number;
     readonly healthPct: number;
     readonly utilityPct: number;
+    /** A power orb: recharges one of the supers, preferring one the worm has used. */
+    readonly powerPct: number;
     readonly maxOnMap: number;
     readonly healthAmount: number;
     /** Schedule a random supply drop every this many completed turns; 0 disables drops. */

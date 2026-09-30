@@ -11,15 +11,15 @@
 import { validateUtilityTarget } from '../weapons/behaviors/utility.ts';
 import { TICK_MS } from '../config/units.ts';
 import { TICK_S, WALK_SPEED_PX_PER_S } from '../sim/constants.ts';
-import { wormMiddleY } from '../sim/worm-size.ts';
+import { wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
 import { cancelHexes, heldByHexes } from '../sim/hex.ts';
 import { reduce } from '../match/machine.ts';
-import type { MatchEvent } from '../match/events.ts';
-import type { MatchState } from '../match/state.ts';
-import { activeTeamOf, activeWormOf } from '../match/ledger.ts';
+import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
+import type { CrateType, MatchState } from '../match/state.ts';
+import { activeTeamOf, activeWormOf, findWorm as findWormState } from '../match/ledger.ts';
 import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
@@ -98,7 +98,12 @@ export type GameEvent =
   | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean }
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
-  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number };
+  | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number }
+  /**
+   * A worm opened a crate: the weapon it got (a super, out of a power orb) or the hp it healed,
+   * for the callout over its head. (x, y) is the top of the worm.
+   */
+  | { readonly type: 'crateOpened'; readonly wormId: string; readonly crate: CrateType; readonly weapon: WeaponId | null; readonly healed: number; readonly x: number; readonly y: number };
 
 export interface Controller {
   tick(input: ControllerInput): void;
@@ -258,10 +263,30 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const hpLeft = new Map<string, number>();
     for (const e of simEvents) if (e.type === 'damage' && !hpLeft.has(e.wormId)) hpLeft.set(e.wormId, hpOf(e.wormId));
     // The ledger first, so a blow's event already knows whether it was the knockout.
-    for (const matchEvent of translateSimEvents(simEvents)) apply(matchEvent);
+    for (const matchEvent of translateSimEvents(simEvents)) {
+      if (matchEvent.type === 'CratePicked') openCrate(matchEvent);
+      else apply(matchEvent);
+    }
     for (const e of simEvents) presentSimEvent(e, hpLeft);
     syncMatchToSim(state, world);
     observeCasualties();
+  };
+
+  /**
+   * A crate taken: into the ledger, which rolls what it holds, then what the worm got over its
+   * head. The prize is read back from the ammo and the hp the ledger changed, so the callout says
+   * exactly what the rules gave.
+   */
+  const openCrate = (event: CratePickedEvent): void => {
+    const before = findWormState(state, event.wormId)?.worm;
+    apply(event);
+    const after = findWormState(state, event.wormId)?.worm;
+    const body = findBody(world, event.wormId);
+    if (before === undefined || after === undefined || body === undefined) return;
+    const weapon = WEAPON_IDS.find((id) => (after.ammo[id] ?? 0) > (before.ammo[id] ?? 0)) ?? null;
+    const healed = Math.max(0, after.hp - before.hp);
+    if (weapon === null && healed === 0) return;
+    events.push({ type: 'crateOpened', wormId: event.wormId, crate: event.crate, weapon, healed, x: body.x, y: body.y - wormHeight(body) });
   };
 
   const colorIndexOf = (wormId: string): number => {

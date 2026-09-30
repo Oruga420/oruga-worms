@@ -1,9 +1,14 @@
 /**
  * Air strike (architecture.md section C): the player picks a target x and a plane direction;
- * count bombs spawn above the map spaced spacingPx apart with a small shared horizontal speed
- * from the plane heading, and fall as ordinary contact projectiles.
+ * count bombs spawn at the top of the map spaced spacingPx apart with a small shared horizontal
+ * speed from the plane heading, and fall as ordinary contact projectiles. Each one after the
+ * first starts a little higher, so they land one after another.
+ *
+ * The top of a level is a 2 px bedrock ceiling, and the bombs start clear under it. They used to
+ * start on it and the whole carpet went off at the top of the world, never reaching the land.
  */
 
+import { BORDER_BEDROCK_PX } from '../terrain/mask.ts';
 import type { StrikeSpec } from '../weapons/types.ts';
 import { STRIKE_BOMB_VX_PX_PER_S } from './constants.ts';
 import { spawnProjectile } from './projectile.ts';
@@ -27,10 +32,15 @@ export function bombColumns(targetX: number, count: number, spacingPx: number, d
   return columns;
 }
 
+/** Vertical gap between one bomb and the next, world px: the carpet lands a bomb at a time. */
+const BOMB_STAGGER_PX = 6;
+
 export function launchStrike(world: SimWorld, params: LaunchStrikeParams): ProjectileBody[] {
   const { strike } = params;
   const bombs: ProjectileBody[] = [];
   const columns = bombColumns(params.targetX, strike.count, strike.spacingPx, params.direction);
+  // The highest bomb (the last) sits just clear of the ceiling; the first is lowest and lands first.
+  const top = Math.max(strike.spawnY, BORDER_BEDROCK_PX + Math.ceil(strike.childProjectile.radiusPx) + 1);
   for (const [i, x] of columns.entries()) {
     bombs.push(
       spawnProjectile(world, {
@@ -39,7 +49,7 @@ export function launchStrike(world: SimWorld, params: LaunchStrikeParams): Proje
         ownerTeamId: params.ownerTeamId,
         ownerWormId: params.ownerWormId,
         x,
-        y: strike.spawnY - i * 6,
+        y: top + (strike.count - 1 - i) * BOMB_STAGGER_PX,
         vx: params.direction * STRIKE_BOMB_VX_PX_PER_S,
         vy: 0,
         spec: strike.childProjectile,

@@ -66,3 +66,13 @@ export function isTargeted(idOrDef: WeaponId | WeaponDef): boolean {
 export function isUtility(idOrDef: WeaponId | WeaponDef): boolean {
   return defOf(idOrDef).kind === 'UTILITY';
 }
+
+/**
+ * The anime supers: a move that plays its own scene in the sim (Ryuko Ranbu's beating, the
+ * Kamehameha's beam, Gear 5's meal, the Freezer's light). One of each per worm, never out of a
+ * weapon crate; the power orb is what recharges them.
+ */
+export function isSuper(idOrDef: WeaponId | WeaponDef): boolean {
+  const def = defOf(idOrDef);
+  return def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined;
+}

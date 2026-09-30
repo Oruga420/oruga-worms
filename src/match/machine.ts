@@ -14,7 +14,7 @@
  */
 
 import { getWeapon } from '../weapons/registry.ts';
-import { healthCrateAmount, rollCrateWeapon } from './crates.ts';
+import { healthCrateAmount, rollCrateWeapon, rollPower } from './crates.ts';
 import type { MatchDeps } from './deps.ts';
 import type {
   CratePickedEvent,
@@ -238,11 +238,12 @@ function onCratePicked(state: MatchState, event: CratePickedEvent, deps: MatchDe
           ? event.amount
           : healthCrateAmount(deps.config);
       next = replaceWorm(next, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp: ref.worm.hp + amount });
-    } else if (event.crate === 'weapon' || event.crate === 'utility') {
+    } else {
       // The sim does not know the roster, so a crate arrives without a weapon: roll one here,
       // weighted by crateWeight, from the kind the crate promises. Before this the weapon crate
-      // was collected and granted nothing, and the utility crate was not handled at all.
-      const granted = weaponId ?? rollCrateWeapon(deps.rng, event.crate, ref.worm.ammo);
+      // was collected and granted nothing, and the utility crate was not handled at all. A power
+      // orb recharges a super instead, one this worm has spent when it has any.
+      const granted = weaponId ?? (event.crate === 'power' ? rollPower(deps.rng, ref.worm.ammo) : rollCrateWeapon(deps.rng, event.crate, ref.worm.ammo));
       if (granted !== null && granted !== undefined) {
         const count = ref.worm.ammo[granted];
         if (count !== undefined && count >= 0) {

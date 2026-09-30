@@ -6,7 +6,7 @@
 import type { WeaponDef, WeaponId } from '../types.ts';
 import { blast, contactProjectile, defineWeapon, iconFrame, sourceSpeed } from './shared.ts';
 
-/** Bombs fall from the top edge of the world; spacing and plane speed are v1 tuning values. */
+/** Bombs fall from the top edge of the world (under its bedrock ceiling, sim/strike.ts); spacing and plane speed are v1 tuning values. */
 const BOMB_SPACING_PX = 28;
 const BOMB_SPAWN_Y = 0;
 const BOMB_LIFETIME_MS = 10_000;

@@ -116,4 +116,25 @@ describe('drawGame', () => {
     // A boxed body plus a canopy arc and its lines: more rectangles and arcs than the bare scene.
     expect((after.calls.fillRect ?? 0) + (after.calls.arc ?? 0)).toBeGreaterThan((before.calls.fillRect ?? 0) + (before.calls.arc ?? 0));
   });
+
+  it('draws a power orb as a glowing starred ball with a comet tail, no parachute, and rests it without the tail', () => {
+    const game = world();
+    const model = { state: game.state, world: game.world, aim: INITIAL_AIM, timeMs: 0 };
+    const before = recordingCtx();
+    drawGame(before.ctx, VIEWPORT, camera(), model);
+    const orb = spawnCrate(game.world, 'power', 600);
+    orb.y = 100;
+    const falling = recordingCtx();
+    drawGame(falling.ctx, VIEWPORT, camera(), model);
+    const arcs = (r: ReturnType<typeof recordingCtx>): number => (r.calls.arc ?? 0) - (before.calls.arc ?? 0);
+    // The ball and its aura, four stars, the tail; and no canopy strings.
+    expect(arcs(falling)).toBeGreaterThanOrEqual(13);
+    expect((falling.calls.closePath ?? 0) - (before.calls.closePath ?? 0)).toBeGreaterThanOrEqual(6);
+    expect(falling.calls.stroke ?? 0).toBe(before.calls.stroke ?? 0);
+    orb.landed = true;
+    const resting = recordingCtx();
+    drawGame(resting.ctx, VIEWPORT, camera(), model);
+    // Resting, the tail is gone.
+    expect(arcs(resting)).toBe(arcs(falling) - 2);
+  });
 });
