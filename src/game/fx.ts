@@ -361,6 +361,8 @@ function onDamage(fx: FxState, e: Extract<GameEvent, { type: 'damage' }>, deps: 
       fx.numbers.push({ wormId: e.wormId, amount: e.lost, x: e.x, y: e.y, bornAt: fx.now, lastAt: fx.now });
     }
   }
+  // The price of a super is not a wound: its life drains out of it instead (onToll), no blood.
+  if (e.cause === 'toll') return;
   bloodBurst(deps.gore, { x: e.x, y: e.y, dx: e.dx, dy: e.dy, amount: e.amount, cause: e.cause }, deps.rng);
   if (e.amount >= 25 && deps.onScreen(e.x, e.y)) {
     fx.redPulse = { at: fx.now, strength: clamp(e.amount / 60, 0.3, 0.9) };
@@ -406,6 +408,28 @@ function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comb
 
 function pop(fx: FxState, text: string, x: number, y: number, size: number, fill: string, outline: string, tilt: number, ms?: number): void {
   fx.pops.push(ms === undefined ? { text, x, y, bornAt: fx.now, size, fill, outline, tilt } : { text, x, y, bornAt: fx.now, size, fill, outline, tilt, ms });
+}
+
+/** The colours of a worm's life draining out of it to pay for its super. */
+export const TOLL_RED = '#b3122a';
+const TOLL_EMBER = '#ff5a6e';
+
+/**
+ * A worm pays for its super: its life drains out of it in red embers rising off the body, a dark
+ * ring, the screen's edges reddening, and the word over its head: ¡PENITENCIA!, or ¡SACRIFICIO!
+ * when it was all it had left and this move is its last.
+ */
+function onToll(fx: FxState, e: Extract<GameEvent, { type: 'toll' }>, deps: FxDeps): void {
+  if (e.lost <= 0) return;
+  fx.rings.push({ x: e.x, y: e.y, radius: 26, bornAt: fx.now, color: TOLL_RED });
+  const embers = 14 + Math.round(e.lost / 3);
+  for (let i = 0; i < embers; i += 1) {
+    const x = e.x + deps.rng.nextFloat(-5, 5);
+    const y = e.y + deps.rng.nextFloat(-6, 6);
+    deps.particles.spawn((p) => initSpark(p, x, y, deps.rng.nextFloat(-30, 30), -deps.rng.nextFloat(60, 170), deps.rng, i % 3 === 0 ? TOLL_EMBER : TOLL_RED, 0.8));
+  }
+  if (deps.onScreen(e.x, e.y)) fx.redPulse = { at: fx.now, strength: e.fatal ? 1 : 0.6 };
+  pop(fx, e.fatal ? '¡SACRIFICIO!' : '¡PENITENCIA!', e.x, e.y - WORM_HEIGHT * 2.2, e.fatal ? 15 : 13, e.fatal ? '#ffd0d6' : '#ff8a98', '#3a0008', 0, CALLOUT_MS);
 }
 
 /** When the Saibaman cackles, ticks into the recovery after it leaps out, and again. */
@@ -704,6 +728,9 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
         break;
       case 'sproutBeat':
         onSprout(fx, e, deps);
+        break;
+      case 'toll':
+        onToll(fx, e, deps);
         break;
       default:
         break;

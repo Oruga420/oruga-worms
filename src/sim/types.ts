@@ -310,7 +310,8 @@ export interface HitPoint {
 }
 
 export type SimEvent =
-  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee'; readonly at?: HitPoint }
+  /** cause 'toll' is a worm paying for its own super (WeaponDef.toll): no source, no points, no kill credit. */
+  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee' | 'toll'; readonly at?: HitPoint }
   | { readonly type: 'drown'; readonly wormId: string }
   | { readonly type: 'activity'; readonly kind: 'bounce' | 'carve' | 'spawn' }
   | { readonly type: 'explosion'; readonly x: number; readonly y: number; readonly radius: number; readonly particle: BlastSpec['particle']; readonly shake: number }

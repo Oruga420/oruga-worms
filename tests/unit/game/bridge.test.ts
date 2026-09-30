@@ -47,6 +47,18 @@ describe('translateSimEvents', () => {
     const matchEvents = translateSimEvents(events);
     expect(matchEvents.map((e) => e.type)).toEqual(['DamageApplied', 'WormDrowned', 'ActivityPing', 'CrateLanded']);
     expect(matchEvents[0]).toMatchObject({ wormId: 'w', amount: 30, sourceTeamId: 't1' });
+    expect(matchEvents[0]).not.toHaveProperty('toll');
+  });
+
+  it('marks the price of a super as a toll, and a new worm as spawned', () => {
+    const matchEvents = translateSimEvents([
+      { type: 'damage', wormId: 'w', amount: 50, sourceTeamId: null, sourceWormId: null, cause: 'toll' },
+      { type: 'wormSpawned', wormId: 't-saiba-1', teamId: 't', x: 10.4, y: 20.6, size: 0.5, hpShare: 0.5 },
+    ]);
+    expect(matchEvents).toEqual([
+      { type: 'DamageApplied', wormId: 'w', amount: 50, sourceTeamId: null, sourceWormId: null, toll: true },
+      { type: 'WormSpawned', wormId: 't-saiba-1', teamId: 't', hpShare: 0.5, x: 10, y: 21 },
+    ]);
   });
 });
 

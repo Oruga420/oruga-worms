@@ -38,6 +38,8 @@ export const FUSE_DEFAULT_MS = 3000;
 export const HOLY_FUSE_MS = 3000;
 /** Dynamite: fixed 5 s. */
 export const DYNAMITE_FUSE_MS = 5000;
+/** What a one hit kill super (Gear 5, the Freezer) costs the worm that uses it, hp: half a worm. */
+export const ONE_HIT_KILL_TOLL = 50;
 /** Dynamite and mine always grant at least 5 s of retreat (roster and worms2d.info). */
 export const PLACED_RETREAT_MS = 5000;
 /** Teleport and Skip Go end the turn immediately: no retreat window. */

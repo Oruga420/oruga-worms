@@ -866,6 +866,7 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   await page.waitForTimeout(600);
   expect(await page.evaluate((id: string) => window.__orugas!.wormHp(id), victim)).toBeGreaterThan(0);
   const caster = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  const casterHp = await page.evaluate((id: string) => window.__orugas!.wormHp(id), caster);
 
   // Picked from the inventory like any weapon, fired with the fire key: no aim, the light finds its victim.
   await page.keyboard.press('Tab');
@@ -889,7 +890,8 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   await expect.poll(() => page.evaluate(() => window.__orugas!.hexes()), { timeout: 10000 }).toBe(0);
   const inventory = await page.evaluate(() => window.__orugas!.inventory());
   expect(inventory.worms.find((worm) => worm.id === caster)?.ammo['freezer']).toBe(0);
-  expect(await page.evaluate((id: string) => window.__orugas!.wormHp(id), caster)).toBeGreaterThan(0);
+  // The price of a one hit kill: 50 of the caster's own health, out of the burst's reach.
+  expect(await page.evaluate((id: string) => window.__orugas!.wormHp(id), caster)).toBe(casterHp - 50);
   // What is left of it lies all over the land.
   const gore = await page.evaluate(() => window.__orugas!.goreCount());
   expect(gore.bits + gore.stains).toBeGreaterThan(0);

@@ -43,6 +43,52 @@ function toActive(state: MatchState, deps: MatchDeps): MatchState {
   return reduce(state, banner, deps);
 }
 
+describe('match reducer: the price of a super', () => {
+  it('a toll that empties the firing worm leaves the move running, and the turn ends with the shot, no retreat', () => {
+    const { state, deps } = start();
+    const active = toActive({ ...state, turn: 10 }, deps);
+    const shooter = active.teams[0]?.worms[0];
+    if (shooter === undefined) throw new Error('no shooter');
+    const firing = run({ ...active, teams: active.teams.map((t, i) => (i === 0 ? { ...t, worms: t.worms.map((w, j) => (j === 0 ? { ...w, hp: 30 } : w)) } : t)) }, deps, [
+      { type: 'FireStarted', weaponId: 'freezer', shotsRemaining: 0 },
+      { type: 'DamageApplied', wormId: shooter.id, amount: 50, sourceTeamId: null, sourceWormId: null, toll: true },
+    ]);
+    // All it had, and still Firing: the move is under way.
+    expect(firing.teams[0]?.worms[0]?.hp).toBe(0);
+    expect(firing.phase).toBe('Firing');
+    expect(firing.pendingDeaths.map((d) => d.wormId)).toEqual([shooter.id]);
+    expect(firing.log.some((entry) => entry.text === 'R1 pays 30 for its super')).toBe(true);
+    const done = reduce(firing, { type: 'FireCompleted' }, deps);
+    expect(done.phase).not.toBe('Retreat');
+    expect(done.log.at(-1)).toMatchObject({ kind: 'turn.forfeit', text: 'R1 gave its last health for freezer' });
+  });
+
+  it('a toll that leaves some health is paid and the turn goes on to the retreat as ever', () => {
+    const { state, deps } = start();
+    const active = toActive({ ...state, turn: 10 }, deps);
+    const shooter = active.teams[0]?.worms[0];
+    if (shooter === undefined) throw new Error('no shooter');
+    const paid = run(active, deps, [
+      { type: 'FireStarted', weaponId: 'gear_five', shotsRemaining: 0 },
+      { type: 'DamageApplied', wormId: shooter.id, amount: 50, sourceTeamId: null, sourceWormId: null, toll: true },
+      { type: 'FireCompleted' },
+    ]);
+    expect(paid.teams[0]?.worms[0]?.hp).toBe(50);
+    expect(paid.phase).toBe('Retreat');
+    // Nobody scores it.
+    expect(paid.teams.map((t) => t.score.damageDealt)).toEqual(active.teams.map((t) => t.score.damageDealt));
+  });
+
+  it('any other blow that empties the active worm still ends its turn on the spot', () => {
+    const { state, deps } = start();
+    const active = toActive(state, deps);
+    const shooter = active.teams[0]?.worms[0];
+    if (shooter === undefined) throw new Error('no shooter');
+    const hit = reduce(active, { type: 'DamageApplied', wormId: shooter.id, amount: 200, sourceTeamId: null, sourceWormId: null }, deps);
+    expect(hit.phase).toBe('Resolving');
+  });
+});
+
 describe('match reducer: a Saibaman joins its team', () => {
   it('appends it with half a worm\'s health, a name, the unlimited weapons only, and a place in the rotation', () => {
     const { state, deps } = start();

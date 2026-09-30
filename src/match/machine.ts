@@ -156,6 +156,9 @@ function onFireStarted(state: MatchState, event: FireStartedEvent): MatchState {
 
 function onFireCompleted(state: MatchState, event: FireCompletedEvent, deps: MatchDeps): MatchState {
   if (state.phase !== 'Firing' || state.shot === null) return state;
+  // A worm that paid for its super with its last health gets no retreat: the move was its last.
+  const active = activeWormOf(state);
+  if (active !== undefined && active.hp <= 0) return leaveTurn(state, 'turn.forfeit', `${active.name} gave its last health for ${state.shot.weaponId}`);
   // Another barrel owed, or a utility that keeps the turn (jetpack, parachute, girder): back to
   // Active on the same clock. Every shot used to fall through to the retreat, so opening a
   // parachute ended the turn.
@@ -174,9 +177,13 @@ function onDamageApplied(state: MatchState, event: DamageAppliedEvent): MatchSta
   const hp = ref.worm.hp - effective;
   let next = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp });
   if (event.sourceTeamId !== null) next = bookDamage(next, event.sourceTeamId, ref.team.id, event.wormId, effective);
-  next = appendLog(resetInactivity(next), 'damage', `${ref.worm.name} takes ${effective}`);
+  next = appendLog(resetInactivity(next), 'damage', event.toll === true ? `${ref.worm.name} pays ${effective} for its super` : `${ref.worm.name} takes ${effective}`);
   if (hp > 0) return next;
-  return forfeitIfActive(queueDeath(next, event.wormId, 'killed'), event.wormId, `${ref.worm.name} is at 0 hp`);
+  const queued = queueDeath(next, event.wormId, 'killed');
+  // Its last health went on the price of the super it is firing: it finishes the move, and the turn
+  // ends when the shot closes (onFireCompleted), not under the move.
+  if (event.toll === true) return queued;
+  return forfeitIfActive(queued, event.wormId, `${ref.worm.name} is at 0 hp`);
 }
 
 /** Points for the source team, the last hit ledger and the open shot window of the active team. */

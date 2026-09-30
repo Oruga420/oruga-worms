@@ -1322,8 +1322,9 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     // An attacker its own burst threw flies like any other worm, out of the Freezer's scene.
     const hexRole = hexes.get(body.id);
     const hex = hexRole !== undefined && !(hexRole.role === 'caster' && hexRole.hex.stage === 'recover' && body.motion === 'flying') ? hexRole : undefined;
-    // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5 chewing it.
-    if (info.hp <= 0 && fight === undefined && devour === undefined) continue;
+    // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5
+    // chewing it, or it paid for Gear 5 or the Freezer with its last health and is finishing the move.
+    if (info.hp <= 0 && fight === undefined && devour === undefined && hexRole === undefined) continue;
     const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id), size: body.size, skin: isSaibaman(body) ? SAIBA_GREEN : null, maxHp: info.maxHp };
     const pose = poseFor({
       worm: visual,
@@ -1811,11 +1812,21 @@ function drawWeaponLabel(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, 
   ctx.font = 'bold 12px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  const text = getWeapon(model.weapon).name.toUpperCase();
+  const def = getWeapon(model.weapon);
+  const text = def.name.toUpperCase();
   const ly = p.y - 52 - t * 8;
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillText(text, p.x + 1, ly + 1);
-  ctx.fillStyle = getWeapon(model.weapon).combo !== undefined ? '#ffcf1f' : '#ffffff';
+  ctx.fillStyle = def.combo !== undefined ? '#ffcf1f' : '#ffffff';
   ctx.fillText(text, p.x, ly);
+  // A super with a price says so as it is picked, in red under its name.
+  if (def.toll !== undefined) {
+    const cost = `COSTS ${def.toll} HP`;
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillText(cost, p.x + 1, ly + 13);
+    ctx.fillStyle = '#ff5a6e';
+    ctx.fillText(cost, p.x, ly + 12);
+  }
   ctx.restore();
 }

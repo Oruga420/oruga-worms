@@ -39,7 +39,7 @@ function deps(): FxDeps {
 
 const TICK = 1000 / 60;
 
-function damage(wormId: string, amount: number, cause: 'blast' | 'fall' | 'hit' | 'melee' = 'hit', lost = amount): GameEvent {
+function damage(wormId: string, amount: number, cause: 'blast' | 'fall' | 'hit' | 'melee' | 'toll' = 'hit', lost = amount): GameEvent {
   return { type: 'damage', wormId, amount, lost, cause, x: 100, y: 100, dx: 1, dy: 0 };
 }
 
@@ -665,5 +665,33 @@ describe('fx: the saibaman seed', () => {
     };
     expect(drips(50)).toBe(0);
     expect(drips(15)).toBeGreaterThan(0);
+  });
+});
+
+describe('fx: the price of a super', () => {
+  const toll = (lost: number, fatal: boolean): GameEvent => ({ type: 'toll', wormId: 'w', lost, fatal, x: 200, y: 190 });
+
+  it('drains the worm\'s life out in red embers with ¡PENITENCIA! over it, and no blood', () => {
+    const fx = createFx();
+    const d = deps();
+    applyFxEvents(fx, [damage('w', 50, 'toll'), toll(50, false)], d);
+    // The number still says what it paid...
+    expect(fx.numbers[0]?.amount).toBe(50);
+    // ...but it is not a wound: nothing spills on the land or the lens.
+    expect(goreCount(d.gore)).toBe(0);
+    expect(d.gore.lens).toHaveLength(0);
+    expect(d.particles.count()).toBeGreaterThan(20);
+    expect(fx.pops.map((p) => p.text)).toEqual(['¡PENITENCIA!']);
+    expect(fx.pops[0]?.ms).toBe(CALLOUT_MS);
+    expect(fx.redPulse).not.toBeNull();
+  });
+
+  it('calls it ¡SACRIFICIO! when it was all the worm had left', () => {
+    const fx = createFx();
+    applyFxEvents(fx, [toll(30, true)], deps());
+    expect(fx.pops.map((p) => p.text)).toEqual(['¡SACRIFICIO!']);
+    const nothing = createFx();
+    applyFxEvents(nothing, [toll(0, false)], deps());
+    expect(nothing.pops).toHaveLength(0);
   });
 });

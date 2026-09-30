@@ -109,7 +109,11 @@ describe('gear 5: the meal', () => {
     fire(world, hero, GEAR, { angleDeg: 0, power: 1 });
     // Behind the worm, so it turns round to face its meal.
     expect(hero.facing).toBe(-1);
-    const bites = playOut(world).filter((e) => e.type === 'damage');
+    const events = playOut(world);
+    // The eater pays for the move first (its toll), then every bite and the swallow are its.
+    const toll = events.filter((e) => e.type === 'damage' && e.cause === 'toll');
+    expect(toll).toEqual([expect.objectContaining({ wormId: 'hero', amount: GEAR.toll, sourceTeamId: null, sourceWormId: null })]);
+    const bites = events.filter((e) => e.type === 'damage' && e.cause !== 'toll');
     expect(bites.length).toBe(SPEC.chomps + 1);
     for (const e of bites) {
       if (e.type !== 'damage') continue;
@@ -175,7 +179,9 @@ describe('gear 5: the arm', () => {
       ticksUsed += 1;
     }
     expect(beats(events)).toEqual(['drum', 'drum', 'drum', 'drum', 'awake', 'stretch', 'snap']);
-    expect(events.some((e) => e.type === 'damage')).toBe(false);
+    // Nobody bitten; the price is paid all the same.
+    expect(events.some((e) => e.type === 'damage' && e.cause !== 'toll')).toBe(false);
+    expect(events.filter((e) => e.type === 'damage' && e.cause === 'toll')).toHaveLength(1);
     expect(events.find((e) => e.type === 'devourEnd')).toMatchObject({ eaten: false, victimId: null });
     expect(far.alive).toBe(true);
     expect(ticksUsed).toBe(devourTicks(SPEC, false));
