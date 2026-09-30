@@ -319,7 +319,7 @@ const FREEZER: WeaponDef = defineWeapon({
   requiresTargetSelect: false,
   /** One per worm, from the loadout only: a weapon crate never hands out another super. */
   crateWeight: 0,
-  /** What the heuristic and the panel read: the lock reach and a hit that takes a whole worm (the burst takes the rest). */
+  /** Required of a hitscan row: the lock reach, and a whole worm's health as the hit (the burst takes all a worm has, however much). */
   hitscan: {
     pellets: 1,
     spreadDeg: 0,

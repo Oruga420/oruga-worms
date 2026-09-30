@@ -836,6 +836,8 @@ test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it
 
 test('freezer from the inventory: the light goes into the worm in sight, and it floats, swells and bursts', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
+  // Four turns to reach the unlock, then the whole show: it ran at 55 s, too close to the 60 s default.
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
