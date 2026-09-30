@@ -1894,6 +1894,48 @@
       "gainDb": 0
     },
     {
+      "kind": "voice",
+      "id": "voice_super_kamehameha_chant",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "kamehameha_chant",
+      "text": "Kaaaaa... meeeeeee... haaaaaaa... meeeeeeee...",
+      "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+      "voiceName": "Harry - Fierce Warrior",
+      "pitchFactor": 1.05,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.25,
+        "similarity_boost": 0.75,
+        "style": 0.8,
+        "use_speaker_boost": true,
+        "speed": 0.8
+      },
+      "gainDb": 0
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_kamehameha_ha",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "kamehameha_ha",
+      "text": "HAAAAAAAAAAAA!!!!!!!!",
+      "voiceId": "SOYHLrjzK2X1ezoPC6cr",
+      "voiceName": "Harry - Fierce Warrior",
+      "pitchFactor": 1.05,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
       "kind": "music",
       "id": "music_theme_loop",
       "group": "music",

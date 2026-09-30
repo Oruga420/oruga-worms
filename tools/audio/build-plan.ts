@@ -1,14 +1,15 @@
 /**
  * Builds tools/audio/sounds.plan.json from docs/research/sound-pipeline.md (sections 3 to 6):
  * the 56 SFX rows with their duration, gain and description (variants expanded), the 60 voice
- * lines in three banks with their voice ids and pitch treatment, and the one music loop.
+ * lines in three banks with their voice ids and pitch treatment, the supers' own voice lines
+ * (the Kamehameha's chant and shout), and the one music loop.
  * The report is the creative source; this file only parses it, so a change to a description is
  * made in the report and the plan is rebuilt with `node tools/audio/build-plan.ts`.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { MusicItem, PlanItem, SfxItem, SoundPlan, VoiceItem, VoiceSettings } from './plan.ts';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -39,6 +40,40 @@ export const MUSIC_ITEM: MusicItem = Object.freeze({
   loopEndMs: 64_000,
   gainDb: -6,
 });
+
+/**
+ * The supers' voice, outside the three banks: the Kamehameha's chant while the ki gathers and its
+ * shout as the beam leaves the hands, in the drill bank's fierce warrior voice, less stable and
+ * more stylised than the sergeant so it strains and soars, and slowed so the vowels stretch.
+ * The beam's charge (weapons/defs/firearms.ts) is timed to the chant's length.
+ */
+const SUPER_VOICE_NAME = 'Harry - Fierce Warrior';
+const CHANT_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.25, similarity_boost: 0.75, style: 0.8, use_speaker_boost: true, speed: 0.8 });
+const SHOUT_SETTINGS: VoiceSettings = Object.freeze({ stability: 0.2, similarity_boost: 0.75, style: 0.9, use_speaker_boost: true, speed: 0.9 });
+const SUPER_LINES: readonly { readonly event: string; readonly text: string; readonly settings: VoiceSettings; readonly gainDb: number }[] = Object.freeze([
+  { event: 'kamehameha_chant', text: 'Kaaaaa... meeeeeee... haaaaaaa... meeeeeeee...', settings: CHANT_SETTINGS, gainDb: 0 },
+  { event: 'kamehameha_ha', text: 'HAAAAAAAAAAAA!!!!!!!!', settings: SHOUT_SETTINGS, gainDb: 2 },
+]);
+
+/** The supers' voice lines, with the fierce warrior's id from the candidates table. */
+export function superVoiceItems(markdown: string): VoiceItem[] {
+  const voiceId = parseVoiceIds(markdown)[SUPER_VOICE_NAME] ?? '';
+  return SUPER_LINES.map((line) => ({
+    kind: 'voice',
+    id: `voice_super_${line.event}`,
+    group: 'voice',
+    bus: 'voice',
+    bank: 'super',
+    event: line.event,
+    text: line.text,
+    voiceId,
+    voiceName: SUPER_VOICE_NAME,
+    pitchFactor: 1.05,
+    tempo: 1,
+    settings: line.settings,
+    gainDb: line.gainDb,
+  }));
+}
 
 function groupOf(header: string): SfxItem['group'] {
   return header.toLowerCase() as SfxItem['group'];
@@ -146,7 +181,7 @@ export function parseVoiceBanks(markdown: string): VoiceItem[] {
 }
 
 export function buildPlan(markdown: string, generatedAt: string): SoundPlan {
-  const items: PlanItem[] = [...parseSfxTable(markdown), ...parseVoiceBanks(markdown), MUSIC_ITEM];
+  const items: PlanItem[] = [...parseSfxTable(markdown), ...parseVoiceBanks(markdown), ...superVoiceItems(markdown), MUSIC_ITEM];
   return { version: 1, generatedAt, source: 'docs/research/sound-pipeline.md sections 3 to 6', items };
 }
 
@@ -161,6 +196,8 @@ function main(): void {
   if (missingVoice > 0) process.exitCode = 1;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+// pathToFileURL, not a hand built file:/// URL: that one only matched Windows paths, so on Linux
+// and macOS running the script did nothing at all.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

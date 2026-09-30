@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlan, parseSfxTable, parseVoiceBanks, parseVoiceIds } from '../../../../tools/audio/build-plan.ts';
+import { buildPlan, parseSfxTable, parseVoiceBanks, parseVoiceIds, superVoiceItems } from '../../../../tools/audio/build-plan.ts';
 import { estimateCredits, totalCredits, validatePlan } from '../../../../tools/audio/plan.ts';
 
 const REPORT = `
@@ -68,6 +68,27 @@ describe('parseVoiceBanks', () => {
     expect(items[0]?.settings.style).toBe(0.45);
     expect(items[3]).toMatchObject({ voiceId: 'SOYHLrjzK2X1ezoPC6cr', pitchFactor: 1.15, tempo: 0.95 });
     expect(items[3]?.settings.stability).toBe(0.5);
+  });
+});
+
+describe('superVoiceItems', () => {
+  it('voices the Kamehameha in the fierce warrior voice, as its own bank', () => {
+    const items = superVoiceItems('| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |');
+    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha']);
+    for (const item of items) {
+      expect(item.voiceId).toBe('SOYHLrjzK2X1ezoPC6cr');
+      expect(item.bank).toBe('super');
+      expect(item.bus).toBe('voice');
+    }
+    expect(items[0]?.text).toMatch(/^Kaa+\.\.\. mee+\.\.\. haa+\.\.\. mee+\.\.\.$/);
+    expect(items[1]?.text).toMatch(/^HAA+!+$/);
+  });
+
+  it('is in the plan, before the music', () => {
+    const plan = buildPlan(`${REPORT}\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |\n`, 'now');
+    const ids = plan.items.map((i) => i.id);
+    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 2);
+    expect(validatePlan(plan).ok).toBe(true);
   });
 });
 

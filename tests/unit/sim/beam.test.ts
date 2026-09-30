@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
-import { beamReach, beamTicks, cancelBeams, heldByBeams } from '@/sim/beam.ts';
+import { BEAM_SOUNDS, beamReach, beamTicks, cancelBeams, heldByBeams } from '@/sim/beam.ts';
 import { addWorm, stepWorld, worldAtRest, type SimWorld } from '@/sim/world.ts';
 import type { SimEvent } from '@/sim/types.ts';
 import { isSolid } from '@/terrain/queries.ts';
@@ -61,6 +61,21 @@ describe('kamehameha: the charge', () => {
     playOut(world);
     // Let go at the end: it falls from where it hung.
     expect(hero.motion).toBe('falling');
+  });
+});
+
+describe('kamehameha: the voice', () => {
+  it('chants as the charge starts and shouts as the beam leaves the hands', () => {
+    const { world, hero } = arena();
+    fire(world, hero, KAME, { angleDeg: 0, power: 1 });
+    const cues = (events: readonly SimEvent[]): string[] => events.flatMap((e) => (e.type === 'sound' ? [e.id] : []));
+    expect(cues(world.events)).toContain(BEAM_SOUNDS.chant);
+    const charging: SimEvent[] = [];
+    for (let i = 0; i < CHARGE_TICKS - 1; i += 1) charging.push(...stepWorld(world));
+    expect(cues(charging)).not.toContain(BEAM_SOUNDS.shout);
+    const release = stepWorld(world);
+    expect(release.some((e) => e.type === 'beamFire')).toBe(true);
+    expect(cues(release)).toContain(BEAM_SOUNDS.shout);
   });
 });
 

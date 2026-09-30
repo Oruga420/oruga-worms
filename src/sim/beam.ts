@@ -19,11 +19,17 @@ import type { BeamBody, BeamStage, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 import type { BeamSpec } from '../weapons/types.ts';
 
-/** Cues of the beam, all present in the audio plan. */
+/**
+ * Cues of the beam, all present in the audio plan. The chant and the shout are voice lines
+ * (voice_super_* in tools/audio/sounds.plan.json): the mixer skips them until they have been
+ * generated, and the charge lasts as long as the chant.
+ */
 export const BEAM_SOUNDS = Object.freeze({
   charge: 'ui_power_charge',
+  chant: 'voice_super_kamehameha_chant',
   crackle: 'wpn_teleport_zap',
   fire: Object.freeze(['wpn_holy_blast', 'wpn_firepunch_whoosh']),
+  shout: 'voice_super_kamehameha_ha',
   tip: 'exp_large',
 });
 
@@ -99,6 +105,7 @@ export function spawnBeam(world: SimWorld, params: SpawnBeamParams): BeamBody {
   world.beams.push(beam);
   world.events.push({ type: 'beamStart', beamId: beam.id, weaponId: beam.weaponId, attackerId: attacker.id, x: beam.x0, y: beam.y0, dx, dy });
   world.events.push({ type: 'sound', id: BEAM_SOUNDS.charge, x: attacker.x, y: attacker.y });
+  world.events.push({ type: 'sound', id: BEAM_SOUNDS.chant, x: attacker.x, y: attacker.y });
   return beam;
 }
 
@@ -218,6 +225,7 @@ export function stepBeam(world: SimWorld, beam: BeamBody): void {
         enter(beam, 'fire');
         world.events.push({ type: 'beamFire', beamId: beam.id, attackerId: beam.attackerId, x: beam.x0, y: beam.y0, dx: beam.dx, dy: beam.dy });
         for (const id of BEAM_SOUNDS.fire) world.events.push({ type: 'sound', id, x: beam.x0, y: beam.y0 });
+        world.events.push({ type: 'sound', id: BEAM_SOUNDS.shout, x: beam.x0, y: beam.y0 });
       }
       return;
     }
