@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_AIM } from '@/game/aim.ts';
-import { devourRoles, drawGame, fightRoles, hexRoles, holdPose, poseFor, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
+import { devourRoles, drawGame, fightRoles, hexRoles, holdPose, poseFor, sproutRoles, woundLevel, type Scratch, type WormVisual } from '@/game/render.ts';
 import type { WormAnim } from '@/game/fx.ts';
 import { quickGame } from '@/game/setup.ts';
 import { createCamera } from '@/engine/camera.ts';
@@ -10,7 +10,7 @@ import type { ImageSource } from '@/engine/canvas-types.ts';
 import type { MatchState } from '@/match/state.ts';
 import { fire } from '@/weapons/fire.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
-import type { BeamBody, ComboBody, DevourBody, HexBody } from '@/sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody, SproutBody } from '@/sim/types.ts';
 import type { Ctx2D } from '@/engine/canvas-types.ts';
 import { drumTicks } from '@/sim/devour.ts';
 import { pulseTicks } from '@/sim/hex.ts';
@@ -434,5 +434,48 @@ describe('freezer', () => {
     drawGame(ctx, { w: 1200, h: 500 }, createCamera({ x: active.x, y: active.y }), { state, world: game.world, aim: INITIAL_AIM, timeMs: 0, weapon: 'freezer', aimAssist: true });
     const reach = WEAPONS.freezer.hex!.rangePx;
     expect(ctx.calls.some((c) => c.name === 'arc' && Math.abs(Number(c.args[2]) - reach * 2.5) < 1)).toBe(true);
+  });
+});
+
+describe('render: the saibaman', () => {
+  const SPEC = WEAPONS.saibaman.sprout!;
+  const ticks = (ms: number): number => Math.max(1, Math.round((ms * 60) / 1000));
+  const seed = (stage: SproutBody['stage'], stageTicks: number, extra: Partial<SproutBody> = {}): SproutBody => ({
+    id: 5, weaponId: 'saibaman', planterId: 'a', teamId: 't', spec: SPEC, stage, stageTicks, holdX: 100, holdY: 100, facing: 1, spotX: 122, spotY: 100, fertile: true, cracks: 0, sproutId: null, alive: true, ...extra,
+  });
+
+  it('the planter holds the seed out, kneels to push it in, watches the ground and cheers at the last crack', () => {
+    expect(poseFor({ worm: WORM, sprout: seed('plant', 2), timeMs: 0 }).frame).toBe('hold_throw');
+    const kneel = poseFor({ worm: WORM, sprout: seed('plant', Math.round(ticks(SPEC.plantMs) * 0.65)), timeMs: 0 });
+    expect(kneel.frame).toBe('jump_land');
+    expect(kneel.stretchY).toBeLessThan(0.9);
+    expect(poseFor({ worm: WORM, sprout: seed('grow', 20, { cracks: 1 }), timeMs: 0 }).frame).toMatch(/^idle_/);
+    expect(poseFor({ worm: WORM, sprout: seed('grow', 80, { cracks: SPEC.cracks }), timeMs: 0 }).frame).toBe('taunt');
+    // The roles: the planter until the Saibaman is out.
+    expect(sproutRoles([seed('grow', 5)]).get('a')?.id).toBe(5);
+    expect(sproutRoles([seed('recover', 5)]).has('a')).toBe(false);
+  });
+
+  it('draws a Saibaman half size and green, its tag right over its smaller head, and a fresh one unhurt', () => {
+    const built = quickGame(3, createFakeFactory().factory, { w: 1200, h: 500 });
+    if (!built.ok) throw new Error(built.error.message);
+    const game = built.value;
+    const reds = game.state.teams[0]!;
+    const worm = reds.worms[0]!;
+    const body = game.world.worms.find((b) => b.id === worm.id)!;
+    const saibaId = `${reds.id}-saiba-1`;
+    addWorm(game.world, { id: saibaId, teamId: reds.id, x: body.x + 60, y: body.y, size: 0.5 });
+    const state: MatchState = { ...game.state, teams: game.state.teams.map((t, i) => (i === 0 ? { ...t, worms: [...t.worms, { ...worm, id: saibaId, name: 'Saiba 1', hp: 50, maxHp: 50 }] } : t)) };
+    const camera = createCamera({ x: body.x, y: body.y, zoom: 2 });
+    const ctx = createRecordingContext();
+    drawGame(ctx, { w: 1200, h: 500 }, camera, { state, world: game.world, aim: INITIAL_AIM, timeMs: 0 });
+    const labelY = (prefix: string): number => Number(ctx.calls.find((c) => c.name === 'fillText' && String(c.args[0]).startsWith(prefix))?.args[2]);
+    // Both stand on the same ground: the Saibaman's tag sits lower by the half worm it lacks
+    // (16 world px of worm, halved, at zoom 2), give or take the breathing of the two bodies.
+    const gap = labelY('Saiba 1 50') - labelY(`${worm.name} `);
+    expect(gap).toBeGreaterThan(12);
+    expect(gap).toBeLessThan(20);
+    // Half its health left of half a worm's is not hurt at all.
+    expect(woundLevel(50, 50)).toBe(0);
   });
 });

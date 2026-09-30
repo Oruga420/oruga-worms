@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 30 panel slots: 25 combat weapons plus 5 utilities, in panel order. */
+/** The 31 panel slots: 26 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -32,6 +32,7 @@ export const PANEL_WEAPON_IDS = [
   'dynamite',
   'mine',
   'sheep',
+  'saibaman',
   'air_strike',
   'parachute',
   'jetpack',
@@ -128,6 +129,8 @@ export interface WeaponDef {
   readonly devour?: DevourSpec;
   /** A HITSCAN row fired as a light that makes a worm float, swell up and burst (the Freezer). */
   readonly hex?: HexSpec;
+  /** A PLACED row planted as a seed a small worm grows out of, to join the team (the Saibaman). */
+  readonly sprout?: SproutSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -372,6 +375,35 @@ export interface HexSpec {
   readonly burst: BlastSpec;
   /** After the burst: the finger comes down, and a laugh. */
   readonly recoverMs: number;
+}
+
+/**
+ * The Saibaman seed: the worm plants a seed in the ground just in front of it, the ground shakes and
+ * cracks, more and more, and a Saibaman leaps out of it: a small green worm, a share of a worm's
+ * size and health, that joins the planter's team and takes its own turns from then on. A FIELD on a
+ * PLACED row, as the mine's spawn block is; this block is the timeline the sim plays
+ * (sim/sprout.ts). With no ground to plant in, or a team already at its cap, the seed withers.
+ * Durations are ms, rounded to ticks by the sim.
+ */
+export interface SproutSpec {
+  /** How far in front of the worm the seed goes in, world px. */
+  readonly plantAheadPx: number;
+  /** The worm bends down and pushes the seed into the ground. */
+  readonly plantMs: number;
+  /** The ground shakes and cracks, cracks times, before it gives. */
+  readonly growMs: number;
+  readonly cracks: number;
+  /** How hard the Saibaman leaps out of the ground, px per second, upward. */
+  readonly popSpeed: number;
+  /** The crater it leaves, world px. */
+  readonly holePx: number;
+  /** The planter straightens up while the new one looks around. */
+  readonly recoverMs: number;
+  /** The Saibaman's size and health, as a share of a worm's: its hitbox is that much smaller too. */
+  readonly size: number;
+  readonly hpShare: number;
+  /** Living worms a team may have; a seed planted by a full team withers. */
+  readonly maxTeamWorms: number;
 }
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

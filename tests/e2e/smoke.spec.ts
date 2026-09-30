@@ -8,7 +8,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loadDotEnv, mergeEnv, readPort } from '../../sidecar/env.ts';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -273,10 +273,10 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
     .toBeLessThan(aliveBefore);
 
   // Every panel weapon fires in a real browser without throwing: the Goal's 23 slots plus the tank
-  // cannon, napalm gun, sonic blast gun and the four supers, Ryuko Ranbu, the Kamehameha, the Freezer
-  // and Gear 5.
+  // cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the Freezer
+  // and Gear 5, and the Saibaman seed.
   const fired = await page.evaluate(() => window.__orugas?.fireAll() ?? []);
-  expect(fired).toHaveLength(30);
+  expect(fired).toHaveLength(31);
   expect(fired.filter((entry) => !entry.ok)).toEqual([]);
   await page.waitForTimeout(500);
 
@@ -505,7 +505,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
   );
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
   await waitForHook(page);
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(30);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(31);
   await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
   expect(requested.some((r) => r.startsWith('/sprites/weapons/sheet.png?v='))).toBe(true);
   expect(requested.filter((r) => !/\?v=[0-9a-f]{10}$/.test(r))).toEqual([]);
@@ -517,7 +517,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(30);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(31);
 
   // Title to the team setup card.
   await page.keyboard.press('Enter');
@@ -896,6 +896,97 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   expect(errors).toEqual([]);
 });
 
+/** Title, team setup with both teams human, and into the first turn. */
+async function startTwoHumans(page: Page): Promise<{ readonly x: number; readonly y: number }> {
+  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
+  const stage = await page.locator('#stage').boundingBox();
+  const setup = await page.evaluate(() => window.__orugas!.teamSetupCells());
+  const human = setup.find((cell) => cell.id === 'team:1:controller');
+  if (stage === null || human === undefined) throw new Error('Missing team setup');
+  await page.mouse.click(stage.x + human.x + human.w / 2, stage.y + human.y + human.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  return { x: stage.x, y: stage.y };
+}
+
+test('saibaman seed from the inventory: the ground cracks and a small green worm leaps out to fight for the team', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const stage = await startTwoHumans(page);
+  // The seed unlocks on turn 2 (its scheme delay): end the first turn.
+  const turn = await page.evaluate(() => window.__orugas!.turn());
+  await page.evaluate(() => window.__orugas!.endTurn());
+  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  const before = await page.evaluate(() => window.__orugas!.inventory());
+  const planter = before.activeId;
+  const team = planter.split('-worm-')[0];
+
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const cell = (await page.evaluate(() => window.__orugas!.panelCells())).find((c) => c.id === 'saibaman');
+  if (cell === undefined) throw new Error('Missing Saibaman inventory cell');
+  expect(cell.enabled).toBe(true);
+  await page.mouse.click(stage.x + cell.x + cell.w / 2, stage.y + cell.y + cell.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.selectedWeapon())).toBe('saibaman');
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.sprouts()), { timeout: 3000 }).toBe(1);
+  // The ground shaking and cracking over the seed, then the Saibaman out and on the team.
+  await page.waitForTimeout(1700);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/saibaman-cracks.png') });
+  await expect.poll(() => page.evaluate(() => window.__orugas!.inventory().worms.length), { timeout: 10000 }).toBe(before.worms.length + 1);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/saibaman-out.png') });
+  const saibaId = `${team}-saiba-1`;
+  expect((await page.evaluate(() => window.__orugas!.inventory())).worms.map((w) => w.id)).toContain(saibaId);
+  expect(await page.evaluate((id: string) => window.__orugas!.wormHp(id), saibaId)).toBe(50);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.sprouts()), { timeout: 10000 }).toBe(0);
+  await expect.poll(() => page.evaluate((id: string) => window.__orugas!.onGround(id), saibaId), { timeout: 10000 }).toBe(true);
+  const after = await page.evaluate(() => window.__orugas!.inventory());
+  expect(after.worms.find((worm) => worm.id === planter)?.ammo['saibaman']).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('a power orb falls out of the sky onto the land and gives a super to the worm that walks into it', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await startTwoHumans(page);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  const supers = (): Promise<number> =>
+    page.evaluate(() => {
+      const inv = window.__orugas!.inventory();
+      const ammo = inv.worms.find((worm) => worm.id === inv.activeId)?.ammo ?? {};
+      return ['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer', 'saibaman'].reduce((sum, id) => sum + (ammo[id] ?? 0), 0);
+    });
+  const before = await supers();
+  await page.evaluate(() => window.__orugas!.dropCrate('power', 60));
+  // It falls through the top of the world and comes to rest on the land, not on the ceiling.
+  await expect.poll(() => page.evaluate(() => window.__orugas!.inventory().drops[0]?.landed ?? false), { timeout: 20000 }).toBe(true);
+  const orb = (await page.evaluate(() => window.__orugas!.inventory().drops[0]))!;
+  expect(orb.kind).toBe('power');
+  expect(orb.y).toBeGreaterThan(20);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/power-orb.png') });
+  const me = (await page.evaluate(() => window.__orugas!.activeBody()))!;
+  const key = orb.x < me.x ? 'ArrowLeft' : 'ArrowRight';
+  await page.keyboard.down(key);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.inventory().drops.length), { timeout: 8000 }).toBe(0);
+  await page.keyboard.up(key);
+  expect(await supers()).toBe(before + 1);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/power-orb-taken.png') });
+  expect(errors).toEqual([]);
+});
+
 test('individual inventories, fuse controls, and the third-turn parachute drop', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
@@ -1034,7 +1125,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(30);
+    expect(cells.length).toBe(31);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);

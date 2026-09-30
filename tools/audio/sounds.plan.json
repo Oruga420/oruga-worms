@@ -1978,6 +1978,27 @@
       "gainDb": 0
     },
     {
+      "kind": "voice",
+      "id": "voice_super_saibaman_kekeke",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "saibaman_kekeke",
+      "text": "Kekekekeke! Kekekeke!",
+      "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+      "voiceName": "Timmy - Anxious Nerd",
+      "pitchFactor": 1.4,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.25,
+        "similarity_boost": 0.75,
+        "style": 0.8,
+        "use_speaker_boost": true,
+        "speed": 1.1
+      },
+      "gainDb": 0
+    },
+    {
       "kind": "music",
       "id": "music_theme_loop",
       "group": "music",

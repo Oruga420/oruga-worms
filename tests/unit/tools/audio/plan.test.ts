@@ -76,7 +76,7 @@ describe('superVoiceItems', () => {
 
   it('voices the Kamehameha and the scream for a friend lost in the fierce warrior voice, as its own bank', () => {
     const items = superVoiceItems(CANDIDATES);
-    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha', 'voice_super_freezer_krilin', 'voice_super_freezer_laugh']);
+    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha', 'voice_super_freezer_krilin', 'voice_super_freezer_laugh', 'voice_super_saibaman_kekeke']);
     for (const item of items) {
       expect(item.bank).toBe('super');
       expect(item.bus).toBe('voice');
@@ -94,11 +94,19 @@ describe('superVoiceItems', () => {
     expect(laugh?.text).toMatch(/^O(ho)+\.\.\. o(ho)+!$/);
   });
 
+  it('cackles for the Saibaman in the same nerd, pitched up higher still', () => {
+    const cackle = superVoiceItems(CANDIDATES)[4];
+    expect(cackle?.voiceId).toBe('mrQhZWGbb2k9qWJb5qeA');
+    expect(cackle?.pitchFactor).toBeGreaterThan(superVoiceItems(CANDIDATES)[3]?.pitchFactor ?? 0);
+    expect(cackle?.text).toMatch(/^Ke(ke)+! Ke(ke)+!$/);
+  });
+
   it('is in the plan, before the music', () => {
     const plan = buildPlan(`${REPORT}\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |\n`, 'now');
     const ids = plan.items.map((i) => i.id);
-    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 2);
-    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 4);
+    expect(ids.indexOf('voice_super_saibaman_kekeke')).toBe(ids.length - 2);
+    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 3);
+    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 5);
     expect(validatePlan(plan).ok).toBe(true);
   });
 });

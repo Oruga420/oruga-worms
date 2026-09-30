@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, HexSpec, ProjectileSpec, SpawnSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, HexSpec, ProjectileSpec, SpawnSpec, SproutSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -265,6 +265,41 @@ export interface HexBody {
   alive: boolean;
 }
 
+/**
+ * The Saibaman seed in progress (sim/sprout.ts). The planter is held while it plants and while the
+ * ground shakes; the Saibaman leaps out at the end of the grow, as a worm of its own, and nobody is
+ * held for the recovery.
+ */
+export type SproutStage = 'plant' | 'grow' | 'recover';
+
+/** The beats the presentation plays: the seed going in, each crack of the ground, the leap out, or the seed withering. */
+export type SproutBeat = 'plant' | 'crack' | 'pop' | 'wither';
+
+export interface SproutBody {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly planterId: string;
+  readonly teamId: string;
+  readonly spec: SproutSpec;
+  stage: SproutStage;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  /** Where the planter kneels until the Saibaman is out, and which way it faces. */
+  readonly holdX: number;
+  readonly holdY: number;
+  readonly facing: 1 | -1;
+  /** The ground where the seed goes in: the Saibaman's feet when it comes out. */
+  readonly spotX: number;
+  readonly spotY: number;
+  /** False when the seed can only wither: no ground to plant in, or the team is full. */
+  readonly fertile: boolean;
+  /** Cracks of the ground so far. */
+  cracks: number;
+  /** The Saibaman, once it is out. */
+  sproutId: string | null;
+  alive: boolean;
+}
+
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
   readonly x: number;
@@ -306,7 +341,14 @@ export type SimEvent =
   | { readonly type: 'hexStart'; readonly hexId: number; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number }
   /** One beat of the Freezer at (x, y); n counts the throbs from 1, 0 for the rest. Presentation only. */
   | { readonly type: 'hexBeat'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: HexBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
-  | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean };
+  | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean }
+  /** A seed goes in at (x, y), the spot in front of the planter. */
+  | { readonly type: 'sproutStart'; readonly sproutId: number; readonly weaponId: string; readonly planterId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  /** One beat of the seed at (x, y); n counts the cracks from 1, 0 for the rest. Presentation only. */
+  | { readonly type: 'sproutBeat'; readonly sproutId: number; readonly planterId: string; readonly beat: SproutBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'sproutEnd'; readonly sproutId: number; readonly planterId: string; readonly wormId: string | null }
+  /** A new worm is in the world (a Saibaman out of the ground): the ledger gives it a place in its team. */
+  | { readonly type: 'wormSpawned'; readonly wormId: string; readonly teamId: string; readonly x: number; readonly y: number; readonly size: number; readonly hpShare: number };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

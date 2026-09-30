@@ -4,8 +4,9 @@
  * active worm. A super move frames the fight, a beam its worm while it charges and then the worm
  * with the beam running across the screen, Gear 5 its worm, then the arm and what it grabs, then
  * the mouth, the Freezer its worm pointing, then the light on its way, then the worm the light went
- * into as it floats, swells and bursts, and a worm thrown through the air is followed until it
- * lands. Pure, so the timings and the hand back are unit tested.
+ * into as it floats, swells and bursts, a Saibaman seed the ground where it went in and then the
+ * Saibaman leaping out, and a worm thrown through the air is followed until it lands. Pure, so the
+ * timings and the hand back are unit tested.
  *
  * Two details drive the design:
  * - Dead projectiles are filtered out of `world.projectiles` on the same step they explode, so the
@@ -39,6 +40,8 @@ export const BEAM_FRAME_SHARE = 0.5;
 export const DEVOUR_TAU_MS = 70;
 /** Smoothing on the Freezer: quick enough to keep up with the light, soft enough to read as a pan. */
 export const HEX_TAU_MS = 70;
+/** Smoothing on a Saibaman seed: an easy pan down to the ground, quick enough to catch the leap. */
+export const SPROUT_TAU_MS = 80;
 /** A knocked worm this fast is worth watching fly (world px per second). */
 export const FLYER_MIN_SPEED = 160;
 /** Smoothing while sitting on the impact, slightly looser so the settle is not abrupt. */
@@ -46,7 +49,7 @@ export const IMPACT_TAU_MS = 120;
 /** How long the camera stays on the impact point before returning to the active worm. */
 export const IMPACT_HOLD_MS = 900;
 
-export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'beam' | 'devour' | 'hex' | 'flyer';
+export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'beam' | 'devour' | 'hex' | 'sprout' | 'flyer';
 
 export interface CameraDirector {
   readonly focus: CameraFocus;
@@ -164,6 +167,14 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
     return { director: { focus: 'hex', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: HEX_TAU_MS };
   }
 
+  // A Saibaman seed: between the planter and the ground it went into, then the Saibaman as it leaps out.
+  const sprout = (world.sprouts ?? []).find((s) => s.alive);
+  if (sprout !== undefined) {
+    const out = sprout.sproutId === null ? undefined : (world.worms ?? []).find((w) => w.id === sprout.sproutId && w.alive);
+    const focus = out !== undefined ? { x: out.x, y: out.y - WORM_HEIGHT / 2 } : { x: (sprout.holdX + sprout.spotX) / 2, y: sprout.spotY - WORM_HEIGHT * 0.6 };
+    return { director: { focus: 'sprout', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: SPROUT_TAU_MS };
+  }
+
   // A worm thrown by a blast or a blow: follow it until it lands, as the source game does.
   let flyer: { readonly x: number; readonly y: number; readonly speed: number } | null = null;
   for (const worm of world.worms ?? []) {
@@ -177,7 +188,7 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
 
   // The shell we were riding is gone: it detonated, timed out or left the map. Sit on where it was.
   // The same for a finished fight or a worm that has landed.
-  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'beam' || director.focus === 'devour' || director.focus === 'hex' || director.focus === 'flyer') {
+  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'beam' || director.focus === 'devour' || director.focus === 'hex' || director.focus === 'sprout' || director.focus === 'flyer') {
     return {
       director: { ...director, focus: 'impact', projectileId: null, holdMs: IMPACT_HOLD_MS },
       target: { x: director.x, y: director.y },

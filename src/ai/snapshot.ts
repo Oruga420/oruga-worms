@@ -20,6 +20,8 @@ export interface SnapshotWorm {
   readonly y: number;
   readonly hp: number;
   readonly alive: boolean;
+  /** 1 for a worm (when absent), less for a Saibaman: the heuristic aims at the smaller body. */
+  readonly size?: number;
 }
 
 export interface SnapshotInput {

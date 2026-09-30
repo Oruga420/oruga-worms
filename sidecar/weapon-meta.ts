@@ -24,8 +24,9 @@ function targeted(id: string): SanitizeWeaponInfo {
 }
 
 /**
- * 24 combat weapons plus 5 utilities: the ultraplan rev 2 roster, plus the tank cannon, napalm gun,
- * sonic blast gun and the three supers, Ryuko Ranbu, the Kamehameha and Gear 5. validate.ts fails
+ * 26 combat weapons plus 5 utilities: the ultraplan rev 2 roster, plus the tank cannon, napalm gun,
+ * sonic blast gun, the four supers (Ryuko Ranbu, the Kamehameha, the Freezer and Gear 5) and the
+ * Saibaman seed. validate.ts fails
  * the boot when a registry weapon is missing here, which is what keeps this table and src/weapons
  * from drifting apart.
  */
@@ -59,6 +60,7 @@ export const CPU_WEAPON_META: Readonly<Record<string, SanitizeWeaponInfo>> = Obj
   dynamite: plain('dynamite'),
   mine: plain('mine'),
   sheep: plain('sheep'),
+  saibaman: plain('saibaman'),
   air_strike: targeted('air_strike'),
   parachute: plain('parachute'),
   jetpack: plain('jetpack'),

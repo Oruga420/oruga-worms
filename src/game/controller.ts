@@ -16,6 +16,7 @@ import { cancelBeams } from '../sim/beam.ts';
 import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
 import { cancelHexes, heldByHexes } from '../sim/hex.ts';
+import { cancelSprouts } from '../sim/sprout.ts';
 import { reduce } from '../match/machine.ts';
 import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
 import type { CrateType, MatchState } from '../match/state.ts';
@@ -24,7 +25,7 @@ import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
 import { stepWorld } from '../sim/world.ts';
-import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type WormIntent } from '../sim/types.ts';
+import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type SproutBeat, type WormIntent } from '../sim/types.ts';
 import { pickCrateColumn, spawnCrate } from '../sim/crate.ts';
 import { detonate } from '../sim/projectile.ts';
 import { detonateSheep } from '../sim/sheep.ts';
@@ -96,6 +97,10 @@ export type GameEvent =
   /** A beat of the Freezer; colorIndex is the victim's team colour, for the pieces the burst throws. */
   | { readonly type: 'hexBeat'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly beat: HexBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
   | { readonly type: 'hexEnd'; readonly hexId: number; readonly attackerId: string; readonly victimId: string | null; readonly burst: boolean }
+  /** A Saibaman seed goes in at (x, y); colorIndex is the planter's team colour. */
+  | { readonly type: 'sproutStart'; readonly sproutId: number; readonly planterId: string; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number }
+  | { readonly type: 'sproutBeat'; readonly sproutId: number; readonly planterId: string; readonly beat: SproutBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'sproutEnd'; readonly sproutId: number; readonly planterId: string; readonly wormId: string | null }
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
   | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number }
@@ -371,6 +376,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
       case 'hexEnd':
         events.push({ type: 'hexEnd', hexId: e.hexId, attackerId: e.attackerId, victimId: e.victimId, burst: e.burst });
         return;
+      case 'sproutStart':
+        events.push({ type: 'sproutStart', sproutId: e.sproutId, planterId: e.planterId, x: e.x, y: e.y, facing: e.facing, colorIndex: colorIndexOf(e.planterId) });
+        return;
+      case 'sproutBeat':
+        events.push({ type: 'sproutBeat', sproutId: e.sproutId, planterId: e.planterId, beat: e.beat, n: e.n, x: e.x, y: e.y, facing: e.facing });
+        return;
+      case 'sproutEnd':
+        events.push({ type: 'sproutEnd', sproutId: e.sproutId, planterId: e.planterId, wormId: e.wormId });
+        return;
       default:
         return;
     }
@@ -409,17 +423,23 @@ export function createController(game: Game, options: ControllerOptions): Contro
     applySimEvents(world.events.splice(0, world.events.length));
   };
 
+  /** A super move, a beam, Gear 5, the Freezer or a Saibaman seed is still playing out in the sim. */
+  const sequencePlaying = (): boolean =>
+    world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive) || world.sprouts.some((s) => s.alive);
+
   /**
-   * The match ended while a super move, a beam, Gear 5 or the Freezer played (a surrender): the sim
-   * is not stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp bursts,
-   * and the white screen, the beam, the meal or the swelling does not hold over the end screen forever.
+   * The match ended while a super move, a beam, Gear 5, the Freezer or a seed played (a surrender):
+   * the sim is not stepped at MatchEnd, so it ends here. The worms are let go, a held worm at 0 hp
+   * bursts, and the white screen, the beam, the meal or the swelling does not hold over the end
+   * screen forever.
    */
   const endFightsAtMatchEnd = (): void => {
-    if (state.phase !== 'MatchEnd' || !(world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive))) return;
+    if (state.phase !== 'MatchEnd' || !sequencePlaying()) return;
     cancelCombos(world);
     cancelBeams(world);
     cancelDevours(world);
     cancelHexes(world);
+    cancelSprouts(world);
     drainSimAfterFire();
   };
 
@@ -496,13 +516,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
   /** The muzzle flash, recoil and casing of a shot: a presentation beat, nothing the sim reads. */
   const announceShot = (body: { readonly id: string; readonly x: number; readonly y: number; readonly facing: 1 | -1 }, weapon: WeaponId, angleDeg: number): void => {
     const def = getWeapon(weapon);
-    // Nothing leaves the worm's hands for a utility, a super move or an air strike (it comes from
-    // the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
-    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined) return;
+    // Nothing leaves the worm's hands for a utility, a super move, a seed or an air strike (it comes
+    // from the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
+    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined) return;
     events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
   };
 
-  /** Closes a super move's shot once the sim has played the combo, the beam, the meal or the burst out. */
+  /** Closes a super move's shot once the sim has played the combo, the beam, the meal, the burst or the sprouting out. */
   const stepSequence = (): void => {
     const weapon = pending.sequence;
     if (weapon === null) return;
@@ -510,7 +530,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       pending.sequence = null;
       return;
     }
-    if (world.combos.some((combo) => combo.alive) || world.beams.some((beam) => beam.alive) || world.devours.some((devour) => devour.alive) || world.hexes.some((hex) => hex.alive)) return;
+    if (sequencePlaying()) return;
     pending.sequence = null;
     const activeWorm = activeWormOf(state);
     const body = activeWorm === undefined ? undefined : findBody(world, activeWorm.id);
@@ -573,7 +593,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const buildSnapshot = (): SnapshotInput => {
     const active = activeWormOf(state);
     const team = activeTeamOf(state);
-    const worms = world.worms.map((b) => ({ id: b.id, teamId: b.teamId, x: b.x, y: b.y, hp: hpOf(b.id), alive: b.alive && hpOf(b.id) > 0 }));
+    const worms = world.worms.map((b) => ({ id: b.id, teamId: b.teamId, x: b.x, y: b.y, hp: hpOf(b.id), alive: b.alive && hpOf(b.id) > 0, size: b.size }));
     return {
       matchId: `match-${state.seed}`,
       turn: state.turn,

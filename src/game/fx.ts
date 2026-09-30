@@ -8,7 +8,9 @@
  * victim's ?! as the light goes in, a pink ring on every throb, the burst in pink and red, the
  * scream of a friend lost and the emperor's laugh. A crate says what it gave over the worm that took
  * it (+1 BAZOOKA, +25), and a power orb sheds gold as it falls and goes off in gold when taken, with
- * the super it gave back rising as +1 KAMEHAMEHA!. The gore layer (gore.ts) gets the blood of every
+ * the super it gave back rising as +1 KAMEHAMEHA!. A Saibaman seed throws up earth as it goes in and
+ * at every crack of the ground, green light leaks out of the cracks, and the Saibaman leaps out in a
+ * spray of earth with its name and its cackle, KEKEKE!. The gore layer (gore.ts) gets the blood of every
  * hit from here too, what a swallowed worm leaves when it is burped back up, and what is left of one
  * that burst from inside.
  *
@@ -26,6 +28,7 @@ import type { Ctx2D, Size } from '../engine/canvas-types.ts';
 import { alphaCurve, type Particle, type ParticleSystem } from '../engine/particles.ts';
 import { drawSprite } from '../engine/sprite.ts';
 import { WORM_HEIGHT } from '../sim/constants.ts';
+import { wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import type { SimWorld } from '../sim/world.ts';
 import { WEAPONS, getWeapon, isWeaponId } from '../weapons/registry.ts';
 import type { WeaponId } from '../weapons/types.ts';
@@ -33,6 +36,7 @@ import type { GameEvent } from './controller.ts';
 import { BITE_SPIT, BURP_SPIT, bloodBurst, burstOpen, dripFrom, ejectCasing, gibBurst, spitOut, splatterLens, type GoreSystem } from './gore.ts';
 import { HEX_CORE, HEX_PINK, HEX_PINK_SOFT } from './freezer.ts';
 import { ORB_RADIUS, POWER_GOLD, orbLift } from './power-orb.ts';
+import { SAIBA_GREEN, SPROUT_GLOW } from './saibaman.ts';
 import { LAUGH_TICK, hexLight } from '../sim/hex.ts';
 import type { CharacterSprites } from './render.ts';
 
@@ -404,6 +408,69 @@ function pop(fx: FxState, text: string, x: number, y: number, size: number, fill
   fx.pops.push(ms === undefined ? { text, x, y, bornAt: fx.now, size, fill, outline, tilt } : { text, x, y, bornAt: fx.now, size, fill, outline, tilt, ms });
 }
 
+/** When the Saibaman cackles, ticks into the recovery after it leaps out, and again. */
+export const CACKLE_TICKS: readonly number[] = Object.freeze([24, 52]);
+const EARTH = '#7a5634';
+
+/** A spray of earth thrown up from (x, y): brown puffs and clods. */
+function earthSpray(deps: FxDeps, x: number, y: number, count: number, speed: number): void {
+  for (let i = 0; i < count; i += 1) {
+    const a = -Math.PI / 2 + deps.rng.nextFloat(-0.9, 0.9);
+    const v = deps.rng.nextFloat(speed * 0.4, speed);
+    if (i % 2 === 0) deps.particles.spawn((p) => initPuff(p, x + deps.rng.nextFloat(-3, 3), y - 1, deps.rng, 1.6, '#a07a52', 14));
+    else deps.particles.spawn((p) => initSpark(p, x, y - 1, Math.cos(a) * v, Math.sin(a) * v, deps.rng, EARTH, 0.6));
+  }
+}
+
+function greenMotes(deps: FxDeps, x: number, y: number, count: number, rise: number): void {
+  for (let i = 0; i < count; i += 1) {
+    deps.particles.spawn((p) => initSpark(p, x + deps.rng.nextFloat(-6, 6), y - 1, deps.rng.nextFloat(-20, 20), -deps.rng.nextFloat(rise * 0.4, rise), deps.rng, deps.rng.next() < 0.5 ? SPROUT_GLOW : '#e6ffc8', 0.5));
+  }
+}
+
+/** The seed's beats: earth as it goes in and at every crack, the leap out with its name, or a wilted seed. */
+function onSprout(fx: FxState, e: Extract<GameEvent, { type: 'sproutBeat' }>, deps: FxDeps): void {
+  switch (e.beat) {
+    case 'plant':
+      earthSpray(deps, e.x, e.y, 6, 60);
+      return;
+    case 'crack':
+      earthSpray(deps, e.x, e.y, 6 + e.n * 3, 70 + e.n * 25);
+      greenMotes(deps, e.x, e.y, 4 + e.n * 3, 80 + e.n * 20);
+      fx.rings.push({ x: e.x, y: e.y, radius: 10 + e.n * 5, bornAt: fx.now, color: e.n % 2 === 0 ? SPROUT_GLOW : EARTH });
+      return;
+    case 'pop':
+      earthSpray(deps, e.x, e.y, 26, 240);
+      greenMotes(deps, e.x, e.y, 18, 220);
+      fx.rings.push({ x: e.x, y: e.y - 3, radius: 34, bornAt: fx.now, color: SPROUT_GLOW });
+      fx.rings.push({ x: e.x, y: e.y - 3, radius: 20, bornAt: fx.now, color: EARTH });
+      if (deps.onScreen(e.x, e.y)) fx.screenFlash = { at: fx.now, strength: 0.3, color: '#e6ffc8', ms: 200 };
+      pop(fx, '¡SAIBAMAN!', e.x, e.y - 34, 16, '#b6ff7a', '#12400e', -e.facing * 0.08, CALLOUT_MS);
+      return;
+    case 'wither':
+      for (let i = 0; i < 5; i += 1) deps.particles.spawn((p) => initPuff(p, e.x + deps.rng.nextFloat(-3, 3), e.y - 2, deps.rng, 1.4, '#9a9a88', 10));
+      pop(fx, 'NO ROOM!', e.x, e.y - 20, 12, '#e8e8e0', '#333329', 0);
+      return;
+  }
+}
+
+/**
+ * While a seed works: green light leaking up out of the cracks, more with every crack, and the
+ * Saibaman's cackle over its head once it is out (the voice line plays with the first one).
+ */
+function emitSproutMotes(fx: FxState, world: SimWorld, deps: FxDeps): void {
+  for (const sprout of world.sprouts ?? []) {
+    if (!sprout.alive) continue;
+    if (sprout.stage === 'grow' && sprout.cracks > 0 && deps.rng.next() < 0.15 + sprout.cracks * 0.15) greenMotes(deps, sprout.spotX, sprout.spotY, 1, 70);
+    // Over where it comes down, not where it is in its leap: the words stay put while it lands under them.
+    if (sprout.stage === 'recover' && sprout.sproutId !== null && CACKLE_TICKS.includes(sprout.stageTicks)) {
+      const saiba = world.worms.find((w) => w.id === sprout.sproutId);
+      const k = CACKLE_TICKS.indexOf(sprout.stageTicks);
+      if (saiba !== undefined && saiba.alive) pop(fx, 'KEKEKE!', sprout.spotX + sprout.facing * (6 + k * 10), sprout.spotY - WORM_HEIGHT * (1.3 + k * 0.5), 12, SAIBA_GREEN, '#0d2b0a', sprout.facing * (0.12 - k * 0.2));
+    }
+  }
+}
+
 /** What a crate gave, over the worm that took it: a power orb goes off in gold before its +1 KAMEHAMEHA! rises. */
 function onCrateOpened(fx: FxState, e: Extract<GameEvent, { type: 'crateOpened' }>, deps: FxDeps): void {
   const power = e.crate === 'power';
@@ -635,6 +702,9 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'crateOpened':
         onCrateOpened(fx, e, deps);
         break;
+      case 'sproutBeat':
+        onSprout(fx, e, deps);
+        break;
       default:
         break;
     }
@@ -663,6 +733,8 @@ export interface FxWorld {
   /** Ledger hp by worm id, for the drips of the badly hurt. */
   readonly hpOf: (wormId: string) => number;
   readonly maxHp: number;
+  /** A worm's own full health (a Saibaman has half of maxHp); maxHp when absent. */
+  readonly maxHpOf?: (wormId: string) => number;
 }
 
 /** One tick: the clock, the numbers riding their worms, wounds dripping, rocket trails, expiry. */
@@ -673,7 +745,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
       const body = scene.world.worms.find((w) => w.id === number.wormId);
       if (body !== undefined && body.alive) {
         number.x = body.x;
-        number.y = body.y - WORM_HEIGHT;
+        number.y = body.y - wormHeight(body);
       }
     }
     const dt = dtMs / 1000;
@@ -689,15 +761,16 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
       if (!body.alive || body.motion === 'drowning') continue;
       const hp = scene.hpOf(body.id);
       if (hp <= 0) continue;
-      const hurt = 1 - hp / scene.maxHp;
+      const hurt = 1 - hp / (scene.maxHpOf?.(body.id) ?? scene.maxHp);
       // Below 60 percent a worm bleeds: the lower, the faster the drips.
-      if (hurt > 0.4 && deps.rng.next() < (hurt - 0.4) * 5 * dt) dripFrom(deps.gore, body.x, body.y - WORM_HEIGHT * 0.5, deps.rng);
+      if (hurt > 0.4 && deps.rng.next() < (hurt - 0.4) * 5 * dt) dripFrom(deps.gore, body.x, wormMiddleY(body), deps.rng);
     }
     emitTrails(scene.world, deps);
     emitKi(scene.world, deps);
     emitGearSteam(fx, scene.world, deps);
     emitHexSparkles(fx, scene.world, deps);
     emitPowerSparkles(fx, scene.world, deps);
+    emitSproutMotes(fx, scene.world, deps);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));

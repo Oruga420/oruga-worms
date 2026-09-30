@@ -14,9 +14,9 @@
  * grenade's full disc through every sample of a fine grid was most of a second per turn.
  */
 
-import { GRAVITY_PX_PER_S2, TICK_S, WALK_SPEED_PX_PER_S, WORM_HALF_WIDTH, WORM_HEIGHT } from '../sim/constants.ts';
+import { GRAVITY_PX_PER_S2, TICK_S, WALK_SPEED_PX_PER_S, WORM_HALF_WIDTH } from '../sim/constants.ts';
 import { stepHorizontal } from '../sim/worm-controller.ts';
-import { wormMiddleY } from '../sim/worm-size.ts';
+import { wormHalfWidth, wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { clamp } from '../core/math.ts';
 import type { CpuDifficulty, CpuTurnRequest, CpuTurnResponse } from './contract.ts';
 import { CPU_TURN_SCHEMA } from './contract.ts';
@@ -28,6 +28,7 @@ import type { WeaponRegistry } from '../weapons/registry.ts';
 import { pickLockTarget } from '../weapons/behaviors/combo.ts';
 import { degToRad } from '../core/math.ts';
 import { blastDamage } from '../sim/damage.ts';
+import { plantSpot } from '../sim/sprout.ts';
 
 export interface HeuristicInput {
   readonly request: CpuTurnRequest;
@@ -78,9 +79,11 @@ function shotFor(def: WeaponDef, from: WormPoint, angleDeg: number, power: numbe
   if (spec === undefined || blast === undefined) return null;
   const speed = def.charged ? def.maxPower * Math.max(0.05, power) : def.maxPower;
   const a = degToRad(angleDeg);
+  // Where the sim launches it from (behaviors/types.ts muzzlePoint): lower and closer on a Saibaman.
+  const size = from.size ?? 1;
   return {
-    x0: from.x + facing * 6,
-    y0: from.y - 10,
+    x0: from.x + facing * 6 * size,
+    y0: from.y - 10 * size,
     vx: Math.cos(a) * speed * facing,
     vy: -Math.sin(a) * speed,
     radiusPx: spec.radiusPx,
@@ -166,7 +169,7 @@ function evaluateDirect(input: HeuristicInput, def: WeaponDef, from: WormPoint, 
     const dy = worm.y - from.y;
     const dist = Math.hypot(dx, dy);
     if (dist > range || dx * facing <= 0) continue;
-    if (def.hitscan !== undefined && !clearShot(input.mask, from.x + facing * 6, from.y - WORM_HEIGHT * 0.6, worm.x, wormMiddleY(worm))) continue;
+    if (def.hitscan !== undefined && !clearShot(input.mask, from.x + facing * 6 * (from.size ?? 1), from.y - wormHeight(from) * 0.6, worm.x, wormMiddleY(worm))) continue;
     const angle = Math.round((Math.atan2(-dy, Math.abs(dx)) * 180) / Math.PI);
     const score = Math.min(perHit, worm.hp);
     if (best === null || score > best.score) best = { weapon: def.id, angleDeg: clamp(angle, ANGLE_MIN, ANGLE_MAX), power: 1, score, confidence: clamp(score / Math.max(1, perHit), 0, 1) };
@@ -219,16 +222,36 @@ function evaluateHex(input: HeuristicInput, def: WeaponDef, from: WormPoint, fac
   if (victim === null || victim.hp <= 0) return null;
   // Where it bursts: its middle, up where it floats (a ceiling may hold it lower; close enough).
   const bx = victim.x;
-  const by = victim.y - hex.liftPx - WORM_HEIGHT / 2;
+  const by = victim.y - hex.liftPx - wormHeight(victim) / 2;
   let score = victim.hp;
   for (const worm of input.worms) {
     if (!worm.alive || worm.id === victim.id || worm.y >= request.waterY) continue;
-    const distance = Math.hypot(worm.x - bx, worm.y - WORM_HEIGHT / 2 - by);
+    const distance = Math.hypot(worm.x - bx, wormMiddleY(worm) - by);
     if (distance > hex.burst.radiusPx) continue;
     const dealt = Math.min(blastDamage(hex.burst.maxDamage, distance, hex.burst.radiusPx), worm.hp);
     score += worm.teamId === request.active.team ? -2 * dealt : dealt;
   }
   return { weapon: def.id, angleDeg: 0, power: 1, score, confidence: 1 };
+}
+
+/**
+ * What a Saibaman is worth to the CPU, in the damage points its shots score: a modest sure thing,
+ * so it plants when it has no shot better than a so-so hit, and shoots when it has one.
+ */
+export const SPROUT_SCORE = 18;
+
+/**
+ * The Saibaman seed takes no aim: it goes into the ground in front, where the sim's plantSpot puts
+ * it. Worth SPROUT_SCORE when it can grow there, nothing when there is no ground for it or the team
+ * is already at its cap.
+ */
+function evaluateSprout(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const sprout = def.sprout;
+  if (sprout === undefined) return null;
+  const team = input.request.active.team;
+  if (input.worms.filter((w) => w.alive && w.teamId === team).length >= sprout.maxTeamWorms) return null;
+  if (plantSpot(input.mask, input.request.waterY, from.x, from.y, facing, sprout) === null) return null;
+  return { weapon: def.id, angleDeg: 0, power: 1, score: SPROUT_SCORE, confidence: 0.6 };
 }
 
 /** A beam is thin: sweep the aim finer than a shell's. */
@@ -243,9 +266,8 @@ function evaluateBeam(input: HeuristicInput, def: WeaponDef, from: WormPoint, fa
   const beam = def.beam;
   if (beam === undefined) return null;
   const activeTeam = input.request.active.team;
-  const reach = beam.radiusPx + WORM_HALF_WIDTH;
-  const x0 = from.x + facing * 6;
-  const y0 = from.y - WORM_HEIGHT * 0.6;
+  const x0 = from.x + facing * 6 * (from.size ?? 1);
+  const y0 = from.y - wormHeight(from) * 0.6;
   let best: Candidate | null = null;
   for (let angle = ANGLE_MIN; angle <= ANGLE_MAX; angle += BEAM_ANGLE_STEP) {
     const a = degToRad(angle);
@@ -255,8 +277,10 @@ function evaluateBeam(input: HeuristicInput, def: WeaponDef, from: WormPoint, fa
     let friendly = 0;
     for (const worm of input.worms) {
       if (!worm.alive || worm.id === from.id || worm.y >= input.request.waterY) continue;
+      // The sim's beam touches a worm within its radius of the worm's own half width (a Saibaman is thinner).
+      const reach = beam.radiusPx + wormHalfWidth(worm);
       const cx = worm.x;
-      const cy = worm.y - WORM_HEIGHT / 2;
+      const cy = wormMiddleY(worm);
       const along = (cx - x0) * dx + (cy - y0) * dy;
       if (along < 0 || along > beam.rangePx + reach) continue;
       if (Math.abs((cx - x0) * dy - (cy - y0) * dx) > reach) continue;
@@ -342,6 +366,7 @@ function evaluate(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing
   if (def.combo !== undefined) return evaluateCombo(input, def, from, facing);
   if (def.devour !== undefined) return evaluateDevour(input, def, from, facing);
   if (def.hex !== undefined) return evaluateHex(input, def, from, facing);
+  if (def.sprout !== undefined) return evaluateSprout(input, def, from, facing);
   if (def.beam !== undefined) return evaluateBeam(input, def, from, facing);
   if (def.kind === 'HITSCAN' || def.kind === 'MELEE') return evaluateDirect(input, def, from, facing);
   return null;

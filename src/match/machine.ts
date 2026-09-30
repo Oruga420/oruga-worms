@@ -24,6 +24,7 @@ import type {
   MatchEvent,
   SkipTurnEvent,
   SurrenderEvent,
+  WormSpawnedEvent,
 } from './events.ts';
 import { deepFreeze } from './immutable.ts';
 import {
@@ -55,8 +56,9 @@ import {
 import { isPreResolvePhase } from './phases.ts';
 import { retreatMsFor } from './retreat.ts';
 import { scoreDamage, scoreShotClosed, scoreShotFired } from './scoring.ts';
+import { saibamanAmmoTable } from './setup.ts';
 import { makeWindState, type DeathCause, type MatchState } from './state.ts';
-import type { TeamState } from './state.ts';
+import type { TeamState, WormState } from './state.ts';
 import { hotSeatMsFor } from './turn.ts';
 import { isTeamAlive, matchDecided } from './win.ts';
 
@@ -87,6 +89,8 @@ function dispatch(state: MatchState, event: MatchEvent, deps: MatchDeps): MatchS
       return onWormDied(state, event.wormId);
     case 'WormDrowned':
       return onWormDrowned(state, event.wormId);
+    case 'WormSpawned':
+      return onWormSpawned(state, event, deps);
     case 'AllBodiesAtRest':
       return state.phase === 'Resolving' ? settleResolving(state, 'rest', deps) : state;
     case 'CrateLanded':
@@ -220,6 +224,26 @@ function onWormDrowned(state: MatchState, wormId: string): MatchState {
   if (ref === null || !ref.worm.alive) return state;
   const death = { wormId, cause: 'drowned' as const, creditTeamId: killCreditFor(state, wormId, ref.team.id) };
   return forfeitIfActive(applyDeath(state, death), wormId, 'active worm drowned');
+}
+
+/**
+ * A Saibaman came out of the ground: it joins its team at the end of the roster, so the team's
+ * rotation reaches it after the worms already there, with its share of a worm's health, a name of
+ * its own and the Saibaman loadout (the unlimited weapons). A second report of the same worm, or
+ * one for a team that is not in the match, changes nothing.
+ */
+function onWormSpawned(state: MatchState, event: WormSpawnedEvent, deps: MatchDeps): MatchState {
+  const teamIndex = findTeamIndex(state, event.teamId);
+  if (teamIndex < 0 || findWorm(state, event.wormId) !== null) return state;
+  const share = Number.isFinite(event.hpShare) && event.hpShare > 0 ? Math.min(1, event.hpShare) : 1;
+  const hp = Math.max(1, Math.round(deps.config.wormHp * share));
+  let name = '';
+  const next = updateTeam(state, teamIndex, (team) => {
+    name = `Saiba ${team.worms.filter((w) => w.id.includes('-saiba-')).length + 1}`;
+    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable() };
+    return { ...team, worms: [...team.worms, worm] };
+  });
+  return appendLog(resetInactivity(next), 'worm.spawned', `${name} sprouts for ${state.teams[teamIndex]?.name ?? event.teamId}`);
 }
 
 function onCrateLanded(state: MatchState): MatchState {

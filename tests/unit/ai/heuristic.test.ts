@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CPU_TURN_SCHEMA, type CpuTurnRequest } from '@/ai/contract.ts';
-import { decideHeuristic, pickChoice, walkSpots, type HeuristicInput } from '@/ai/heuristic.ts';
+import { SPROUT_SCORE, decideHeuristic, pickChoice, walkSpots, type HeuristicInput } from '@/ai/heuristic.ts';
 import { GRAVITY_PX_PER_S2 } from '@/sim/constants.ts';
 import { createMask, setSpan, SOLID } from '@/terrain/mask.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
@@ -366,5 +366,42 @@ describe('decideHeuristic: walking and turning', () => {
     expect(pickChoice(shots)?.score).toBe(46);
     expect(pickChoice([shots[0]!, shots[2]!])?.spot.dir).toBe(0);
     expect(pickChoice([])).toBeNull();
+  });
+});
+
+describe('decideHeuristic: the saibaman seed', () => {
+  const seedAmmo = [
+    { weapon: 'skip_go' as WeaponId, count: -1 },
+    { weapon: 'saibaman' as WeaponId, count: 1 },
+  ];
+  // An enemy far out of any shot the CPU has: the seed is the best it can do.
+  const far = [
+    { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+    { id: 'b1', teamId: 'blue', x: 900, y: 299, hp: 100, alive: true },
+  ];
+
+  it('plants a seed when it has nothing better to do', () => {
+    const req = still(request({ ammo: seedAmmo, enemies: [{ id: 'b1', team: 'blue', x: 900, y: 299, hp: 100 }] }));
+    const decision = decideHeuristic(input(req, far));
+    expect(decision.weapon).toBe('saibaman');
+    expect(decision.confidence).toBeGreaterThan(0);
+  });
+
+  it('shoots instead when it has a shot worth more than a Saibaman', () => {
+    const req = still(request({ ammo: [{ weapon: 'bazooka' as WeaponId, count: -1 }, ...seedAmmo] }));
+    const decision = decideHeuristic(input(req, flatWorms));
+    expect(decision.weapon).toBe('bazooka');
+    expect(SPROUT_SCORE).toBeLessThan(30);
+  });
+
+  it('never plants for a team already at its cap, or where there is no ground for it', () => {
+    const cap = WEAPONS.saibaman.sprout!.maxTeamWorms;
+    const full = [...far, ...Array.from({ length: cap - 1 }, (_, i) => ({ id: `r${i + 2}`, teamId: 'red', x: 300 + i * 20, y: 299, hp: 100, alive: true }))];
+    const req = still(request({ ammo: seedAmmo, enemies: [{ id: 'b1', team: 'blue', x: 900, y: 299, hp: 100 }] }));
+    expect(decideHeuristic(input(req, full)).weapon).not.toBe('saibaman');
+    // Alone on a one pixel pillar over the sea.
+    const mask = createMask(1000, 400);
+    setSpan(mask, 300, 200, 200, SOLID);
+    expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: far }).weapon).not.toBe('saibaman');
   });
 });

@@ -72,7 +72,7 @@ export async function decideCpuTurn(snapshot: SnapshotInput, options: CpuControl
     request,
     registry: options.registry,
     mask: snapshot.mask,
-    worms: snapshot.worms.map((w) => ({ id: w.id, teamId: w.teamId, x: w.x, y: w.y, hp: w.hp, alive: w.alive })),
+    worms: snapshot.worms.map((w) => ({ id: w.id, teamId: w.teamId, x: w.x, y: w.y, hp: w.hp, alive: w.alive, ...(w.size === undefined ? {} : { size: w.size }) })),
   };
   const fallback = (): CpuTurnDecision => ({ response: decideHeuristic(heuristicInput), source: 'heuristic' });
 

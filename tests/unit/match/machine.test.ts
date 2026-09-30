@@ -5,6 +5,7 @@ import type { MatchEvent } from '@/match/events.ts';
 import { reduce } from '@/match/machine.ts';
 import { buildInitialState, type MatchSetup, type TeamSetup } from '@/match/setup.ts';
 import type { MatchState, TeamController } from '@/match/state.ts';
+import { nextWormIndex } from '@/match/turn.ts';
 
 const CONFIG: MatchConfig = { ...GAME_CONFIG, hotSeatMs: 1000 };
 
@@ -41,6 +42,42 @@ const rest: MatchEvent = { type: 'AllBodiesAtRest' };
 function toActive(state: MatchState, deps: MatchDeps): MatchState {
   return reduce(state, banner, deps);
 }
+
+describe('match reducer: a Saibaman joins its team', () => {
+  it('appends it with half a worm\'s health, a name, the unlimited weapons only, and a place in the rotation', () => {
+    const { state, deps } = start();
+    const active = toActive(state, deps);
+    const team = active.teams[0];
+    if (team === undefined) throw new Error('no team');
+    const id = `${team.id}-saiba-1`;
+    const after = reduce(active, { type: 'WormSpawned', wormId: id, teamId: team.id, hpShare: 0.5, x: 300, y: 200 }, deps);
+    const worms = after.teams[0]?.worms ?? [];
+    expect(worms.map((w) => w.name)).toEqual(['R1', 'R2', 'Saiba 1']);
+    const saiba = worms[2];
+    expect(saiba).toMatchObject({ id, hp: CONFIG.wormHp / 2, maxHp: CONFIG.wormHp / 2, alive: true, x: 300, y: 200 });
+    expect(saiba?.ammo.bazooka).toBe(-1);
+    expect(saiba?.ammo.kamehameha).toBe(0);
+    expect(saiba?.ammo.saibaman).toBe(0);
+    expect(after.log.at(-1)).toMatchObject({ kind: 'worm.spawned', text: `Saiba 1 sprouts for ${team.name}` });
+    // The team's turns reach it after the worms that were there: R2 hands over to Saiba 1, and it back to R1.
+    const withR2Up = { ...after.teams[0]!, activeWormIndex: 1 };
+    expect(nextWormIndex(withR2Up)).toBe(2);
+    expect(nextWormIndex({ ...withR2Up, activeWormIndex: 2 })).toBe(0);
+    // The other team is untouched, and the team counts it among its living worms.
+    expect(after.teams[1]).toEqual(active.teams[1]);
+  });
+
+  it('names the second Saibaman of a team Saiba 2, and ignores a repeat or a team not in the match', () => {
+    const { state, deps } = start();
+    const active = toActive(state, deps);
+    const teamId = active.teams[1]?.id ?? '';
+    const spawn = (wormId: string, team = teamId): MatchEvent => ({ type: 'WormSpawned', wormId, teamId: team, hpShare: 0.5, x: 0, y: 0 });
+    const two = run(active, deps, [spawn(`${teamId}-saiba-1`), spawn(`${teamId}-saiba-2`)]);
+    expect(two.teams[1]?.worms.map((w) => w.name)).toEqual(['B1', 'B2', 'Saiba 1', 'Saiba 2']);
+    expect(reduce(two, spawn(`${teamId}-saiba-2`), deps)).toBe(two);
+    expect(reduce(two, spawn('nobody-saiba-1', 'nobody'), deps)).toBe(two);
+  });
+});
 
 describe('match reducer: crates give what they promise', () => {
   it('a weapon crate without a named weapon rolls one with crate weight and finite ammo for the picking worm', () => {

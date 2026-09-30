@@ -1,7 +1,7 @@
 /**
  * Registry invariants (architecture.md section D), run at boot and in the tests: every kind has
- * its spec block, a combo or a devour only rides a melee row (never both) and a beam or a hex a
- * hitscan row (never both), fuses are consistent, cluster children never cluster again and never name a registry
+ * its spec block, a combo or a devour only rides a melee row (never both), a beam or a hex a
+ * hitscan row (never both) and a sprout a placed row, fuses are consistent, cluster children never cluster again and never name a registry
  * weapon, sprites are named, every number is finite and non negative (ammo may be -1), infinite
  * weapons never drop from crates, multi shot weapons do not end the turn early, charged weapons
  * have a launch speed, keys match ids, the panel is complete, and the sidecar metadata table
@@ -53,8 +53,14 @@ function checkKindSpecs(id: string, def: WeaponDef, out: string[]): void {
   for (const spec of REQUIRED_SPECS[def.kind] ?? []) {
     if ((def as unknown as Rec)[spec] === undefined) out.push(`${id}: kind ${def.kind} requires a ${spec} block`);
   }
-  if (def.kind === 'PLACED' && def.fuse === undefined && def.spawn === undefined) {
-    out.push(`${id}: kind PLACED requires a fuse (dynamite) or a spawn block (mine)`);
+  if (def.kind === 'PLACED' && def.fuse === undefined && def.spawn === undefined && def.sprout === undefined) {
+    out.push(`${id}: kind PLACED requires a fuse (dynamite), a spawn block (mine) or a sprout block (saibaman)`);
+  }
+  if (def.sprout !== undefined) {
+    if (def.kind !== 'PLACED') out.push(`${id}: a sprout block belongs on a PLACED row, not ${def.kind}`);
+    if (!(def.sprout.size > 0 && def.sprout.size <= 1) || !(def.sprout.hpShare > 0 && def.sprout.hpShare <= 1)) out.push(`${id}: sprout.size and hpShare must be in (0, 1]`);
+    if (!Number.isInteger(def.sprout.cracks) || def.sprout.cracks < 0) out.push(`${id}: sprout.cracks must be a whole number`);
+    if (!Number.isInteger(def.sprout.maxTeamWorms) || def.sprout.maxTeamWorms < 1) out.push(`${id}: sprout.maxTeamWorms must be a positive integer`);
   }
   if (def.spawn !== undefined) {
     const expected = def.kind === 'ANIMAL' ? 'sheep' : def.kind === 'PLACED' ? 'mine' : null;
