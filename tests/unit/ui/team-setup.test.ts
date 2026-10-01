@@ -51,6 +51,15 @@ describe('team setup: state', () => {
 });
 
 describe('team setup: toMatchSetup', () => {
+  it('gives every team six worms, each with a name of its own', () => {
+    expect(WORMS_PER_TEAM).toBe(6);
+    const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })) };
+    for (const team of toMatchSetup(four, 7, WORLD).teams) {
+      expect(team.wormNames).toHaveLength(6);
+      expect(new Set(team.wormNames).size).toBe(6);
+    }
+  });
+
   it('produces a MatchSetup that buildInitialState accepts, for every team count', () => {
     let state: TeamSetupState = DEFAULT_TEAM_SETUP;
     for (let count = MIN_TEAMS; count <= MAX_TEAMS; count += 1) {

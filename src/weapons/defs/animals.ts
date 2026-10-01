@@ -80,7 +80,8 @@ const SAIBAMAN: WeaponDef = defineWeapon({
     recoverMs: 1100,
     size: 0.5,
     hpShare: 0.5,
-    maxTeamWorms: 8,
+    /** Room for four Saibamen next to a team of six. */
+    maxTeamWorms: 10,
   },
   sfx: { fire: 'wrm_land' },
 });

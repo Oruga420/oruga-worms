@@ -39,6 +39,13 @@ and start the match.
 
 ### What's new
 
+- **Six worms a team**: every team now fields six worms (three before), each with a name of its own,
+  and a full map of four teams still fits: on an island too bumpy for the usual spacing the worms
+  stand a little closer. A team may grow to ten living worms with Saibamen (eight before).
+- **The Tesoro del Cielo, toned down**: it takes the turns of the sealed worm only, not of its whole
+  team. The team plays on with its other worms, and as each of those turns ends the wheel strikes
+  the sealed worm; the third strike kills it. Only when the sealed worm is the last one its team has
+  does the team lose the turn.
 - **Everything from turn 2**: every super, the Anime row's techniques and the air strike now unlock
   on the second turn (they waited until turns 3 to 6).
 - **The Anime row**: seven techniques from Saint Seiya, One Piece and Frieren, one of each per worm,
@@ -58,11 +65,13 @@ and start the match.
   - **Tesoro del Cielo** (Shaka of Virgo, from turn 2). The worm sits in the lotus, a golden halo
     behind its head and the twin Sala trees blossoming either side, and the treasure's golden wheel
     comes down over the nearest enemy in sight within 420 px and seals it (¡SELLADO!, 3 TURNOS SIN
-    JUGAR). That enemy's team loses its next three turns (¡SIN SENTIDOS! on its banner). At each one
-    the wheel opens over the sealed worm and bites: the first takes its touch (−TACTO), the second
-    its taste (−GUSTO), the third kills it. Every strike costs the caster 15 hp; if that kills the
-    caster before the third, or the sealed worm dies another way, the seal breaks. The panel marks
-    it -15♥×3.
+    JUGAR). The sealed worm sits out its team's next three turns while its team plays them with its
+    other worms (a small golden wheel hangs over it, a bead for every strike to come), and as each of
+    those turns ends the wheel opens over the sealed worm and bites: the first takes its touch
+    (−TACTO), the second its taste (−GUSTO), the third kills it. When the sealed worm is the last of
+    its team, the team loses those turns instead (¡SIN SENTIDOS! on its banner). Every strike costs
+    the caster 15 hp; if that kills the caster before the third, or the sealed worm dies another way,
+    the seal breaks. The panel marks it -15♥×3.
   - **Hiken** (Portgas D. Ace, from turn 2). The worm draws its fist back, its arm catches fire, and
     it throws a fist of flame as big as a house straight along the aim (¡HIKEN!): a blast a little
     bigger than the bazooka's where it lands (55 at most), and nine burning blobs spill forward,
@@ -96,7 +105,7 @@ and start the match.
   smaller target that fits through gaps a worm cannot. It joins the planter's team and takes its own
   turns, with the unlimited weapons (bazooka, grenade, guns, fire punch, skip go) and whatever crates
   and power orbs bring it. With no ground in front it goes in nearer or behind; a team is capped at
-  eight living worms, and a seed planted past that wilts (NO ROOM!). The CPU plants one when it has
+  ten living worms, and a seed planted past that wilts (NO ROOM!). The CPU plants one when it has
   no better shot.
 - **Power orbs**: about one supply drop in three is now an orange ball with four red stars that
   falls out of the sky like a comet and floats glowing where it lands (POWER INCOMING in gold). The

@@ -6,8 +6,9 @@
  *
  * - Antares: the first worm on the line to an enemy, before any land: a kill, its whole health.
  * - The Galaxian Explosion: where the galaxy stops on the line, and every worm in the kill radius.
- * - The Tesoro del Cielo: the worm the lock picks; a kill, plus the turns its team loses, less the
- *   strikes the caster pays for, and never when the strikes would take all the caster has.
+ * - The Tesoro del Cielo: the worm the lock picks; a kill, plus the turns it sits out (whole turns
+ *   of its team when it is the last), less the strikes the caster pays for, and never when the
+ *   strikes would take all the caster has.
  * - The Hiken: where the fist stops on the line, and its blast.
  * - Fujitora's meteor: called on each enemy, where the rock would really come down, and its blast.
  * - The Santoryu: the square ahead at a fan of aims, and every worm in it.
@@ -44,8 +45,12 @@ export interface TechniqueScene {
   readonly worms: readonly WormPoint[];
 }
 
-/** What a turn the enemy team loses to the treasure is worth to the CPU, in damage points. */
+/**
+ * What a turn the sealed worm sits out is worth to the CPU, in damage points: a whole turn when it
+ * is the last of its team (the team loses the turn), little when the team plays on without it.
+ */
 export const LOST_TURN_VALUE = 20;
+export const SAT_OUT_TURN_VALUE = 5;
 /** The aims either side of a straight line to an enemy a thrown technique is also tried at, degrees. */
 const AROUND_DEG: readonly number[] = Object.freeze([0, -4, 4]);
 /** The Santoryu's fan of aims. */
@@ -173,7 +178,9 @@ export function evaluateTechnique(scene: TechniqueScene, def: WeaponDef, from: W
       if (from.hp <= spec.hitToll * spec.hits) return null;
       const victim = pickLockTarget(scene.mask, { x: from.x, y: from.y, facing }, enemies, spec.rangePx);
       if (victim === null || victim.hp <= 0) return null;
-      return { weapon: def.id, angleDeg: 0, power: 1, score: victim.hp + (LOST_TURN_VALUE - spec.hitToll) * spec.hits, confidence: 1 };
+      const alone = !enemies.some((w) => w.teamId === victim.teamId && w.id !== victim.id);
+      const turn = alone ? LOST_TURN_VALUE : SAT_OUT_TURN_VALUE;
+      return { weapon: def.id, angleDeg: 0, power: 1, score: victim.hp + (turn - spec.hitToll) * spec.hits, confidence: 1 };
     }
     case 'meteor': {
       for (const enemy of enemies) {

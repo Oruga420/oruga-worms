@@ -46,7 +46,7 @@ import { createFrameOverlay, overlayEnabledFromSearch } from './engine/frame-ove
 import { createSoundDirector } from './game/sound.ts';
 import { INITIAL_DIRECTOR, updateCameraTarget, type CameraDirector } from './game/camera-target.ts';
 import { clampPan } from './engine/audio.ts';
-import { buildGame, quickGame } from './game/setup.ts';
+import { buildGame } from './game/setup.ts';
 import {
   DEFAULT_TEAM_SETUP,
   drawTeamSetup,
@@ -217,7 +217,8 @@ function boot(): void {
 
   // A fresh island and fresh spawns every game; ?seed=N pins one map for a test or a bug report.
   const randomBits = (target: Uint32Array): Uint32Array => window.crypto.getRandomValues(target);
-  const built = quickGame(pickMatchSeed(window.location.search, randomBits), contextFactory, WORLD_SIZE_DEFAULT);
+  // The island under the title and the team setup: the default teams, as many worms as a match has.
+  const built = buildGame({ setup: toMatchSetup(DEFAULT_TEAM_SETUP, pickMatchSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory });
   if (!built.ok) throw new Error(`game setup failed: ${built.error.message}`);
 
   // Always build the client; it probes the sidecar once and the controller falls back to the

@@ -6,7 +6,7 @@
 
 import { createRng, mixSeed } from '../core/rng.ts';
 import { buildInitialState, type MatchSetup } from '../match/setup.ts';
-import { applySpawnPoints, placeWorms, spawnOptions } from '../match/spawn.ts';
+import { DEFAULT_SPAWN_OPTIONS, applySpawnPoints, placeWorms, spawnOptions } from '../match/spawn.ts';
 import type { MatchState } from '../match/state.ts';
 import { createMatchDeps, type MatchDeps } from '../match/deps.ts';
 import { createWorld, addWorm, type SimWorld } from '../sim/world.ts';
@@ -38,6 +38,12 @@ export interface GameSetupError {
 
 const SPAWN_SEED_SALT = 0xa17;
 
+/**
+ * How far apart the worms spawn, widest first: four teams of six do not always fit at the widest
+ * on a bumpy island, so they stand closer (still well clear of each other) before the map is given up.
+ */
+const SPAWN_SEPARATIONS_PX: readonly number[] = Object.freeze([DEFAULT_SPAWN_OPTIONS.minSeparationPx, 40, 32, 24]);
+
 export function buildGame(options: GameSetupOptions): Result<Game, GameSetupError> {
   const { setup } = options;
   const size = setup.worldSize;
@@ -55,7 +61,11 @@ export function buildGame(options: GameSetupOptions): Result<Game, GameSetupErro
   // Skip the top bedrock border (the outer 2 px ring) so the surface is the land, not the ceiling.
   const tops = computeTops(terrain.mask, BORDER_BEDROCK_PX + 1);
   const rng = createRng(mixSeed(setup.seed, SPAWN_SEED_SALT));
-  const points = placeWorms(tops, totalWorms, spawnOptions(terrain.water.y), rng);
+  let points = placeWorms(tops, totalWorms, spawnOptions(terrain.water.y), rng);
+  for (const minSeparationPx of SPAWN_SEPARATIONS_PX.slice(1)) {
+    if (points.ok) break;
+    points = placeWorms(tops, totalWorms, spawnOptions(terrain.water.y, { minSeparationPx }), rng);
+  }
   if (!points.ok) return err({ code: 'spawn', message: points.error.message });
   const placed = applySpawnPoints(base.value, points.value);
   if (!placed.ok) return err({ code: 'spawn', message: placed.error.message });
@@ -70,7 +80,7 @@ export function buildGame(options: GameSetupOptions): Result<Game, GameSetupErro
   return ok({ state: placed.value, world, terrain, deps: createMatchDeps(setup.seed) });
 }
 
-/** A quick 2 team game (red human, blue cpu) for the first playable and the smoke test. */
+/** A quick 2 team game of three worms each (red human, blue cpu): the small fixture the unit tests build on. */
 export function quickGame(seed: number, createContext: ContextFactory, size = { w: 1920, h: 696 }): Result<Game, GameSetupError> {
   const setup: MatchSetup = {
     seed,
