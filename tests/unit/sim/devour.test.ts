@@ -33,14 +33,14 @@ function damageTo(events: readonly SimEvent[], wormId: string): number[] {
 }
 
 describe('gear 5: the row', () => {
-  it('is a melee super, bare handed, one per worm, the last to unlock and never in a crate', () => {
+  it('is a melee super, bare handed, one per worm, open from the second turn and never in a crate', () => {
     expect(GEAR.kind).toBe('MELEE');
     expect(GEAR.category).toBe('melee');
     expect(GEAR.heldSprite).toBeNull();
     expect(GEAR.melee?.reachPx).toBe(SPEC.rangePx);
     expect(GEAR.melee?.damage).toBe(SPEC.chomps * SPEC.chompDamage);
     expect(GEAR.ammo).toBe(1);
-    expect(GEAR.delayTurns).toBe(4);
+    expect(GEAR.delayTurns).toBe(2);
     expect(GEAR.crateWeight).toBe(0);
     expect(GEAR.combo).toBeUndefined();
   });

@@ -6,7 +6,7 @@
  * called down where the player clicks (TARGETED).
  *
  * Supers, like the rest of them: one of each per worm from the loadout, never out of a weapon crate,
- * recharged by the power orb, and locked for the opening turns. The two that kill whatever they
+ * recharged by the power orb, and locked on the opening turn only. The two that kill whatever they
  * reach pay for it: Antares costs half of the health its user has, the Galaxian Explosion the 50 the
  * one hit kills cost. The Tesoro del Cielo is paid strike by strike, 15 each. All v1 tuning.
  */
@@ -14,11 +14,12 @@
 import type { WeaponDef, WeaponId } from '../types.ts';
 import { BOMBLET_FAILSAFE_MS, ONE_HIT_KILL_TOLL, blast, defineWeapon, grenadeProjectile, iconFrame, sourceSpeed } from './shared.ts';
 
-/** What every technique row shares: one per worm, no charge, one shot that ends the turn, no crate. */
+/** What every technique row shares: one per worm, open from the second turn, no charge, one shot that ends the turn, no crate. */
 const TECHNIQUE_ROW = Object.freeze({
   category: 'anime',
   heldSprite: null,
   ammo: 1,
+  delayTurns: 2,
   charged: false,
   maxPower: 0,
   windAffected: false,
@@ -38,8 +39,6 @@ const ANTARES: WeaponDef = defineWeapon({
   name: 'Antares',
   kind: 'HITSCAN',
   icon: iconFrame('antares'),
-  /** A sure kill waits for the fight to ripen, as the Freezer does. */
-  delayTurns: 5,
   requiresTargetSelect: false,
   /** Half of whatever health its user has, rounded up. */
   tollShare: 0.5,
@@ -66,7 +65,6 @@ const GALAXIAN: WeaponDef = defineWeapon({
   name: 'Explosión de Galaxias',
   kind: 'HITSCAN',
   icon: iconFrame('galaxian'),
-  delayTurns: 6,
   requiresTargetSelect: false,
   toll: ONE_HIT_KILL_TOLL,
   technique: {
@@ -90,7 +88,6 @@ const TENBU_HORIN: WeaponDef = defineWeapon({
   name: 'Tesoro del Cielo',
   kind: 'HITSCAN',
   icon: iconFrame('tenbu_horin'),
-  delayTurns: 5,
   requiresTargetSelect: false,
   technique: {
     kind: 'treasure',
@@ -111,7 +108,6 @@ const HIKEN: WeaponDef = defineWeapon({
   name: 'Hiken',
   kind: 'HITSCAN',
   icon: iconFrame('hiken'),
-  delayTurns: 3,
   requiresTargetSelect: false,
   technique: {
     kind: 'hiken',
@@ -136,7 +132,6 @@ const METEOR: WeaponDef = defineWeapon({
   name: 'Meteorito',
   kind: 'TARGETED',
   icon: iconFrame('meteor'),
-  delayTurns: 5,
   requiresTargetSelect: true,
   technique: {
     kind: 'meteor',
@@ -157,7 +152,6 @@ const SANTORYU: WeaponDef = defineWeapon({
   name: 'Santoryu',
   kind: 'MELEE',
   icon: iconFrame('santoryu'),
-  delayTurns: 3,
   requiresTargetSelect: false,
   technique: {
     kind: 'dice',
@@ -185,7 +179,6 @@ const ZOLTRAAK: WeaponDef = defineWeapon({
   name: 'Zoltraak',
   kind: 'HITSCAN',
   icon: iconFrame('zoltraak'),
-  delayTurns: 3,
   requiresTargetSelect: false,
   technique: {
     kind: 'zoltraak',

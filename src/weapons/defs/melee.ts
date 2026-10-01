@@ -154,8 +154,8 @@ const GEAR_FIVE: WeaponDef = defineWeapon({
   /** Bare rubber hands: nothing to hold. */
   heldSprite: null,
   ammo: 1,
-  /** The awakening takes a long fight to come: never before the fourth turn. */
-  delayTurns: 4,
+  /** Like every super: never on the opening turn. */
+  delayTurns: 2,
   charged: false,
   maxPower: 0,
   windAffected: false,

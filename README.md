@@ -39,21 +39,23 @@ and start the match.
 
 ### What's new
 
+- **Everything from turn 2**: every super, the Anime row's techniques and the air strike now unlock
+  on the second turn (they waited until turns 3 to 6).
 - **The Anime row**: seven techniques from Saint Seiya, One Piece and Frieren, one of each per worm,
-  recharged by power orbs and locked for the opening turns like every super. Each one shouts its
+  recharged by power orbs and locked on the opening turn like every super. Each one shouts its
   name across the screen with whose technique it is.
-  - **Antares** (Milo of Scorpio, from turn 5). The worm points along the aim and its nail grows
+  - **Antares** (Milo of Scorpio, from turn 2). The worm points along the aim and its nail grows
     crimson; Scorpio is traced over the first worm on the line, and fourteen needles streak into it
     (¡AGUJA ESCARLATA!), each lighting one of its stars red, until Antares, the heart's star, swells
     and the last needle goes in (¡ANTARES!): the worm dies, whatever its health. The needles reach
     420 px but stop at the first wall. It costs half the health its user has (rounded up), paid as
     it starts, hit or miss; the panel marks it -50%♥.
-  - **Explosión de Galaxias** (Saga of Gemini, from turn 6). Night falls round the worm as it crosses
+  - **Explosión de Galaxias** (Saga of Gemini, from turn 2). Night falls round the worm as it crosses
     its arms overhead and the cosmos opens behind it; then it hurls a spinning galaxy along the aim,
     slow enough to watch, until it hits a worm or the land: every worm within 44 px of where it
     bursts dies, friends and the thrower too, and the crater is as wide. Like the other one hit
     kills, it costs 50 hp.
-  - **Tesoro del Cielo** (Shaka of Virgo, from turn 5). The worm sits in the lotus, a golden halo
+  - **Tesoro del Cielo** (Shaka of Virgo, from turn 2). The worm sits in the lotus, a golden halo
     behind its head and the twin Sala trees blossoming either side, and the treasure's golden wheel
     comes down over the nearest enemy in sight within 420 px and seals it (¡SELLADO!, 3 TURNOS SIN
     JUGAR). That enemy's team loses its next three turns (¡SIN SENTIDOS! on its banner). At each one
@@ -61,18 +63,18 @@ and start the match.
     its taste (−GUSTO), the third kills it. Every strike costs the caster 15 hp; if that kills the
     caster before the third, or the sealed worm dies another way, the seal breaks. The panel marks
     it -15♥×3.
-  - **Hiken** (Portgas D. Ace, from turn 3). The worm draws its fist back, its arm catches fire, and
+  - **Hiken** (Portgas D. Ace, from turn 2). The worm draws its fist back, its arm catches fire, and
     it throws a fist of flame as big as a house straight along the aim (¡HIKEN!): a blast a little
     bigger than the bazooka's where it lands (55 at most), and nine burning blobs spill forward,
     away from the thrower.
-  - **Meteorito** (Fujitora, from turn 5). The worm raises its sword at the sky, a purple swirl of
+  - **Meteorito** (Fujitora, from turn 2). The worm raises its sword at the sky, a purple swirl of
     gravity tightens over the spot you clicked or tapped, and a burning meteor comes down slanting
     out of the top of the world onto it: the biggest crater in the game, and 80 at most, the worm
     that called it included if it stands too close.
-  - **Santoryu** (Roronoa Zoro, from turn 3). Three swords out, one in the mouth: six slashes
+  - **Santoryu** (Roronoa Zoro, from turn 2). Three swords out, one in the mouth: six slashes
     criss-cross an 84 px square in front of the worm (moved with the aim), and the land in it falls
     apart in cubes (¡TODO EN CUBOS!); every worm inside takes 45 and is thrown.
-  - **Zoltraak** (Frieren, from turn 3). Staff in hand, five magic circles open one by one over the
+  - **Zoltraak** (Frieren, from turn 2). Staff in hand, five magic circles open one by one over the
     worm, and each fires a beam of white light that meets the others on one point along the aim:
     18 at most each, 90 if all five land. They hardly push, so the first does not throw the target
     out of the way of the rest.
@@ -107,7 +109,7 @@ and start the match.
 - Crates now land on the land. The top of the world is a thin bedrock ceiling, and every crate used
   to come to rest on it, off the top of the screen; the air strike's bombs also went off up there
   instead of on the target. Both come down under it now.
-- **Freezer**, a super after Frieza's finger (one per worm, unlocked from turn 5). The worm takes
+- **Freezer**, a super after Frieza's finger (one per worm, unlocked from turn 2). The worm takes
   the emperor's last form (white, a purple dome on its head, a dark purple aura) and holds out a
   finger while a pink light gathers on its tip. The light flies to the nearest enemy in plain sight
   within 340 px (a LOCK ON marker shows who) and sinks into its body (?!). The victim floats up,
@@ -117,7 +119,7 @@ and start the match.
   A worm that bursts is gone, whatever its health. Then ¡KRILIIIN! and the emperor laughs, HO HO
   HO! With nobody in sight the light fizzles out. The CPU uses it too, unless a teammate stands in
   the blast.
-- **Gear 5**, a super after Luffy's Sun God Nika (one per worm, unlocked from turn 4). The drums of
+- **Gear 5**, a super after Luffy's Sun God Nika (one per worm, unlocked from turn 2). The drums of
   liberation beat four times (DON!) while the worm turns white, the sun god's rays spin behind it
   and a cloud of white steam wraps its neck; it awakens with GEAR 5! and the straw hat pops on. Its
   rubber arm shoots out to the nearest enemy in plain sight within 200 px (a LOCK ON marker shows
@@ -125,7 +127,7 @@ and start the match.
   everywhere) and swallows it whole: a worm eaten is gone, whatever its health. Then the worm burps
   the bandana, the bones and an eye back up, and laughs. With nobody in reach the arm grabs at the
   air. The CPU eats whoever it can reach.
-- **Kamehameha**, a beam super (one per worm, unlocked from turn 3). Aim it like a gun and fire:
+- **Kamehameha**, a beam super (one per worm, unlocked from turn 2). Aim it like a gun and fire:
   the worm cups a ball of ki in its hands while it chants KA... ME... HA... ME..., then shouts HA!!!,
   the screen flashes and the beam leaves. It races 640 px along the aim, bores a tunnel through the
   land and hits every worm on the line once, friends included: 45 damage and a throw along the beam.

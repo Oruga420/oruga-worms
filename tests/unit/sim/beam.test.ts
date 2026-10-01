@@ -36,7 +36,7 @@ describe('kamehameha: the row', () => {
     expect(KAME.hitscan?.rangePx).toBe(BEAM.rangePx);
     expect(KAME.hitscan?.damagePerPellet).toBe(BEAM.damage);
     expect(KAME.ammo).toBe(1);
-    expect(KAME.delayTurns).toBe(3);
+    expect(KAME.delayTurns).toBe(2);
     expect(KAME.crateWeight).toBe(0);
   });
 });
