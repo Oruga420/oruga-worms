@@ -141,21 +141,42 @@ describe('decideHeuristic: gear 5', () => {
     { weapon: 'gear_five' as WeaponId, count: 1 },
   ];
 
-  it('eats an enemy in reach and in plain sight, over the rush that would only beat it', () => {
+  it('eats a fat enemy in reach and in plain sight, over the rush that would only beat it', () => {
+    // 150 hp (a health crate): swallowed whole it is worth the 50 the eater pays for it.
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 150, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 150 }] });
+    expect(decideHeuristic(input(req, worms)).weapon).toBe('gear_five');
+  });
+
+  it('weighs its price: a plain enemy is not worth half its own health when the rush beats it for free', () => {
     const worms = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
       { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
     ];
     const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    // 100 swallowed less 50 paid is 50; the rush's 75 costs nothing.
+    expect(decideHeuristic(input(req, worms)).weapon).toBe('ryuko_ranbu');
+  });
+
+  it('on its last legs trades them for the enemy: it eats though the price takes all it has', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 15, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+    ];
+    const req = request({ ammo, active: { wormId: 'r1', team: 'red', x: 200, y: 299, hp: 15, canMoveLeft: true, canMoveRight: true, maxWalkMs: 3000 }, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    // Only its last 15 to pay: 100 swallowed for 15 beats the rush's 75.
     expect(decideHeuristic(input(req, worms)).weapon).toBe('gear_five');
   });
 
   it('keeps it when the arm cannot reach anyone, or only through a wall', () => {
     const far = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.gear_five.devour!.rangePx + 60, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.gear_five.devour!.rangePx + 60, y: 299, hp: 150, alive: true },
     ];
-    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
+    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 150 }] });
     expect(decideHeuristic(input(still(farReq), far)).weapon).not.toBe('gear_five');
     // With its walk left it closes in and eats.
     const closer = decideHeuristic(input(farReq, far));
@@ -163,9 +184,9 @@ describe('decideHeuristic: gear 5', () => {
     expect(closer.move.direction).toBe('right');
     const walled = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 330, y: 299, hp: 150, alive: true },
     ];
-    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 100 }] });
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 330, y: 299, hp: 150 }] });
     const mask = flatMask(req.world.w, req.world.h, 300);
     for (let y = 200; y < 300; y += 1) setSpan(mask, y, 260, 266, SOLID);
     expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: walled }).weapon).not.toBe('gear_five');
@@ -256,46 +277,69 @@ describe('decideHeuristic: the freezer', () => {
     { weapon: 'freezer' as WeaponId, count: 1 },
   ];
 
-  it('bursts an enemy in plain sight beyond the rush, over a bazooka shot', () => {
+  it('bursts a fat enemy in plain sight beyond the rush, over a bazooka shot', () => {
     const worms = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 150, alive: true },
     ];
-    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 100 }] });
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 150 }] });
     expect(decideHeuristic(input(req, worms)).weapon).toBe('freezer');
+  });
+
+  it('weighs its price: a shot that takes half an enemy for free beats bursting it for half its own health', () => {
+    // Beyond the rush, in reach of the light and of a bazooka shot from where it stands.
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 400, y: 299, hp: 60, alive: true },
+    ];
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 400, y: 299, hp: 60 }] });
+    // 60 burst less 50 paid is 10: the bazooka's hit is worth more.
+    expect(decideHeuristic(input(still(req), worms)).weapon).toBe('bazooka');
   });
 
   it('keeps it when the light cannot find anyone, or only through a wall', () => {
     const far = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.freezer.hex!.rangePx + 60, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 200 + WEAPONS.freezer.hex!.rangePx + 60, y: 299, hp: 150, alive: true },
     ];
-    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 100 }] });
+    const farReq = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: far[1]!.x, y: 299, hp: 150 }] });
     expect(decideHeuristic(input(still(farReq), far)).weapon).not.toBe('freezer');
     const closer = decideHeuristic(input(farReq, far));
     expect(closer.weapon).toBe('freezer');
     expect(closer.move.direction).toBe('right');
     const walled = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 400, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 400, y: 299, hp: 150, alive: true },
     ];
-    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 400, y: 299, hp: 100 }] });
+    const req = request({ ammo, enemies: [{ id: 'b1', team: 'blue', x: 400, y: 299, hp: 150 }] });
     const mask = flatMask(req.world.w, req.world.h, 300);
     for (let y = 200; y < 300; y += 1) setSpan(mask, y, 300, 306, SOLID);
     expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: walled }).weapon).not.toBe('freezer');
   });
 
   it('holds it when the burst would take a friend with the enemy', () => {
+    // 60 hp: worth the 50 it costs alone, not with a friend in the burst on top of that.
     const crowded = [
       { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
-      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 10, alive: true },
+      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 60, alive: true },
       { id: 'r2', teamId: 'red', x: 482, y: 299, hp: 100, alive: true },
     ];
-    const req = request({ ammo: [{ weapon: 'freezer' as WeaponId, count: 1 }], enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 10 }] });
+    const req = request({ ammo: [{ weapon: 'freezer' as WeaponId, count: 1 }], enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 60 }] });
     const lone = [crowded[0]!, crowded[1]!];
-    expect(decideHeuristic(input(req, lone)).weapon).toBe('freezer');
-    // Next to a friend the burst costs more than the kill is worth: nothing scores, the CPU skips.
+    const alone = decideHeuristic(input(req, lone));
+    expect(alone.weapon).toBe('freezer');
+    expect(alone.confidence).toBeGreaterThan(0);
+    // Next to a friend the burst and the price cost more than the kill is worth: nothing scores, the CPU skips.
     expect(decideHeuristic(input(req, crowded)).confidence).toBe(0);
+  });
+
+  it('never pays for a kill worth less than the price', () => {
+    const worms = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 100, alive: true },
+      { id: 'b1', teamId: 'blue', x: 480, y: 299, hp: 30, alive: true },
+    ];
+    const req = request({ ammo: [{ weapon: 'skip_go' as WeaponId, count: -1 }, { weapon: 'freezer' as WeaponId, count: 1 }], enemies: [{ id: 'b1', team: 'blue', x: 480, y: 299, hp: 30 }] });
+    expect(decideHeuristic(input(still(req), worms)).weapon).toBe('skip_go');
   });
 });
 

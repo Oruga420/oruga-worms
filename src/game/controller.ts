@@ -76,7 +76,12 @@ export type GameEvent =
   /** A worm was hurt: where the blow landed and which way it pushed (unit dx, dy). */
   // amount is the blow's force (the blood, the flinch); lost is the hp it really took, never more
   // than the worm had left, so a worm beaten past 0 still bleeds but its number stops counting.
-  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly lost: number; readonly cause: 'blast' | 'fall' | 'hit' | 'melee'; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly lost: number; readonly cause: 'blast' | 'fall' | 'hit' | 'melee' | 'toll'; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
+  /**
+   * A worm paid for its super out of its own health (WeaponDef.toll): lost is what it paid, fatal
+   * when that was all it had left (it finishes the move, then bursts). (x, y) is its middle.
+   */
+  | { readonly type: 'toll'; readonly wormId: string; readonly lost: number; readonly fatal: boolean; readonly x: number; readonly y: number }
   /** A worm hit 0 hp (not drowned): it bursts where it stood, carried along its last velocity. */
   | { readonly type: 'gib'; readonly wormId: string; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number; readonly colorIndex: number }
   | { readonly type: 'tracer'; readonly x: number; readonly y: number; readonly x1: number; readonly y1: number; readonly hit: 'worm' | 'land' | 'none' }
@@ -192,6 +197,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const pending: Pending = { walk: [], fireAfterWalk: null, fireFacing: 1, fireWeapon: null, cpuRequested: false, cpuDecided: false, refireTicks: 0, burst: null, sequence: null };
   // Worms whose last hp already went to gore (a burst) or to the water, so each dies exactly once.
   const goneWorms = new Set<string>();
+  // Worms that paid for a super with their last hp: they finish the move before they burst.
+  const lastBreath = new Set<string>();
 
   // Movement budget: real horizontal displacement spent while walking this turn, in world px.
   // Measured, not assumed, so pushing against a wall costs nothing and knockback is never billed.
@@ -317,6 +324,11 @@ export function createController(game: Game, options: ControllerOptions): Contro
         const lost = Number.isFinite(e.amount) && e.amount > 0 ? Math.min(e.amount, left) : 0;
         hpLeft.set(e.wormId, left - lost);
         if (at !== null) events.push({ type: 'damage', wormId: e.wormId, amount: e.amount, lost, cause: e.cause, x: at.x, y: at.y, dx: at.dx, dy: at.dy });
+        if (e.cause === 'toll' && at !== null) {
+          const fatal = left > 0 && left - lost <= 0;
+          if (fatal) lastBreath.add(e.wormId);
+          events.push({ type: 'toll', wormId: e.wormId, lost, fatal, x: at.x, y: at.y });
+        }
         return;
       }
       case 'tracer':
@@ -401,9 +413,12 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const held = heldWormIds(world.combos);
     const eating = heldByDevours(world.devours);
     const hexed = heldByHexes(world.hexes);
+    // A worm that paid for its super with its last hp is up until the move is over.
+    const finishing = sequencePlaying();
     for (const team of state.teams) {
       for (const worm of team.worms) {
-        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id)) continue;
+        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id) || (finishing && lastBreath.has(worm.id))) continue;
+        lastBreath.delete(worm.id);
         goneWorms.add(worm.id);
         const body = findBody(world, worm.id);
         if (body === undefined || body.motion === 'drowning') continue;

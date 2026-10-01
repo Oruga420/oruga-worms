@@ -114,6 +114,12 @@ export interface WeaponDef {
   readonly requiresTargetSelect: boolean;
   /** Relative weight in a weapon crate roll; 0 means never in a crate. */
   readonly crateWeight: number;
+  /**
+   * Health the worm pays to use it, taken as it fires: all it has left when that is less, and then
+   * it spends its last breath on the move and bursts once it is over. The two supers that kill
+   * whatever they touch, Gear 5 and the Freezer, cost 50 (weapons/fire.ts pays it).
+   */
+  readonly toll?: number;
 
   readonly fuse?: FuseSpec;
   readonly projectile?: ProjectileSpec;

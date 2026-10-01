@@ -361,8 +361,18 @@ interface Choice extends Candidate {
   readonly facing: 1 | -1;
 }
 
-/** Every shot but a shell's, which ballisticChoices searches across the spots at once. */
+/**
+ * Every shot but a shell's, which ballisticChoices searches across the spots at once. A super with
+ * a toll (Gear 5, the Freezer) costs the CPU's own worm its price, or all it has left: that counts
+ * against the move like damage to a friend would, so it is worth it only on a fat enough target.
+ */
 function evaluate(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  const candidate = evaluateMove(input, def, from, facing);
+  if (candidate === null || def.toll === undefined) return candidate;
+  return { ...candidate, score: candidate.score - Math.min(def.toll, Math.max(0, from.hp)) };
+}
+
+function evaluateMove(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
   if (def.combo !== undefined) return evaluateCombo(input, def, from, facing);
   if (def.devour !== undefined) return evaluateDevour(input, def, from, facing);
   if (def.hex !== undefined) return evaluateHex(input, def, from, facing);

@@ -17,7 +17,7 @@ export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
   for (const event of events) {
     switch (event.type) {
       case 'damage':
-        out.push({ type: 'DamageApplied', wormId: event.wormId, amount: event.amount, sourceTeamId: event.sourceTeamId, sourceWormId: event.sourceWormId });
+        out.push({ type: 'DamageApplied', wormId: event.wormId, amount: event.amount, sourceTeamId: event.sourceTeamId, sourceWormId: event.sourceWormId, ...(event.cause === 'toll' ? { toll: true } : {}) });
         break;
       case 'drown':
         out.push({ type: 'WormDrowned', wormId: event.wormId });

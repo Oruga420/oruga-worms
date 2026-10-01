@@ -118,6 +118,8 @@ function checkRow(id: string, def: WeaponDef, registryIds: ReadonlySet<string>, 
   if (def.ammo === -1 && def.crateWeight > 0) out.push(`${id}: crateWeight must be 0 for an infinite weapon`);
   if (def.shotsPerTurn > 1 && def.endsTurnOnFire) out.push(`${id}: endsTurnOnFire must be false for a ${def.shotsPerTurn} shot weapon`);
   if (def.charged && !(def.maxPower > 0)) out.push(`${id}: maxPower must be positive for a charged weapon`);
+  // Paid once per use, as it fires: a weapon that fires more than once a turn would charge it per barrel.
+  if (def.toll !== undefined && def.shotsPerTurn !== 1) out.push(`${id}: a toll belongs on a single shot weapon`);
   checkKindSpecs(id, def, out);
   checkFuse(id, def.fuse, out);
   checkCluster(id, def.cluster, registryIds, out);

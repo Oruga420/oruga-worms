@@ -10,6 +10,7 @@ import type { HitscanSpec, WeaponDef, WeaponId } from '../types.ts';
 import {
   INFINITE_AMMO,
   MAX_LAUNCH_SPEED,
+  ONE_HIT_KILL_TOLL,
   blast,
   contactProjectile,
   craterRadiusPx,
@@ -319,6 +320,8 @@ const FREEZER: WeaponDef = defineWeapon({
   requiresTargetSelect: false,
   /** One per worm, from the loadout only: a weapon crate never hands out another super. */
   crateWeight: 0,
+  /** A worm that bursts is gone whatever its health: the one who points pays for it with half its own. */
+  toll: ONE_HIT_KILL_TOLL,
   /** Required of a hitscan row: the lock reach, and a whole worm's health as the hit (the burst takes all a worm has, however much). */
   hitscan: {
     pellets: 1,

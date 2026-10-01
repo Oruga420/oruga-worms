@@ -29,8 +29,9 @@ function beats(events: readonly SimEvent[]): HexBeat[] {
   return events.flatMap((e) => (e.type === 'hexBeat' ? [e.beat] : []));
 }
 
+/** What the move did to a worm, not counting the price its attacker paid for it. */
 function damageTo(events: readonly SimEvent[], wormId: string): number[] {
-  return events.flatMap((e) => (e.type === 'damage' && e.wormId === wormId ? [e.amount] : []));
+  return events.flatMap((e) => (e.type === 'damage' && e.wormId === wormId && e.cause !== 'toll' ? [e.amount] : []));
 }
 
 describe('freezer: the row', () => {
@@ -235,7 +236,9 @@ describe('freezer: a whiff', () => {
       ticksUsed += 1;
     }
     expect(beats(events)).toEqual(['shot', 'fizzle']);
-    expect(events.some((e) => e.type === 'damage' || e.type === 'explosion')).toBe(false);
+    // Nobody hurt; the price is paid all the same.
+    expect(events.some((e) => (e.type === 'damage' && e.cause !== 'toll') || e.type === 'explosion')).toBe(false);
+    expect(events.filter((e) => e.type === 'damage' && e.cause === 'toll')).toHaveLength(1);
     // Nobody burst: no scream, and nothing to laugh about.
     expect(events.some((e) => e.type === 'sound' && (e.id === HEX_SOUNDS.krilin || e.id === HEX_SOUNDS.laugh))).toBe(false);
     expect(events.find((e) => e.type === 'hexEnd')).toMatchObject({ burst: false, victimId: null });

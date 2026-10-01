@@ -44,6 +44,11 @@ export interface HudModel {
   readonly weaponSprites: CharacterSprites | null;
 }
 
+/** The price of a super on its panel cell: the health it costs, with a heart. */
+export function tollBadge(toll: number): string {
+  return `-${toll}♥`;
+}
+
 export function hudKey(model: HudModel): string {
   const totals = model.state.teams.map((_, i) => teamTotalHp(model.state, i)).join(',') + `|fuel:${model.jetpackFuelMs == null ? '-' : Math.ceil(model.jetpackFuelMs / 100)}`;
   // The panel's cells change with ammo, which the totals do not track, so the key carries the
@@ -100,7 +105,8 @@ export function drawHud(ctx: Ctx2D, viewport: Size, model: HudModel): void {
   ctx.font = '13px system-ui, sans-serif';
   ctx.fillStyle = '#fff';
   const owner = activeWormOf(state);
-  ctx.fillText(`${owner?.name ?? "Worm"} | ${model.weapon} | ${ammoBadge(owner?.ammo[model.weapon] ?? 0) || "unlimited"}${model.fuseMs == null ? "" : ` | fuse ${model.fuseMs / 1000}s`}`, 12, viewport.h - 40);
+  const toll = WEAPONS[model.weapon].toll;
+  ctx.fillText(`${owner?.name ?? "Worm"} | ${model.weapon} | ${ammoBadge(owner?.ammo[model.weapon] ?? 0) || "unlimited"}${model.fuseMs == null ? "" : ` | fuse ${model.fuseMs / 1000}s`}${toll === undefined ? "" : ` | costs ${toll} hp`}`, 12, viewport.h - 40);
   // Movement budget, to the right of the weapon name; red once it is spent.
   const stepsTotal = model.stepsTotal;
   ctx.fillStyle = model.steps === 0 && state.phase === 'Active' ? '#ff5030' : '#ffd36a';
@@ -205,6 +211,14 @@ function drawWeaponPanel(ctx: Ctx2D, panel: PanelLayout, selected: WeaponId, spr
         ctx.font = 'bold 10px system-ui, sans-serif';
         ctx.fillStyle = cell.enabled ? '#ffd36a' : 'rgba(255,211,106,0.4)';
         ctx.fillText(badge, cell.x + cell.w - 4, cell.y + 8);
+      }
+      // What it costs the worm that uses it, in red on the other corner: the one hit kills are not free.
+      const toll = WEAPONS[cell.id].toll;
+      if (toll !== undefined) {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.fillStyle = cell.enabled ? '#ff5a6e' : 'rgba(255,90,110,0.45)';
+        ctx.fillText(tollBadge(toll), cell.x + 4, cell.y + 8);
       }
     }
   }

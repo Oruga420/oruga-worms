@@ -66,6 +66,11 @@ export interface DamageAppliedEvent {
   /** null for environmental damage (map mines, sudden death): no points and no kill credit. */
   readonly sourceTeamId: string | null;
   readonly sourceWormId: string | null;
+  /**
+   * The price of a super the worm is firing (WeaponDef.toll). When it takes the worm's last health
+   * the worm still finishes the move: the turn ends when the shot closes, not under it.
+   */
+  readonly toll?: boolean;
 }
 
 export interface WormDiedEvent {

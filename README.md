@@ -27,14 +27,21 @@ and start the match.
 | Target teleport, girder, or strike | Select weapon, then tap the destination |
 | Super move (Ryuko Ranbu) | Pick it in Weapons, then press and release FIRE |
 | Kamehameha | Pick it in Weapons, aim with ▲ ▼, then press and release FIRE |
-| Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal |
-| Freezer | Pick it in Weapons, then press and release FIRE: the light finds its own victim |
+| Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal (costs 50 hp) |
+| Freezer | Pick it in Weapons, then press and release FIRE: the light finds its own victim (costs 50 hp) |
 | Saibaman seed | Pick it in Weapons (Animals), then press and release FIRE: it is planted in front |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **The price of the one hit kills**: Gear 5 and the Freezer, the two supers that kill whatever they
+  touch, now cost the worm that uses them 50 of its own health, or all it has left. The price is
+  paid as the move starts (its life drains out of it in red embers, ¡PENITENCIA!). A worm that pays
+  with its last health still finishes the move, then bursts, and its turn ends with it
+  (¡SACRIFICIO!). The panel marks both with a red -50♥, and the HUD and the picked weapon's name say
+  what it costs. Nobody scores the price. The CPU weighs it: it saves them for a target worth more
+  than the price, and a worm on its last legs will trade them for an enemy.
 - **Saibaman seed** (one per worm, unlocked from turn 2, in the Animals row). The worm holds a seed
   out and kneels to push it into the ground a stride in front of it; the ground shakes and cracks
   three times, green light shining up through the cracks, and a Saibaman leaps out of the crater
@@ -133,8 +140,8 @@ The CPU works without API credentials using its built-in heuristic.
 | Zoom / pan camera | Mouse wheel / drag |
 | Super move (Ryuko Ranbu) | Select it in the inventory, then press and release Space |
 | Kamehameha | Select it in the inventory, aim with Up/Down, then press and release Space |
-| Gear 5 | Select it in the inventory, then press and release Space |
-| Freezer | Select it in the inventory, then press and release Space |
+| Gear 5 | Select it in the inventory, then press and release Space (costs 50 hp) |
+| Freezer | Select it in the inventory, then press and release Space (costs 50 hp) |
 | Saibaman seed | Select it in the inventory, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |

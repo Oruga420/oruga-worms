@@ -8,6 +8,7 @@
 import type { WeaponDef, WeaponId } from '../types.ts';
 import {
   INFINITE_AMMO,
+  ONE_HIT_KILL_TOLL,
   defineWeapon,
   heldFrame,
   iconFrame,
@@ -164,6 +165,8 @@ const GEAR_FIVE: WeaponDef = defineWeapon({
   requiresTargetSelect: false,
   /** One per worm, from the loadout only: a weapon crate never hands out another super. */
   crateWeight: 0,
+  /** A worm eaten is gone whatever its health: the one who eats pays for it with half its own. */
+  toll: ONE_HIT_KILL_TOLL,
   /** What the heuristic and the panel read: the arm's reach and the bites (the swallow takes the rest). */
   melee: {
     reachPx: GEAR_FIVE_RANGE_PX,
