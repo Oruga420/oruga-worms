@@ -29,7 +29,20 @@ import type { Atlas } from '../engine/atlas.ts';
 import type { AtlasFrame, AtlasPoint } from '../engine/atlas-schema.ts';
 import type { ImageSource } from '../engine/canvas-types.ts';
 import { drawSprite, type SpriteOptions } from '../engine/sprite.ts';
-import type { BeamBody, ComboBody, CrateKind, DevourBody, HexBody, ProjectileBody, SproutBody, WormMotion } from '../sim/types.ts';
+import type { BeamBody, ComboBody, CrateKind, DevourBody, HexBody, ProjectileBody, SproutBody, TechniqueBody, WormMotion } from '../sim/types.ts';
+import { techniqueProgress } from '../sim/technique.ts';
+import { galaxyAt } from '../sim/techniques/galaxy.ts';
+import { hikenAt } from '../sim/techniques/hiken.ts';
+import { needleTip } from '../sim/techniques/needle.ts';
+import { diceSquare } from '../sim/techniques/dice.ts';
+import { sealHolds } from '../match/seals.ts';
+import { constellationScale, drawConstellation, drawNail, drawNeedleStreak, nailCharge, sinceSting, starAt } from './antares.ts';
+import { burstBloom, cosmosOpen, drawCosmos, drawGalaxyBurst, drawThrownGalaxy } from './galaxian.ts';
+import { armFire, drawBack, drawBurningHand, drawFireFist } from './hiken.ts';
+import { drawGravityWell, drawMeteor, drawRaisedSword, gravityPull, swordUp } from './meteor.ts';
+import { cutFlash, cutLine, drawCutSquare, drawCuts, drawThreeSwords, sinceCut, swordsOut } from './santoryu.ts';
+import { LOTUS_LIFT_PX, TREASURE_GOLD, drawHalo, drawLotus, drawSalaTree, drawSealMark, drawWheel, lotusBloom, wheelState } from './tenbu.ts';
+import { beamLight, circleLook, drawMagicCircle, drawStaff, drawZoltraakBeam, staffOut } from './zoltraak.ts';
 import { sproutProgress } from '../sim/sprout.ts';
 import { wormHalfWidth, wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { beamProgress } from '../sim/beam.ts';
@@ -65,6 +78,7 @@ import {
 } from './gear-five.ts';
 import { HEX_PINK, TYRANT_WHITE, drawHexLight, drawHexTrail, drawInnerGlow, drawTyrantDome, innerGlow, swelling, tipCharge, tremble, tyrantForm } from './freezer.ts';
 import { drawPowerOrb } from './power-orb.ts';
+import { superPrice } from './price.ts';
 import { SAIBA_GREEN, SAIBA_SKIN_ALPHA, drawSproutScene, isSaibaman, seedHand } from './saibaman.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
@@ -207,6 +221,28 @@ export function sproutRoles(sprouts: readonly SproutBody[]): Map<string, SproutB
   return roles;
 }
 
+/** A worm's part in a technique of the anime row: the one using it, or the one it is done to. */
+export interface TechniqueRole {
+  readonly role: 'attacker' | 'victim';
+  readonly body: TechniqueBody;
+}
+
+/**
+ * Who is using a technique on whom right now, by worm id: the attacker through it all (but not the
+ * caster of a treasure's strike, on a turn that is not its own), and the worm it is done to while it
+ * is held (Antares' victim until the last needle, the treasure's target in the wheel).
+ */
+export function techniqueRoles(techniques: readonly TechniqueBody[]): Map<string, TechniqueRole> {
+  const roles = new Map<string, TechniqueRole>();
+  for (const body of techniques) {
+    if (!body.alive) continue;
+    if (!(body.kind === 'treasure' && body.mode === 'strike')) roles.set(body.attackerId, { role: 'attacker', body });
+    if (body.kind === 'needle' && body.victimId !== null && !body.pierced) roles.set(body.victimId, { role: 'victim', body });
+    if (body.kind === 'treasure' && body.victimId !== null && body.stage !== 'recover') roles.set(body.victimId, { role: 'victim', body });
+  }
+  return roles;
+}
+
 /** How a worm stands to use a weapon: the sheets have a hold pose per family. */
 export function holdPose(weapon: WeaponId): string {
   const def = getWeapon(weapon);
@@ -243,6 +279,8 @@ export interface PoseInput {
   readonly hex?: HexRole | undefined;
   /** The seed this worm is planting, reaching out and kneeling to push it in, then watching the ground. */
   readonly sprout?: SproutBody | undefined;
+  /** This worm's part in a technique of the anime row. */
+  readonly technique?: TechniqueRole | undefined;
   /** The weapon the worm is aiming, when it is the active worm on its turn. */
   readonly aiming?: WeaponId | null;
   /** The match is over and this worm's team won. */
@@ -431,6 +469,71 @@ function hexPose(input: PoseInput, role: HexRole): WormPose {
 }
 
 /**
+ * The techniques of the anime row. Antares: the worm points, steady, its victim writhing under the
+ * needles, red on each, then frozen, gasping, before the last. The Galaxian Explosion: arms crossed
+ * overhead, trembling with the cosmos, then thrown forward. The Tesoro del Cielo: the caster sits in
+ * the lotus and floats, golden; the target stands stiff, then in a strike floats gasping in the
+ * wheel's light. The Hiken: the fist drawn back, then thrown. Fujitora: the sword arm up. The
+ * Santoryu: a lunge on every cut. Zoltraak: the staff pointed.
+ */
+function techniquePose(input: PoseInput, role: TechniqueRole): WormPose {
+  const { body } = role;
+  const f = body.facing;
+  const p = techniqueProgress(body);
+  const base: WormPose = { frame: 'idle_a', rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
+  const shake = (amount: number): number => Math.sin(input.timeMs / 17) * amount;
+  if (role.role === 'victim') {
+    if (body.kind === 'needle') {
+      if (body.stage === 'point') return { ...base, frame: 'idle_b' };
+      if (body.stage === 'sting') {
+        const since = sinceSting(body);
+        const jolt = Number.isFinite(since) ? Math.max(0, 1 - since / 5) : 0;
+        return { ...base, frame: body.stings % 2 === 0 ? 'hurt' : 'knocked', offsetX: shake(0.6) + f * jolt * 1.4, rotation: f * jolt * 0.12, tint: '#ff1f3d', tintAlpha: 0.15 + jolt * 0.5 };
+      }
+      return { ...base, frame: 'drown_gasp', offsetX: shake(0.9), tint: '#ff1f3d', tintAlpha: 0.25 + 0.2 * Math.abs(Math.sin(input.timeMs / 90)) };
+    }
+    if (body.kind === 'treasure') {
+      if (body.mode === 'cast') return { ...base, frame: p > 0.75 ? 'hurt' : 'idle_b', offsetX: p > 0.75 ? shake(0.5) : 0 };
+      return { ...base, frame: 'drown_gasp', offsetX: shake(0.4), tint: TREASURE_GOLD, tintAlpha: 0.2 + 0.25 * Math.abs(Math.sin(input.timeMs / 120)) };
+    }
+    return base;
+  }
+  switch (body.kind) {
+    case 'needle':
+      if (body.stage === 'recover') return { ...base, frame: body.pierced && p < 0.7 ? 'taunt' : 'idle_a' };
+      return { ...base, frame: 'hold_gun', stretchY: 1 + Math.sin(input.timeMs / 400) * 0.015 };
+    case 'galaxy':
+      if (body.stage === 'charge') return { ...base, frame: 'victory', offsetX: shake(0.4 * p), stretchY: 1 + 0.04 * p };
+      if (body.stage === 'fly') return { ...base, frame: 'fire_recoil', offsetX: -f * 1.5 };
+      return { ...base, frame: p < 0.5 ? 'fire_recoil' : 'taunt' };
+    case 'treasure':
+      if (body.stage === 'cast') {
+        const lift = LOTUS_LIFT_PX * Math.min(1, p * 3);
+        return { ...base, frame: 'jump_crouch', offsetY: -lift + Math.sin(input.timeMs / 500) * 0.6, tint: TREASURE_GOLD, tintAlpha: 0.22 * Math.min(1, p * 2) };
+      }
+      return { ...base, frame: p < 0.4 ? 'jump_crouch' : 'idle_a' };
+    case 'hiken':
+      if (body.stage === 'windup') return { ...base, frame: 'hold_melee', offsetX: -f * 2.2 * drawBack(body), stretchX: 1 - 0.05 * drawBack(body), tint: '#ff7a1a', tintAlpha: 0.2 * armFire(body) };
+      if (body.stage === 'fly') return { ...base, frame: 'fire_recoil', offsetX: f * 1.6 };
+      return { ...base, frame: p < 0.5 ? 'fire_recoil' : 'taunt' };
+    case 'meteor':
+      if (body.stage === 'recover') return { ...base, frame: p < 0.4 ? 'victory' : 'idle_a' };
+      return { ...base, frame: 'victory', offsetX: shake(0.2) };
+    case 'dice':
+      if (body.stage === 'draw') return { ...base, frame: 'hold_melee', offsetX: -f * swordsOut(body) };
+      if (body.stage === 'slash') {
+        const since = sinceCut(body, body.slashes);
+        const lunge = Number.isFinite(since) ? Math.max(0, 1 - since / 6) : 0;
+        return { ...base, frame: body.slashes % 2 === 0 ? 'hold_melee' : 'fire_recoil', offsetX: f * lunge * 2.5 };
+      }
+      return { ...base, frame: p < 0.5 ? 'hold_melee' : 'taunt' };
+    case 'zoltraak':
+      if (body.stage === 'recover') return { ...base, frame: 'idle_a' };
+      return { ...base, frame: 'hold_gun', stretchY: 1 + Math.sin(input.timeMs / 380) * 0.015 };
+  }
+}
+
+/**
  * The pose of one worm this frame: its motion, the presentation cues and a super move, in that
  * order of precedence from the bottom up (a fight beats everything, a flight beats a flinch).
  */
@@ -441,6 +544,7 @@ export function poseFor(input: PoseInput): WormPose {
   if (input.devour !== undefined) return devourPose(input, input.devour);
   if (input.hex !== undefined) return hexPose(input, input.hex);
   if (input.sprout !== undefined) return sproutPose(input, input.sprout);
+  if (input.technique !== undefined) return techniquePose(input, input.technique);
   const plain: WormPose = { frame: wormFrameId(worm, timeMs), rotation: 0, stretchX: 1, stretchY: 1, offsetX: 0, offsetY: 0, tint: null, tintAlpha: 0 };
   // The hit flash rides on whatever the body is doing: white for a moment, then red, fading.
   const hurtMs = anim?.hurtMs ?? Infinity;
@@ -1308,7 +1412,8 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   const devours = devourRoles(model.world.devours ?? []);
   const hexes = hexRoles(model.world.hexes ?? []);
   const planters = sproutRoles(model.world.sprouts ?? []);
-  // The Freezer's worms drawn with the rest of its scene, on top of everything.
+  const performers = techniqueRoles(model.world.techniques ?? []);
+  // The Freezer's worms drawn with the rest of its scene, on top of everything; a technique's too.
   const hexDrawn = new Set<string>();
   const aimingPhase = phase === 'Active' || phase === 'Firing';
   const visuals = new Map<string, { visual: WormVisual; pose: WormPose; wounds: number }>();
@@ -1323,8 +1428,10 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const hexRole = hexes.get(body.id);
     const hex = hexRole !== undefined && !(hexRole.role === 'caster' && hexRole.hex.stage === 'recover' && body.motion === 'flying') ? hexRole : undefined;
     // A worm at 0 hp is gone (it burst into gore), unless a super move is still beating it or Gear 5
-    // chewing it, or it paid for Gear 5 or the Freezer with its last health and is finishing the move.
-    if (info.hp <= 0 && fight === undefined && devour === undefined && hexRole === undefined) continue;
+    // chewing it, or it paid for Gear 5 or the Freezer with its last health and is finishing the move,
+    // or a technique still holds it (Antares' needles, the treasure's wheel) or it is using one.
+    const technique = performers.get(body.id);
+    if (info.hp <= 0 && fight === undefined && devour === undefined && hexRole === undefined && technique === undefined) continue;
     const visual: WormVisual = { x: body.x, y: body.y, vx: body.vx, vy: body.vy, facing: body.facing, color: info.color, name: info.name, hp: info.hp, active: body.id === activeId, motion: body.motion, alive: body.alive, colorIndex: info.colorIndex, seed: seedFromString(body.id), size: body.size, skin: isSaibaman(body) ? SAIBA_GREEN : null, maxHp: info.maxHp };
     const pose = poseFor({
       worm: visual,
@@ -1334,15 +1441,24 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       devour,
       hex,
       sprout: planters.get(body.id),
+      technique,
       aiming: body.id === activeId && phase === 'Active' && model.weapon !== undefined ? model.weapon : null,
       victory: winnerTeam !== undefined && info.teamId === winnerTeam,
       timeMs: model.timeMs,
     });
     const wounds = model.gore === false ? 0 : (fight?.role === 'victim' || devour?.role === 'prey') && info.hp <= 0 ? 1 : woundLevel(info.hp, info.maxHp);
     visuals.set(body.id, { visual, pose, wounds });
-    // Gear 5's worms and the Freezer's are drawn with the rest of their scene, on top of everything.
-    if (hex !== undefined) hexDrawn.add(body.id);
+    // Gear 5's worms, the Freezer's and a technique's are drawn with the rest of their scene, on top of everything.
+    if (hex !== undefined || technique !== undefined) hexDrawn.add(body.id);
     else if (devour === undefined) drawWorm(ctx, viewport, camera, visual, { pose, wounds, showTag: info.hp > 0 }, model.timeMs, model.sprites, model.scratch);
+  }
+  // The Tesoro del Cielo's seals: a golden wheel over every sealed worm, a bead for each strike to come.
+  for (const seal of model.state.seals ?? []) {
+    if (!sealHolds(model.state, seal)) continue;
+    const sealed = model.world.worms.find((w) => w.id === seal.targetId && w.alive);
+    if (sealed === undefined) continue;
+    const mark = worldToScreen(camera, viewport, { x: sealed.x, y: sealed.y - wormHeight(sealed) });
+    drawSealMark(ctx, mark.x, mark.y - 44, camera.zoom * 0.8, seal.hitsLeft, seal.hits, model.timeMs);
   }
   for (const crate of model.world.crates) {
     if (!crate.alive) continue;
@@ -1361,10 +1477,16 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   }
 
   const activeBody = activeId === undefined ? undefined : model.world.worms.find((b) => b.id === activeId);
-  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id) && !hexes.has(activeBody.id) && !planters.has(activeBody.id)) {
+  if (activeBody !== undefined && aimingPhase && !fights.has(activeBody.id) && !beamers.has(activeBody.id) && !devours.has(activeBody.id) && !hexes.has(activeBody.id) && !planters.has(activeBody.id) && !performers.has(activeBody.id)) {
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
-      if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
+      const technique = def.technique;
+      if (technique?.kind === 'treasure') drawLock(ctx, viewport, camera, model.world, activeBody, technique.rangePx, model.timeMs);
+      else if (technique?.kind === 'dice') {
+        const square = diceSquare(technique, activeBody, activeBody.facing, model.aim.angleDeg);
+        const corner = worldToScreen(camera, viewport, { x: square.x, y: square.y });
+        drawCutSquare(ctx, corner.x, corner.y, square.side * camera.zoom, camera.zoom, model.timeMs);
+      } else if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
       else if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
       else if (def.devour !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.devour.rangePx, model.timeMs);
       else if (def.hex !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.hex.rangePx, model.timeMs);
@@ -1372,7 +1494,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx, activeBody.size);
     }
     // Utilities, the air strike, the supers that lock and the seed do not aim: the crosshair or the lock says it all.
-    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined);
+    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined || def.technique?.kind === 'treasure');
     const colorIndex = infoById.get(activeBody.id)?.colorIndex ?? 0;
     const armColor = model.sprites?.has(colorIndex) === true ? bodyPalette(colorIndex).skin : WORM_SKIN;
     if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, isSaibaman(activeBody) ? SAIBA_GREEN : armColor, activeBody.size);
@@ -1427,10 +1549,18 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     drawDevourScene(ctx, viewport, camera, devour, visuals.get(devour.attackerId), devour.victimId === null || devour.swallowed ? undefined : visuals.get(devour.victimId), model);
   }
   // And the Freezer: the pointing worm in its form, the victim swelling, the light over them both.
+  const scene = (id: string | null): SceneWorm | undefined => (id !== null && hexDrawn.has(id) ? visuals.get(id) : undefined);
   for (const hex of model.world.hexes ?? []) {
     if (!hex.alive) continue;
-    const scene = (id: string | null): SceneWorm | undefined => (id !== null && hexDrawn.has(id) ? visuals.get(id) : undefined);
     drawHexScene(ctx, viewport, camera, hex, scene(hex.attackerId), scene(hex.victimId), model);
+  }
+  // The techniques of the anime row: what each sends or does, with its worms, over the dark.
+  for (const body of model.world.techniques ?? []) {
+    if (!body.alive) continue;
+    const attacker = performers.get(body.attackerId)?.body === body ? scene(body.attackerId) : undefined;
+    const victimId = body.kind === 'needle' || body.kind === 'treasure' ? body.victimId : null;
+    const victim = victimId !== null && performers.get(victimId)?.body === body ? scene(victimId) : undefined;
+    drawTechniqueScene(ctx, viewport, camera, body, attacker, victim, model);
   }
 
   // The super move's white screen: the world washes out, the fighters stay on it in black.
@@ -1664,6 +1794,163 @@ function drawHexScene(ctx: Ctx2D, viewport: Size, camera: Camera, hex: HexBody, 
   }
 }
 
+/** A world point to the screen, shorthand for the technique scenes. */
+function toScreen(camera: Camera, viewport: Size, x: number, y: number): { readonly x: number; readonly y: number } {
+  return worldToScreen(camera, viewport, { x, y });
+}
+
+/** The middle of a posed worm on screen. */
+function middleOf(camera: Camera, viewport: Size, entry: SceneWorm): { readonly x: number; readonly y: number } {
+  const size = entry.visual.size ?? 1;
+  return toScreen(camera, viewport, entry.visual.x + entry.pose.offsetX, entry.visual.y + entry.pose.offsetY - (WORM_HEIGHT * size * entry.pose.stretchY) / 2);
+}
+
+/**
+ * A technique of the anime row, back to front, over the dimmed world: what stands behind the worm
+ * (the cosmos, the Sala trees, the lotus, the magic circles), its worms, posed already by the frame's
+ * pass, and what it sends or does over everything (the constellation and the needles, the galaxy,
+ * the wheel, the fist of fire, the meteor, the cuts, the beams).
+ */
+function drawTechniqueScene(ctx: Ctx2D, viewport: Size, camera: Camera, body: TechniqueBody, attacker: SceneWorm | undefined, victim: SceneWorm | undefined, model: RenderModel): void {
+  const z = camera.zoom;
+  const t = model.timeMs;
+  const draw = (entry: SceneWorm | undefined): void => {
+    if (entry !== undefined) drawWorm(ctx, viewport, camera, entry.visual, { pose: entry.pose, wounds: entry.wounds, showTag: false }, t, model.sprites, model.scratch);
+  };
+  const f = body.facing;
+  switch (body.kind) {
+    case 'needle': {
+      draw(victim);
+      draw(attacker);
+      const tip = needleTip(body.holdX, body.holdY, f);
+      const tipOn = toScreen(camera, viewport, tip.x, tip.y);
+      drawNail(ctx, tipOn.x, tipOn.y, z, nailCharge(body), t);
+      if (body.victimId === null) return;
+      const middle = victim !== undefined ? middleOf(camera, viewport, victim) : toScreen(camera, viewport, body.targetX, body.targetY);
+      const size = victim?.visual.size ?? 1;
+      drawConstellation(ctx, body, middle.x, middle.y, z * constellationScale(size), t);
+      // The newest needle streaking from the fingertip to its star; the last one into the heart.
+      const sting = sinceSting(body);
+      if (Number.isFinite(sting) && body.stings > 0) {
+        const star = starAt(body.stings - 1, 0, 0, size);
+        drawNeedleStreak(ctx, tipOn.x, tipOn.y, middle.x + star.x * z, middle.y + star.y * z, z, sting);
+      }
+      if (body.stage === 'recover' && body.pierced) {
+        const heart = starAt(-1, 0, 0, size);
+        drawNeedleStreak(ctx, tipOn.x, tipOn.y, middle.x + heart.x * z, middle.y + heart.y * z, z, body.stageTicks - 1);
+      }
+      return;
+    }
+    case 'galaxy': {
+      const home = toScreen(camera, viewport, body.holdX, body.holdY - WORM_HEIGHT * 0.6);
+      drawCosmos(ctx, home.x, home.y, z, cosmosOpen(body), f, body.id * 31, t);
+      draw(attacker);
+      const at = galaxyAt(body);
+      if (at !== null) {
+        const p = toScreen(camera, viewport, at.x, at.y);
+        drawThrownGalaxy(ctx, p.x, p.y, z, t);
+      }
+      const bloom = burstBloom(body);
+      if (bloom !== null && body.burstX !== null && body.burstY !== null) {
+        const p = toScreen(camera, viewport, body.burstX, body.burstY);
+        drawGalaxyBurst(ctx, p.x, p.y, body.spec.killRadiusPx * z, bloom, body.id);
+      }
+      return;
+    }
+    case 'treasure': {
+      const bloom = lotusBloom(body);
+      if (body.mode === 'cast') {
+        const feet = toScreen(camera, viewport, body.holdX, body.holdY);
+        const grow = bloom;
+        drawSalaTree(ctx, feet.x - 18 * z, feet.y, z, grow, body.id * 3 + 1, t);
+        drawSalaTree(ctx, feet.x + 18 * z, feet.y, z, grow, body.id * 3 + 2, t);
+        if (attacker !== undefined) {
+          const head = toScreen(camera, viewport, attacker.visual.x + attacker.pose.offsetX, attacker.visual.y + attacker.pose.offsetY - WORM_HEIGHT * 0.85);
+          drawHalo(ctx, head.x - f * 1 * z, head.y, z, bloom, t);
+        }
+        drawLotus(ctx, feet.x, feet.y - 1 * z, z, bloom);
+        draw(attacker);
+      }
+      draw(victim);
+      const wheel = wheelState(body);
+      if (wheel !== null) {
+        const over = victim !== undefined ? middleOf(camera, viewport, victim) : toScreen(camera, viewport, body.targetX, body.targetY - WORM_HEIGHT / 2);
+        const r = 14 * z * wheel.scale;
+        drawWheel(ctx, over.x, over.y - 22 * z - wheel.drop * 70 * z, r, (t / 1000) * wheel.spin, wheel.glow, 1);
+      }
+      return;
+    }
+    case 'hiken': {
+      draw(attacker);
+      const heat = armFire(body);
+      if (heat > 0 && attacker !== undefined) {
+        const hand = toScreen(camera, viewport, body.holdX + attacker.pose.offsetX + f * 6, body.holdY - WORM_HEIGHT * 0.6);
+        drawBurningHand(ctx, hand.x, hand.y, z, heat, t);
+      }
+      const at = hikenAt(body);
+      if (at !== null) {
+        const p = toScreen(camera, viewport, at.x, at.y);
+        drawFireFist(ctx, p.x, p.y, Math.atan2(body.dy, body.dx), 12 * z, t);
+      }
+      return;
+    }
+    case 'meteor': {
+      const target = toScreen(camera, viewport, body.targetX, body.targetY);
+      drawGravityWell(ctx, target.x, target.y, z, gravityPull(body), t);
+      draw(attacker);
+      if (attacker !== undefined) {
+        const hand = toScreen(camera, viewport, attacker.visual.x + f * 4, attacker.visual.y - WORM_HEIGHT * 0.95);
+        drawRaisedSword(ctx, hand.x, hand.y, z, f, swordUp(body));
+      }
+      if (body.stage === 'fall') {
+        const rock = toScreen(camera, viewport, body.x, body.y);
+        drawMeteor(ctx, rock.x, rock.y, body.dx, body.dy, body.spec.radiusPx * 1.3 * z, t, body.id);
+      }
+      return;
+    }
+    case 'dice': {
+      draw(attacker);
+      if (attacker !== undefined) {
+        const middle = middleOf(camera, viewport, attacker);
+        drawThreeSwords(ctx, middle.x, middle.y, z, f, swordsOut(body), t);
+      }
+      const flash = cutFlash(body);
+      const segments: { x0: number; y0: number; x1: number; y1: number; age: number }[] = [];
+      const shown = body.stage === 'slash' ? body.slashes : body.stage === 'recover' && body.cut && flash !== null ? body.spec.slashes : 0;
+      for (let k = 1; k <= shown; k += 1) {
+        const line = cutLine(body, k, body.spec.slashes);
+        const a = toScreen(camera, viewport, line.x0, line.y0);
+        const b = toScreen(camera, viewport, line.x1, line.y1);
+        segments.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y, age: sinceCut(body, k) });
+      }
+      drawCuts(ctx, segments, z, flash);
+      return;
+    }
+    case 'zoltraak': {
+      body.circles.forEach((circle, k) => {
+        const look = circleLook(body, k);
+        const p = toScreen(camera, viewport, circle.x, circle.y);
+        drawMagicCircle(ctx, p.x, p.y, 8.5 * z, look.open, look.bright, t, k * 1.3);
+      });
+      draw(attacker);
+      if (attacker !== undefined) {
+        const hand = toScreen(camera, viewport, attacker.visual.x + f * 5, attacker.visual.y - WORM_HEIGHT * 0.5);
+        drawStaff(ctx, hand.x, hand.y, z, f, staffOut(body), t);
+      }
+      body.ends.forEach((end, k) => {
+        const circle = body.circles[k];
+        if (circle === undefined) return;
+        const light = beamLight(body, k);
+        if (light <= 0) return;
+        const a = toScreen(camera, viewport, circle.x, circle.y);
+        const b = toScreen(camera, viewport, end.x, end.y);
+        drawZoltraakBeam(ctx, a.x, a.y, b.x, b.y, z, light);
+      });
+      return;
+    }
+  }
+}
+
 /**
  * The crosshair of a targeted weapon: where the air strike's bombs come down, where the teleport
  * lands, where the girder goes. Nothing marked the point before, so the player aimed blind at the
@@ -1820,8 +2107,9 @@ function drawWeaponLabel(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, 
   ctx.fillStyle = def.combo !== undefined ? '#ffcf1f' : '#ffffff';
   ctx.fillText(text, p.x, ly);
   // A super with a price says so as it is picked, in red under its name.
-  if (def.toll !== undefined) {
-    const cost = `COSTS ${def.toll} HP`;
+  const price = superPrice(def);
+  if (price !== null) {
+    const cost = price.label;
     ctx.font = 'bold 10px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillText(cost, p.x + 1, ly + 13);

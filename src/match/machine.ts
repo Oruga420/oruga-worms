@@ -24,6 +24,7 @@ import type {
   MatchEvent,
   SkipTurnEvent,
   SurrenderEvent,
+  WormSealedEvent,
   WormSpawnedEvent,
 } from './events.ts';
 import { deepFreeze } from './immutable.ts';
@@ -55,6 +56,7 @@ import {
 } from './machine-phases.ts';
 import { isPreResolvePhase } from './phases.ts';
 import { retreatMsFor } from './retreat.ts';
+import { addSeal, takeSealedTurn } from './seals.ts';
 import { scoreDamage, scoreShotClosed, scoreShotFired } from './scoring.ts';
 import { saibamanAmmoTable } from './setup.ts';
 import { makeWindState, type DeathCause, type MatchState } from './state.ts';
@@ -91,6 +93,8 @@ function dispatch(state: MatchState, event: MatchEvent, deps: MatchDeps): MatchS
       return onWormDrowned(state, event.wormId);
     case 'WormSpawned':
       return onWormSpawned(state, event, deps);
+    case 'WormSealed':
+      return onWormSealed(state, event);
     case 'AllBodiesAtRest':
       return state.phase === 'Resolving' ? settleResolving(state, 'rest', deps) : state;
     case 'CrateLanded':
@@ -111,8 +115,11 @@ function dispatch(state: MatchState, event: MatchEvent, deps: MatchDeps): MatchS
 function onBannerDone(state: MatchState, deps: MatchDeps): MatchState {
   switch (state.phase) {
     case 'TurnStart': {
-      const ms = hotSeatMsFor(state.teams, state.activeTeamIndex, deps.config);
-      return ms > 0 ? enterHotSeat(state, ms) : enterActive(state, deps.config, true);
+      // A team with a worm sealed by the Tesoro del Cielo loses the turn to the treasure's strike.
+      const { pruned, taken } = takeSealedTurn(state);
+      if (taken !== null) return leaveTurn(taken, 'turn.sealed', `${activeTeamOf(taken)?.name ?? '?'} loses the turn to the Tesoro del Cielo`);
+      const ms = hotSeatMsFor(pruned.teams, pruned.activeTeamIndex, deps.config);
+      return ms > 0 ? enterHotSeat(pruned, ms) : enterActive(pruned, deps.config, true);
     }
     case 'TurnEnd':
       return matchDecided(state) ? enterMatchEnd(state) : enterSuddenDeathCheck(state, deps.config);
@@ -172,7 +179,10 @@ function onDamageApplied(state: MatchState, event: DamageAppliedEvent): MatchSta
   if (!Number.isFinite(event.amount) || event.amount <= 0) return state;
   const ref = findWorm(state, event.wormId);
   if (ref === null || !ref.worm.alive) return state;
-  const effective = Math.min(event.amount, ref.worm.hp);
+  // A toll by share (Antares) is that share of what the worm has, rounded up.
+  const share = event.tollShare;
+  const requested = share !== undefined && Number.isFinite(share) && share > 0 ? Math.min(event.amount, Math.ceil(ref.worm.hp * Math.min(1, share))) : event.amount;
+  const effective = Math.min(requested, ref.worm.hp);
   if (effective <= 0) return resetInactivity(state);
   const hp = ref.worm.hp - effective;
   let next = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp });
@@ -251,6 +261,12 @@ function onWormSpawned(state: MatchState, event: WormSpawnedEvent, deps: MatchDe
     return { ...team, worms: [...team.worms, worm] };
   });
   return appendLog(resetInactivity(next), 'worm.spawned', `${name} sprouts for ${state.teams[teamIndex]?.name ?? event.teamId}`);
+}
+
+/** The Tesoro del Cielo closed on a worm: the ledger keeps the seal (match/seals.ts). Only while the cast's turn is live. */
+function onWormSealed(state: MatchState, event: WormSealedEvent): MatchState {
+  if (!isPreResolvePhase(state.phase) && state.phase !== 'Resolving') return state;
+  return addSeal(state, event);
 }
 
 function onCrateLanded(state: MatchState): MatchState {

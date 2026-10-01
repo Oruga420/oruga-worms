@@ -449,3 +449,65 @@ describe('decideHeuristic: the saibaman seed', () => {
     expect(decideHeuristic({ request: req, registry: WEAPONS, mask, worms: far }).weapon).not.toBe('saibaman');
   });
 });
+
+describe('decideHeuristic: the anime row', () => {
+  // With nothing worth firing the CPU passes: skip_go is in hand for that.
+  const only = (weapon: WeaponId) => [{ weapon: 'skip_go' as WeaponId, count: -1 }, { weapon, count: 1 }];
+  const pair = (enemyX: number, enemyHp = 100, ownHp = 100) => [
+    { id: 'r1', teamId: 'red', x: 200, y: 299, hp: ownHp, alive: true },
+    { id: 'b1', teamId: 'blue', x: enemyX, y: 299, hp: enemyHp, alive: true },
+  ];
+  const req = (weapon: WeaponId, enemyX: number, enemyHp = 100, ownHp = 100) =>
+    still(request({ ammo: only(weapon), active: { wormId: 'r1', team: 'red', x: 200, y: 299, hp: ownHp, canMoveLeft: true, canMoveRight: true, maxWalkMs: 0 }, enemies: [{ id: 'b1', team: 'blue', x: enemyX, y: 299, hp: enemyHp }] }));
+
+  it('stings a fat enemy in the open with Antares, at it, and pays half its own health for it', () => {
+    const decision = decideHeuristic(input(req('antares', 400), pair(400)));
+    expect(decision.weapon).toBe('antares');
+    expect(decision.facing).toBe('right');
+    expect(Math.abs(decision.aimAngleDeg)).toBeLessThanOrEqual(5);
+    // 100 for the kill, 50 for the price.
+    expect(decision.reasoning).toContain('expected score 50');
+  });
+
+  it('never stings through a wall', () => {
+    const mask = flatMask(1000, 400, 300);
+    for (let y = 250; y < 300; y += 1) setSpan(mask, y, 300, 306, SOLID);
+    expect(decideHeuristic({ request: req('antares', 400), registry: WEAPONS, mask, worms: pair(400) }).weapon).not.toBe('antares');
+  });
+
+  it('hurls a galaxy at a fat enemy, but not when it would take the thrower or a friend too', () => {
+    expect(decideHeuristic(input(req('galaxian', 450), pair(450))).weapon).toBe('galaxian');
+    const withFriend = [...pair(450), { id: 'r2', teamId: 'red', x: 470, y: 299, hp: 100, alive: true }];
+    expect(decideHeuristic(input(req('galaxian', 450), withFriend)).weapon).not.toBe('galaxian');
+    // A thin enemy is not worth the 50 it costs.
+    expect(decideHeuristic(input(req('galaxian', 450, 30), pair(450, 30))).weapon).not.toBe('galaxian');
+  });
+
+  it('seals the nearest enemy with the treasure, unless its own health cannot pay for every strike', () => {
+    expect(decideHeuristic(input(req('tenbu_horin', 400), pair(400))).weapon).toBe('tenbu_horin');
+    expect(decideHeuristic(input(req('tenbu_horin', 400, 100, 45), pair(400, 100, 45))).weapon).not.toBe('tenbu_horin');
+  });
+
+  it('throws the Hiken at an enemy in reach', () => {
+    const decision = decideHeuristic(input(req('hiken', 420), pair(420)));
+    expect(decision.weapon).toBe('hiken');
+    expect(decision.facing).toBe('right');
+  });
+
+  it('calls the meteor down on an enemy, with the point to call it on', () => {
+    const decision = decideHeuristic(input(req('meteor', 600), pair(600)));
+    expect(decision.weapon).toBe('meteor');
+    expect(decision.targetPoint).toEqual({ x: 600, y: 299 });
+  });
+
+  it('cuts an enemy standing close into cubes, and holds the swords for one far off', () => {
+    expect(decideHeuristic(input(req('santoryu', 260), pair(260))).weapon).toBe('santoryu');
+    expect(decideHeuristic(input(req('santoryu', 600), pair(600))).weapon).not.toBe('santoryu');
+  });
+
+  it('casts Zoltraak at an enemy in the open', () => {
+    const decision = decideHeuristic(input(req('zoltraak', 450), pair(450)));
+    expect(decision.weapon).toBe('zoltraak');
+    expect(Math.abs(decision.aimAngleDeg)).toBeLessThanOrEqual(5);
+  });
+});

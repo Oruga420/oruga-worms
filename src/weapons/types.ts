@@ -6,7 +6,7 @@
  * Weapon defs are data rows and are never mutated; ammo lives in match state.
  */
 
-/** The 31 panel slots: 26 combat weapons plus 5 utilities, in panel order. */
+/** The 38 panel slots: 33 combat weapons plus 5 utilities, in panel order. */
 export const PANEL_WEAPON_IDS = [
   'bazooka',
   'homing_missile',
@@ -33,6 +33,13 @@ export const PANEL_WEAPON_IDS = [
   'mine',
   'sheep',
   'saibaman',
+  'antares',
+  'galaxian',
+  'tenbu_horin',
+  'hiken',
+  'meteor',
+  'santoryu',
+  'zoltraak',
   'air_strike',
   'parachute',
   'jetpack',
@@ -71,7 +78,8 @@ export type WeaponKind =
   | 'ANIMAL'
   | 'UTILITY';
 
-export type WeaponCategory = 'explosive' | 'firearm' | 'melee' | 'air' | 'animal' | 'utility';
+/** 'anime' is the row of the techniques (TechniqueSpec): Saint Seiya's, One Piece's and Frieren's. */
+export type WeaponCategory = 'explosive' | 'firearm' | 'melee' | 'air' | 'animal' | 'anime' | 'utility';
 
 /** What a projectile does when it reaches the water line. */
 export const WATER_BEHAVIORS = ['splash', 'skim', 'pass'] as const;
@@ -120,6 +128,12 @@ export interface WeaponDef {
    * whatever they touch, Gear 5 and the Freezer, cost 50 (weapons/fire.ts pays it).
    */
   readonly toll?: number;
+  /**
+   * A toll as a share of the health the worm has when it fires, rounded up, instead of a fixed
+   * amount: Antares costs half of whatever the worm has left (weapons/fire.ts pays it, the ledger
+   * works out the amount).
+   */
+  readonly tollShare?: number;
 
   readonly fuse?: FuseSpec;
   readonly projectile?: ProjectileSpec;
@@ -137,6 +151,13 @@ export interface WeaponDef {
   readonly hex?: HexSpec;
   /** A PLACED row planted as a seed a small worm grows out of, to join the team (the Saibaman). */
   readonly sprout?: SproutSpec;
+  /**
+   * One of the techniques of the anime row (Antares, the Galaxian Explosion, the Tesoro del Cielo,
+   * the Hiken, Fujitora's meteor, the Santoryu, Zoltraak): a timeline the sim plays out
+   * (sim/technique.ts). The row's kind still says how it is aimed (the guide, the click); this
+   * block is everything else, so a technique row needs no other spec block.
+   */
+  readonly technique?: TechniqueSpec;
   readonly strike?: StrikeSpec;
   readonly spawn?: SpawnSpec;
   readonly utility?: UtilitySpec;
@@ -411,6 +432,156 @@ export interface SproutSpec {
   /** Living worms a team may have; a seed planted by a full team withers. */
   readonly maxTeamWorms: number;
 }
+
+/**
+ * Antares (Milo of Scorpio's Scarlet Needle): the worm raises a finger, its nail grows red and the
+ * Scorpio constellation is traced over the first worm along the aim; fourteen needles sting it, one
+ * star of the constellation each, and the fifteenth, Antares, goes into its heart: a worm Antares
+ * reaches is gone, whatever its health. Nobody on the line: the needles fly on and the light dies.
+ */
+export interface NeedleSpec {
+  readonly kind: 'needle';
+  /** How far the needles reach along the aim, world px; a wall stops them. */
+  readonly rangePx: number;
+  /** The finger up, the nail growing red, the stars appearing over the target. */
+  readonly pointMs: number;
+  /** Stings before Antares, the time between two of them, and what each takes. */
+  readonly stings: number;
+  readonly stingIntervalMs: number;
+  readonly stingDamage: number;
+  /** The breath before the last needle: the heart's star blazes. */
+  readonly antaresMs: number;
+  /** After Antares: the victim falls, the finger comes down. */
+  readonly recoverMs: number;
+}
+
+/**
+ * The Galaxian Explosion (Saga of Gemini): arms crossed overhead while the stars gather behind the
+ * worm, then a galaxy hurled along the aim that goes off at the first land or worm it meets. Every
+ * worm within its kill radius is gone, whatever its health, friends and the worm itself included,
+ * and the land goes with them.
+ */
+export interface GalaxySpec {
+  readonly kind: 'galaxy';
+  readonly chargeMs: number;
+  /** The galaxy's flight: speed, reach, and its own radius against the land and the worms. */
+  readonly speedPxPerS: number;
+  readonly rangePx: number;
+  readonly radiusPx: number;
+  /** Everyone within this of where it goes off dies; the crater is as wide. */
+  readonly killRadiusPx: number;
+  /** The blast at the burst: the crater, the shake and the push (its damage is the kill). */
+  readonly blast: BlastSpec;
+  readonly recoverMs: number;
+}
+
+/**
+ * The Tesoro del Cielo (Shaka of Virgo's Tenbu Horin): the worm sits in the lotus and the treasure's
+ * wheel closes over the nearest enemy in plain sight within reach, sealing it. From then on its team
+ * loses its turns, one strike of the treasure each: a sense taken from the sealed worm and hitToll
+ * health from the caster, and the last strike takes the worm's life. The seal breaks when either of
+ * them dies first (match/seals.ts).
+ */
+export interface TreasureSpec {
+  readonly kind: 'treasure';
+  /** Lock reach, worm centre to worm centre, world px. The target must be in plain sight. */
+  readonly rangePx: number;
+  /** The cast: the lotus, the twin trees, the wheel coming down over the target. */
+  readonly castMs: number;
+  /** Strikes, one per turn of the target's team; the last one kills. */
+  readonly hits: number;
+  /** What each strike costs the caster, hp. */
+  readonly hitToll: number;
+  /** One strike, played at the start of a turn the sealed team loses. */
+  readonly strikeMs: number;
+  readonly recoverMs: number;
+}
+
+/**
+ * The Hiken (Portgas D. Ace's Fire Fist): the worm draws its fist back as it catches fire, then
+ * throws a fist of fire as big as a house along the aim; where it lands it bursts and flings
+ * burning blobs about, which roll and go off like napalm.
+ */
+export interface HikenSpec {
+  readonly kind: 'hiken';
+  readonly windupMs: number;
+  readonly speedPxPerS: number;
+  readonly rangePx: number;
+  /** The fist's radius against the land and the worms, world px. */
+  readonly radiusPx: number;
+  readonly blast: BlastSpec;
+  /** The burning blobs: how many, how hard they are flung, and what they are. */
+  readonly flames: number;
+  readonly flameSpeed: number;
+  readonly flameProjectile: ProjectileSpec;
+  readonly flameBlast: BlastSpec;
+  readonly recoverMs: number;
+}
+
+/**
+ * Fujitora's meteor (Issho, One Piece): the worm raises its sword at the spot the player clicks and
+ * gravity drags a meteor down out of the sky onto it, slanting in from the side the worm faces. The
+ * biggest crater in the game.
+ */
+export interface MeteorSpec {
+  readonly kind: 'meteor';
+  /** The sword up, the sky darkening, before the meteor shows. */
+  readonly callMs: number;
+  /** It falls this fast, and drifts this many px sideways per px it falls. */
+  readonly fallSpeedPxPerS: number;
+  readonly slant: number;
+  /** The rock's radius against the land and the worms, world px. */
+  readonly radiusPx: number;
+  readonly blast: BlastSpec;
+  readonly recoverMs: number;
+}
+
+/**
+ * The Santoryu (Roronoa Zoro's three sword style): the worm draws its three swords and cuts the
+ * square of the world in front of it, along the aim, into cubes. The land in the square falls apart
+ * and is gone; every worm in it is cut and thrown.
+ */
+export interface DiceSpec {
+  readonly kind: 'dice';
+  /** The square's side, and how far its centre sits from the worm's middle along the aim, world px. */
+  readonly sizePx: number;
+  readonly reachPx: number;
+  /** The cubes' side, world px. */
+  readonly cubePx: number;
+  /** What each worm in the square takes, and the throw, px per second. */
+  readonly damage: number;
+  readonly push: number;
+  readonly lift: number;
+  /** The swords out, then the slashes one by one, then the cut lands at once. */
+  readonly drawMs: number;
+  readonly slashes: number;
+  readonly slashIntervalMs: number;
+  readonly recoverMs: number;
+}
+
+/**
+ * Zoltraak (Frieren's offensive magic): magic circles open one by one round the worm, then each
+ * fires a beam of light at the first thing along the aim, all of them meeting where it is: each beam
+ * is a small blast.
+ */
+export interface ZoltraakSpec {
+  readonly kind: 'zoltraak';
+  readonly circles: number;
+  /** The first circle opens after formMs, the rest circleIntervalMs apart. */
+  readonly formMs: number;
+  readonly circleIntervalMs: number;
+  /** Then they fire, one after another. */
+  readonly fireIntervalMs: number;
+  /** How far the aim reaches for the point the beams meet at, world px. */
+  readonly rangePx: number;
+  /** How far round the worm the circles open, world px. */
+  readonly spreadPx: number;
+  readonly beamBlast: BlastSpec;
+  readonly recoverMs: number;
+}
+
+export type TechniqueSpec = NeedleSpec | GalaxySpec | TreasureSpec | HikenSpec | MeteorSpec | DiceSpec | ZoltraakSpec;
+export type TechniqueKind = TechniqueSpec['kind'];
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */
 export interface StrikeSpec {

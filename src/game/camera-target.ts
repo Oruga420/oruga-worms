@@ -21,7 +21,10 @@ import { holdsVictim } from '../sim/combo.ts';
 import { devourHand } from '../sim/devour.ts';
 import { hexLift, hexLight } from '../sim/hex.ts';
 import { WORM_HEIGHT } from '../sim/constants.ts';
-import type { BeamBody } from '../sim/types.ts';
+import { techniqueProgress } from '../sim/technique.ts';
+import { galaxyAt } from '../sim/techniques/galaxy.ts';
+import { hikenAt } from '../sim/techniques/hiken.ts';
+import type { BeamBody, TechniqueBody } from '../sim/types.ts';
 import type { SimWorld } from '../sim/world.ts';
 
 /** Smoothing while chasing ammo. Well under the camera's 150 ms default so the shell stays framed. */
@@ -42,6 +45,8 @@ export const DEVOUR_TAU_MS = 70;
 export const HEX_TAU_MS = 70;
 /** Smoothing on a Saibaman seed: an easy pan down to the ground, quick enough to catch the leap. */
 export const SPROUT_TAU_MS = 80;
+/** Smoothing on a technique: quick enough to ride a galaxy or a meteor, soft enough to read as a pan. */
+export const TECHNIQUE_TAU_MS = 75;
 /** A knocked worm this fast is worth watching fly (world px per second). */
 export const FLYER_MIN_SPEED = 160;
 /** Smoothing while sitting on the impact, slightly looser so the settle is not abrupt. */
@@ -49,7 +54,7 @@ export const IMPACT_TAU_MS = 120;
 /** How long the camera stays on the impact point before returning to the active worm. */
 export const IMPACT_HOLD_MS = 900;
 
-export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'beam' | 'devour' | 'hex' | 'sprout' | 'flyer';
+export type CameraFocus = 'worm' | 'projectile' | 'impact' | 'combo' | 'beam' | 'devour' | 'hex' | 'sprout' | 'technique' | 'flyer';
 
 export interface CameraDirector {
   readonly focus: CameraFocus;
@@ -91,6 +96,51 @@ function beamFrame(beam: BeamBody, view: ViewExtent | undefined): { readonly x: 
   const toEdge = view === undefined ? Infinity : Math.min(view.halfW / Math.max(1e-6, Math.abs(beam.dx)), view.halfH / Math.max(1e-6, Math.abs(beam.dy)));
   const along = Math.min(beam.length / 2, BEAM_FRAME_SHARE * toEdge);
   return { x: beam.x0 + beam.dx * along, y: beam.y0 + beam.dy * along };
+}
+
+/** A point over a worm standing at (x, y): its middle, where the eye goes. */
+function over(x: number, y: number): { readonly x: number; readonly y: number } {
+  return { x, y: y - WORM_HEIGHT * 0.6 };
+}
+
+/**
+ * Where to look at a technique, by kind and stage: the worm as it gathers itself, then what it
+ * sends (the galaxy, the fist, the meteor) or what it does it to (the stung worm, the sealed one,
+ * the square cut, the point the beams meet), then where it ended.
+ */
+export function techniqueFocus(body: TechniqueBody, worms: readonly { readonly id: string; readonly x: number; readonly y: number; readonly alive: boolean }[]): { readonly x: number; readonly y: number } {
+  const victim = (id: string | null) => (id === null ? undefined : worms.find((w) => w.id === id));
+  const home = over(body.holdX, body.holdY);
+  switch (body.kind) {
+    case 'needle': {
+      if (body.stage === 'point') return home;
+      const v = victim(body.victimId);
+      return v !== undefined ? over(v.x, v.y) : { x: body.targetX, y: body.targetY };
+    }
+    case 'galaxy':
+      if (body.stage === 'charge') return home;
+      return galaxyAt(body) ?? (body.burstX !== null && body.burstY !== null ? { x: body.burstX, y: body.burstY } : home);
+    case 'treasure': {
+      const at = over(body.targetX, body.targetY);
+      if (body.stage === 'cast') return techniqueProgress(body) < 0.45 ? home : at;
+      return at;
+    }
+    case 'hiken':
+      if (body.stage === 'windup') return home;
+      return hikenAt(body) ?? (body.burstX !== null && body.burstY !== null ? { x: body.burstX, y: body.burstY } : home);
+    case 'meteor':
+      if (body.stage === 'call') return techniqueProgress(body) < 0.4 ? home : { x: body.targetX, y: body.targetY };
+      if (body.stage === 'fall') return { x: body.x, y: body.y };
+      return body.burstX !== null && body.burstY !== null ? { x: body.burstX, y: body.burstY } : { x: body.targetX, y: body.targetY };
+    case 'dice': {
+      const middle = { x: body.squareX + body.side / 2, y: body.squareY + body.side / 2 };
+      return body.stage === 'draw' ? { x: (home.x + middle.x) / 2, y: (home.y + middle.y) / 2 } : middle;
+    }
+    case 'zoltraak':
+      if (body.stage === 'form') return { x: home.x, y: home.y - 10 };
+      if (body.stage === 'fire') return { x: (home.x + body.targetX) / 2, y: (home.y + body.targetY) / 2 };
+      return { x: body.targetX, y: body.targetY };
+  }
 }
 
 /**
@@ -175,6 +225,13 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
     return { director: { focus: 'sprout', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: SPROUT_TAU_MS };
   }
 
+  // A technique of the anime row: the worm, what it sends or what it does it to, where it ends.
+  const technique = (world.techniques ?? []).find((t) => t.alive);
+  if (technique !== undefined) {
+    const focus = techniqueFocus(technique, world.worms ?? []);
+    return { director: { focus: 'technique', projectileId: null, x: focus.x, y: focus.y, holdMs: IMPACT_HOLD_MS }, target: focus, tauMs: TECHNIQUE_TAU_MS };
+  }
+
   // A worm thrown by a blast or a blow: follow it until it lands, as the source game does.
   let flyer: { readonly x: number; readonly y: number; readonly speed: number } | null = null;
   for (const worm of world.worms ?? []) {
@@ -188,7 +245,7 @@ export function updateCameraTarget(director: CameraDirector, world: SimWorld, dt
 
   // The shell we were riding is gone: it detonated, timed out or left the map. Sit on where it was.
   // The same for a finished fight or a worm that has landed.
-  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'beam' || director.focus === 'devour' || director.focus === 'hex' || director.focus === 'sprout' || director.focus === 'flyer') {
+  if (director.focus === 'projectile' || director.focus === 'combo' || director.focus === 'beam' || director.focus === 'devour' || director.focus === 'hex' || director.focus === 'sprout' || director.focus === 'technique' || director.focus === 'flyer') {
     return {
       director: { ...director, focus: 'impact', projectileId: null, holdMs: IMPACT_HOLD_MS },
       target: { x: director.x, y: director.y },

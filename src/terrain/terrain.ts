@@ -203,6 +203,16 @@ export function carve(terrain: TerrainData, cx: number, cy: number, r: number): 
   return result;
 }
 
+/**
+ * A clean cut: the land in an axis aligned rect is gone, mask and tiles together, with no scorch
+ * (a sword, not a blast). Bedrock stays. The Santoryu's square (sim/techniques/dice.ts).
+ */
+export function cutRect(terrain: TerrainData, x: number, y: number, w: number, h: number): CarveResult {
+  const result = carveRect(terrain.mask, x, y, w, h, AIR);
+  applyCarveSpans(terrain.tiles, result.spans, null);
+  return result;
+}
+
 /** Girder: writes bedrock into the mask and paints the same spans in the theme's bedrock colour. */
 export function placeGirder(terrain: TerrainData, x: number, y: number, w: number, h: number): CarveResult {
   const result = carveRect(terrain.mask, x, y, w, h, BEDROCK);

@@ -15,6 +15,7 @@ import { SPRITE_SCALE } from '../config/units.ts';
 import { WEAPONS } from '../weapons/registry.ts';
 import type { CharacterSprites } from './render.ts';
 import { POWER_GOLD } from './power-orb.ts';
+import { superPrice } from './price.ts';
 import type { WeaponId } from '../weapons/types.ts';
 
 const TEAM_COLORS = ['#e05a4d', '#4d8fe0', '#57b85a', '#d9b23a'] as const;
@@ -105,8 +106,8 @@ export function drawHud(ctx: Ctx2D, viewport: Size, model: HudModel): void {
   ctx.font = '13px system-ui, sans-serif';
   ctx.fillStyle = '#fff';
   const owner = activeWormOf(state);
-  const toll = WEAPONS[model.weapon].toll;
-  ctx.fillText(`${owner?.name ?? "Worm"} | ${model.weapon} | ${ammoBadge(owner?.ammo[model.weapon] ?? 0) || "unlimited"}${model.fuseMs == null ? "" : ` | fuse ${model.fuseMs / 1000}s`}${toll === undefined ? "" : ` | costs ${toll} hp`}`, 12, viewport.h - 40);
+  const price = superPrice(WEAPONS[model.weapon]);
+  ctx.fillText(`${owner?.name ?? "Worm"} | ${model.weapon} | ${ammoBadge(owner?.ammo[model.weapon] ?? 0) || "unlimited"}${model.fuseMs == null ? "" : ` | fuse ${model.fuseMs / 1000}s`}${price === null ? "" : ` | ${price.label.toLowerCase()}`}`, 12, viewport.h - 40);
   // Movement budget, to the right of the weapon name; red once it is spent.
   const stepsTotal = model.stepsTotal;
   ctx.fillStyle = model.steps === 0 && state.phase === 'Active' ? '#ff5030' : '#ffd36a';
@@ -213,12 +214,12 @@ function drawWeaponPanel(ctx: Ctx2D, panel: PanelLayout, selected: WeaponId, spr
         ctx.fillText(badge, cell.x + cell.w - 4, cell.y + 8);
       }
       // What it costs the worm that uses it, in red on the other corner: the one hit kills are not free.
-      const toll = WEAPONS[cell.id].toll;
-      if (toll !== undefined) {
+      const price = superPrice(WEAPONS[cell.id]);
+      if (price !== null) {
         ctx.textAlign = 'left';
         ctx.font = 'bold 10px system-ui, sans-serif';
         ctx.fillStyle = cell.enabled ? '#ff5a6e' : 'rgba(255,90,110,0.45)';
-        ctx.fillText(tollBadge(toll), cell.x + 4, cell.y + 8);
+        ctx.fillText(price.badge, cell.x + 4, cell.y + 8);
       }
     }
   }

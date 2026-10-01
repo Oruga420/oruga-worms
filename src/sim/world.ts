@@ -1,7 +1,8 @@
 /**
  * The simulation world (architecture.md section C): owns the terrain, the wind, gravity, the
  * seeded rng and the entity lists, and steps everything once per tick in a fixed order (worms,
- * combos, beams, devours, hexes, sprouts, projectiles, crates, mines, sheep, crate pickups). Events accumulate in `events` and are
+ * combos, beams, devours, hexes, sprouts, techniques, projectiles, crates, mines, sheep, crate
+ * pickups). Events accumulate in `events` and are
  * drained by the caller after each tick; the match reducer, the audio mixer and the particles
  * read them. Entity arrays are compacted after each step so dead bodies do not linger.
  */
@@ -17,11 +18,12 @@ import { collectCrates, stepCrate } from './crate.ts';
 import { heldByDevours, stepDevour } from './devour.ts';
 import { heldByHexes, stepHex } from './hex.ts';
 import { heldBySprouts, stepSprout } from './sprout.ts';
+import { heldByTechniques, stepTechnique } from './technique.ts';
 import { stepMine } from './mine.ts';
 import { stepProjectile } from './projectile.ts';
 import { allAtRest } from './rest.ts';
 import { stepSheep } from './sheep.ts';
-import { IDLE_INTENT, type BeamBody, type ComboBody, type CrateBody, type DevourBody, type HexBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type SproutBody, type WormBody, type WormIntent } from './types.ts';
+import { IDLE_INTENT, type BeamBody, type ComboBody, type CrateBody, type DevourBody, type HexBody, type MineBody, type ProjectileBody, type SheepBody, type SimEvent, type SproutBody, type TechniqueBody, type WormBody, type WormIntent } from './types.ts';
 import { stepWorm } from './worm-controller.ts';
 
 export interface SimWorld {
@@ -45,6 +47,8 @@ export interface SimWorld {
   hexes: HexBody[];
   /** Saibaman seeds in the ground (sim/sprout.ts); each holds its planter until the Saibaman is out. */
   sprouts: SproutBody[];
+  /** The techniques of the anime row in progress (sim/technique.ts); each holds its worms while it plays. */
+  techniques: TechniqueBody[];
   readonly events: SimEvent[];
   tick: number;
   nextId(): number;
@@ -73,6 +77,7 @@ export function createWorld(terrain: TerrainData, options: WorldOptions): SimWor
     devours: [],
     hexes: [],
     sprouts: [],
+    techniques: [],
     events: [],
     tick: 0,
     nextId: () => {
@@ -97,19 +102,24 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   const dt = TICK_S;
   world.tick += 1;
   // Snapshots: bodies spawned during this tick (cluster children, strike bombs) step from the next tick.
-  // A worm a combo, a beam, a devour, a hex or a sprout holds is placed by it instead, right after the others moved.
+  // A worm a combo, a beam, a devour, a hex, a sprout or a technique holds is placed by it instead, right after the others moved.
   const held = heldWormIds(world.combos);
   const beaming = heldByBeams(world.beams);
   const eating = heldByDevours(world.devours);
   const hexed = heldByHexes(world.hexes);
   const planting = heldBySprouts(world.sprouts);
+  const performing = heldByTechniques(world.techniques);
   // A Saibaman that leaps out of the ground this tick steps from the next one.
-  for (const worm of [...world.worms]) if (!held.has(worm.id) && !beaming.has(worm.id) && !eating.has(worm.id) && !hexed.has(worm.id) && !planting.has(worm.id)) stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
+  for (const worm of [...world.worms]) {
+    if (held.has(worm.id) || beaming.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id) || planting.has(worm.id) || performing.has(worm.id)) continue;
+    stepWorm(world, worm, intents.get(worm.id) ?? IDLE_INTENT, dt);
+  }
   for (const combo of [...world.combos]) stepCombo(world, combo);
   for (const beam of [...world.beams]) stepBeam(world, beam);
   for (const devour of [...world.devours]) stepDevour(world, devour);
   for (const hex of [...world.hexes]) stepHex(world, hex);
   for (const sprout of [...world.sprouts]) stepSprout(world, sprout);
+  for (const technique of [...world.techniques]) stepTechnique(world, technique);
   for (const projectile of [...world.projectiles]) stepProjectile(world, projectile, dt);
   for (const crate of [...world.crates]) stepCrate(world, crate, dt);
   for (const mine of [...world.mines]) stepMine(world, mine, dt);
@@ -124,6 +134,7 @@ export function stepWorld(world: SimWorld, intents: ReadonlyMap<string, WormInte
   world.devours = world.devours.filter((d) => d.alive);
   world.hexes = world.hexes.filter((h) => h.alive);
   world.sprouts = world.sprouts.filter((s) => s.alive);
+  world.techniques = world.techniques.filter((t) => t.alive);
   const events = world.events.splice(0, world.events.length);
   return events;
 }

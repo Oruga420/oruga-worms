@@ -80,6 +80,14 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   sheep: 1,
   // One seed per worm, like the supers: it grows a Saibaman for the team.
   saibaman: 1,
+  // The anime row: one of each technique per worm, like the supers.
+  antares: 1,
+  galaxian: 1,
+  tenbu_horin: 1,
+  hiken: 1,
+  meteor: 1,
+  santoryu: 1,
+  zoltraak: 1,
   air_strike: 1,
   parachute: 2,
   jetpack: 1,
@@ -254,6 +262,8 @@ export function buildInitialState(setup: MatchSetup, config: MatchConfig = GAME_
     lastHitBy: {},
     shot: null,
     settle: null,
+    seals: [],
+    strikes: [],
   };
   return ok(deepFreeze(enterTurnStart(beforeStart, { config, rng })));
 }

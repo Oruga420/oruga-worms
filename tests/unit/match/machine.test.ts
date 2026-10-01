@@ -6,6 +6,7 @@ import { reduce } from '@/match/machine.ts';
 import { buildInitialState, type MatchSetup, type TeamSetup } from '@/match/setup.ts';
 import type { MatchState, TeamController } from '@/match/state.ts';
 import { nextWormIndex } from '@/match/turn.ts';
+import { WEAPON_IDS, isSuper } from '@/weapons/registry.ts';
 
 const CONFIG: MatchConfig = { ...GAME_CONFIG, hotSeatMs: 1000 };
 
@@ -181,9 +182,9 @@ describe('match reducer: crates give what they promise', () => {
     if (picker === undefined) throw new Error('no picker');
     const after = run(active, deps, [{ type: 'CratePicked', wormId: picker.id, crate: 'power' }]);
     const ammo = after.teams[1]?.worms[1]?.ammo;
-    const supers = (['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer'] as const).map((id) => ammo?.[id]);
+    const supers = WEAPON_IDS.filter((id) => isSuper(id)).map((id) => ammo?.[id]);
     expect(supers.filter((n) => n === 2)).toHaveLength(1);
-    expect(supers.filter((n) => n === 1)).toHaveLength(3);
+    expect(supers.filter((n) => n === 1)).toHaveLength(supers.length - 1);
   });
 });
 

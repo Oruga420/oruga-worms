@@ -1999,6 +1999,174 @@
       "gainDb": 0
     },
     {
+      "kind": "voice",
+      "id": "voice_super_scarlet_needle",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "scarlet_needle",
+      "text": "¡Aguja Escarlata!",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 1.05,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_antares",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "antares",
+      "text": "¡ANTAREEEEES!",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 1.05,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_galaxian",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "galaxian",
+      "text": "¡Explosión de Galaxias!",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 0.95,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_tenbu_horin",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "tenbu_horin",
+      "text": "Tesoro del Cielo...",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 1,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "use_speaker_boost": true,
+        "speed": 0.85
+      },
+      "gainDb": 0
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_hiken",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "hiken",
+      "text": "¡HIKEEEEN!",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 1.1,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_meteor",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "meteor",
+      "text": "Que caiga... del cielo.",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 0.92,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "use_speaker_boost": true,
+        "speed": 0.85
+      },
+      "gainDb": 0
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_santoryu",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "santoryu",
+      "text": "¡Santoryu!",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 1,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.2,
+        "similarity_boost": 0.75,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "gainDb": 2
+    },
+    {
+      "kind": "voice",
+      "id": "voice_super_zoltraak",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "zoltraak",
+      "text": "Zoltraak.",
+      "voiceId": "mrQhZWGbb2k9qWJb5qeA",
+      "voiceName": "Timmy - Anxious Nerd",
+      "pitchFactor": 1.25,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "use_speaker_boost": true,
+        "speed": 0.85
+      },
+      "gainDb": 0
+    },
+    {
       "kind": "music",
       "id": "music_theme_loop",
       "group": "music",

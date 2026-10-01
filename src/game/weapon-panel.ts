@@ -25,6 +25,7 @@ export const CATEGORY_ORDER: readonly WeaponCategory[] = Object.freeze([
   'melee',
   'air',
   'animal',
+  'anime',
   'utility',
 ]);
 
@@ -34,6 +35,7 @@ export const CATEGORY_LABELS: Readonly<Record<WeaponCategory, string>> = Object.
   melee: 'Melee',
   air: 'Air',
   animal: 'Animals',
+  anime: 'Anime',
   utility: 'Utility',
 });
 

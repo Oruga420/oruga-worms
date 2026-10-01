@@ -6,6 +6,7 @@
  */
 
 import { ANIMALS } from './defs/animals.ts';
+import { ANIME } from './defs/anime.ts';
 import { EXPLOSIVES } from './defs/explosives.ts';
 import { FIREARMS } from './defs/firearms.ts';
 import { MELEE } from './defs/melee.ts';
@@ -23,6 +24,7 @@ const ROWS: Readonly<Partial<Record<WeaponId, WeaponDef>>> = Object.freeze({
   ...PLACED,
   ...STRIKES,
   ...ANIMALS,
+  ...ANIME,
   ...UTILITIES,
 });
 
@@ -69,10 +71,11 @@ export function isUtility(idOrDef: WeaponId | WeaponDef): boolean {
 
 /**
  * The anime supers: a move that plays its own scene in the sim (Ryuko Ranbu's beating, the
- * Kamehameha's beam, Gear 5's meal, the Freezer's light, the Saibaman's sprouting). One of each per
- * worm, never out of a weapon crate; the power orb is what recharges them.
+ * Kamehameha's beam, Gear 5's meal, the Freezer's light, the Saibaman's sprouting, and every
+ * technique of the anime row). One of each per worm, never out of a weapon crate; the power orb is
+ * what recharges them.
  */
 export function isSuper(idOrDef: WeaponId | WeaponDef): boolean {
   const def = defOf(idOrDef);
-  return def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined;
+  return def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined || def.technique !== undefined;
 }
