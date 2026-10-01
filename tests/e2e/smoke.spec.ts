@@ -1110,7 +1110,9 @@ test('a power orb falls out of the sky onto the land and gives a super to the wo
     page.evaluate(() => {
       const inv = window.__orugas!.inventory();
       const ammo = inv.worms.find((worm) => worm.id === inv.activeId)?.ammo ?? {};
-      return ['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer', 'saibaman'].reduce((sum, id) => sum + (ammo[id] ?? 0), 0);
+      // Every super the orb can bring back, the anime row's techniques included.
+      const ids = ['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak'];
+      return ids.reduce((sum, id) => sum + (ammo[id] ?? 0), 0);
     });
   const before = await supers();
   await page.evaluate(() => window.__orugas!.dropCrate('power', 60));

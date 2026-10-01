@@ -99,8 +99,9 @@ and start the match.
 - **Power orbs**: about one supply drop in three is now an orange ball with four red stars that
   falls out of the sky like a comet and floats glowing where it lands (POWER INCOMING in gold). The
   worm that takes it gets a super back: one it has already used if any (Ryuko Ranbu, the
-  Kamehameha, Gear 5, the Freezer or the Saibaman seed), otherwise one more of any, and the name
-  rises over it (+1 KAMEHAMEHA!). Every crate now says what it gave (+1 BAZOOKA, +25).
+  Kamehameha, Gear 5, the Freezer, the Saibaman seed or a technique of the Anime row), otherwise
+  one more of any, and the name rises over it (+1 KAMEHAMEHA!). Every crate now says what it gave
+  (+1 BAZOOKA, +25).
 - **CPU worms move**: before they shoot they walk to a better spot and turn to face enemies behind
   them, and with nothing to shoot at they close in instead of standing still.
 - Crates now land on the land. The top of the world is a thin bedrock ceiling, and every crate used
