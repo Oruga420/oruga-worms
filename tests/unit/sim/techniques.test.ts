@@ -46,7 +46,7 @@ function tolls(events: readonly SimEvent[], wormId: string): Extract<SimEvent, {
 }
 
 describe('techniques: the rows', () => {
-  it('are seven supers of the anime row, one per worm, never in a crate, aimed by their kind', () => {
+  it('are seven supers of the anime row, one per worm, open from the second turn, never in a crate, aimed by their kind', () => {
     const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak'] as const;
     for (const id of ids) {
       const def = WEAPONS[id];
@@ -54,7 +54,7 @@ describe('techniques: the rows', () => {
       expect(def.technique).toBeDefined();
       expect(def.ammo).toBe(1);
       expect(def.crateWeight).toBe(0);
-      expect(def.delayTurns ?? 0).toBeGreaterThanOrEqual(3);
+      expect(def.delayTurns).toBe(2);
     }
     expect(WEAPONS.meteor.kind).toBe('TARGETED');
     expect(WEAPONS.meteor.requiresTargetSelect).toBe(true);

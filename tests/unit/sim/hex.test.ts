@@ -35,13 +35,13 @@ function damageTo(events: readonly SimEvent[], wormId: string): number[] {
 }
 
 describe('freezer: the row', () => {
-  it('is a hitscan super off a bare finger, one per worm, late to unlock and never in a crate', () => {
+  it('is a hitscan super off a bare finger, one per worm, open from the second turn and never in a crate', () => {
     expect(FREEZER.kind).toBe('HITSCAN');
     expect(FREEZER.category).toBe('firearm');
     expect(FREEZER.heldSprite).toBeNull();
     expect(FREEZER.hitscan?.rangePx).toBe(SPEC.rangePx);
     expect(FREEZER.ammo).toBe(1);
-    expect(FREEZER.delayTurns).toBe(5);
+    expect(FREEZER.delayTurns).toBe(2);
     expect(FREEZER.crateWeight).toBe(0);
     expect(FREEZER.beam).toBeUndefined();
     expect(SPEC.burst.carve).toBe(true);

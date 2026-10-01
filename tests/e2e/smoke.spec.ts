@@ -724,8 +724,8 @@ test('kamehameha from the inventory: aimed with the keys, it charges, fires and 
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // The beam unlocks on turn 3 (its scheme delay): end the first two turns.
-  for (let ended = 0; ended < 2; ended += 1) {
+  // The beam unlocks on turn 2 (its scheme delay): end the first turn.
+  for (let ended = 0; ended < 1; ended += 1) {
     const turn = await page.evaluate(() => window.__orugas!.turn());
     await page.evaluate(() => window.__orugas!.endTurn());
     await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
@@ -793,8 +793,8 @@ test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // Gear 5 unlocks on turn 4 (its scheme delay): end the first three turns.
-  for (let ended = 0; ended < 3; ended += 1) {
+  // Gear 5 unlocks on turn 2 (its scheme delay): end the first turn.
+  for (let ended = 0; ended < 1; ended += 1) {
     const turn = await page.evaluate(() => window.__orugas!.turn());
     await page.evaluate(() => window.__orugas!.endTurn());
     await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
@@ -836,7 +836,7 @@ test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it
 
 test('freezer from the inventory: the light goes into the worm in sight, and it floats, swells and bursts', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  // Four turns to reach the unlock, then the whole show: it ran at 55 s, too close to the 60 s default.
+  // The light, the float, the swell and the burst take a while: room over the 60 s default.
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -852,8 +852,8 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // The Freezer unlocks on turn 5 (its scheme delay): end the first four turns.
-  for (let ended = 0; ended < 4; ended += 1) {
+  // The Freezer unlocks on turn 2 (its scheme delay): end the first turn.
+  for (let ended = 0; ended < 1; ended += 1) {
     const turn = await page.evaluate(() => window.__orugas!.turn());
     await page.evaluate(() => window.__orugas!.endTurn());
     await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
@@ -985,8 +985,8 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // Zoltraak unlocks on turn 3 (its scheme delay): end the first two turns.
-  await endTurns(page, 2);
+  // Zoltraak unlocks on turn 2 (its scheme delay): end the first turn.
+  await endTurns(page, 1);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(60));
   if (victim === null) throw new Error('No enemy to line up');
@@ -1026,13 +1026,13 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
 
 test('tesoro del cielo from the anime row: the enemy in sight is sealed, its team loses three turns, and the third strike kills', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  // Four turns to the unlock, the cast, then three lost turns with a strike each.
+  // The cast, then three lost turns with a strike each.
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // The Tesoro del Cielo unlocks on turn 5 (its scheme delay): end the first four turns.
-  await endTurns(page, 4);
+  // The Tesoro del Cielo unlocks on turn 2 (its scheme delay): end the first turn.
+  await endTurns(page, 1);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   // Close enough to be the one the wheel picks.
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(70));

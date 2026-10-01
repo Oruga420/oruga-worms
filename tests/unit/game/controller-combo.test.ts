@@ -359,7 +359,7 @@ describe('controller: gear 5', () => {
   }
 
   it('is refused before its scheme delay has elapsed', () => {
-    const controller = makeController({ turn: 3 });
+    const controller = makeController({ turn: 1 });
     tickUntil(controller, 'Active');
     controller.selectWeapon('gear_five');
     expect(controller.selectedWeapon()).not.toBe('gear_five');
@@ -452,7 +452,7 @@ describe('controller: freezer', () => {
   }
 
   it('is refused before its scheme delay has elapsed', () => {
-    const controller = makeController({ turn: 4 });
+    const controller = makeController({ turn: 1 });
     tickUntil(controller, 'Active');
     controller.selectWeapon('freezer');
     expect(controller.selectedWeapon()).not.toBe('freezer');

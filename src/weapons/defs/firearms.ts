@@ -258,8 +258,8 @@ const KAMEHAMEHA: WeaponDef = defineWeapon({
   /** Fired from the bare hands: the energy ball is the only thing the worm holds. */
   heldSprite: null,
   ammo: 1,
-  /** A super needs time to build: never before the third turn. */
-  delayTurns: 3,
+  /** Like every super: never on the opening turn. */
+  delayTurns: 2,
   charged: false,
   maxPower: 0,
   windAffected: false,
@@ -309,8 +309,8 @@ const FREEZER: WeaponDef = defineWeapon({
   /** A bare finger: the light on its tip is the only thing the worm holds. */
   heldSprite: null,
   ammo: 1,
-  /** The surest kill in the game waits for the fight to ripen: never before the fifth turn. */
-  delayTurns: 5,
+  /** Like every super: never on the opening turn. */
+  delayTurns: 2,
   charged: false,
   maxPower: 0,
   windAffected: false,

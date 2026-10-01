@@ -21,8 +21,8 @@ const AIR_STRIKE: WeaponDef = defineWeapon({
   /** The worm holds nothing; the crosshair is the whole interaction. */
   heldSprite: null,
   ammo: 1,
-  /** Intermediate scheme delay (prior-art.md weapon table). */
-  delayTurns: 5,
+  /** Open from the second turn like everything held back, sooner than the intermediate scheme's 5 (prior-art.md weapon table). */
+  delayTurns: 2,
   charged: false,
   maxPower: 0,
   windAffected: false,
