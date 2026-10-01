@@ -166,6 +166,9 @@ interface OrugasDebug {
   readonly hexes: () => number;
   /** Saibaman seeds still in the ground. */
   readonly sprouts: () => number;
+  /** Techniques of the anime row still playing, and the seals the Tesoro del Cielo holds. */
+  readonly techniques: () => number;
+  readonly seals: () => readonly { targetId: string; hitsLeft: number }[];
   /** Degrees the crosshair sits above the line from the muzzle to that worm's centre (below is negative); null when either is missing. */
   readonly aimOffBy: (id: string) => number | null;
 }
@@ -766,7 +769,7 @@ function boot(): void {
         // The supers' camera work: the freeze dims and pulls in, the beating turns the screen white,
         // a beam darkens the world while it charges and pulls back as it fires, Gear 5 steps in on
         // every drum and closes in on the meal, the Freezer closes in on the victim as it swells.
-        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours, controller.world().hexes, controller.world().sprouts);
+        const cine = cinematicFor(controller.world().combos, controller.world().beams, controller.world().devours, controller.world().hexes, controller.world().sprouts, controller.world().techniques);
         const view: Camera = cine.zoom === 1 ? camera : { ...camera, zoom: camera.zoom * cine.zoom };
         const model = {
           state,
@@ -1020,6 +1023,8 @@ function boot(): void {
       devours: () => controller.world().devours.length,
       hexes: () => controller.world().hexes.length,
       sprouts: () => controller.world().sprouts.length,
+      techniques: () => controller.world().techniques.length,
+      seals: () => controller.state().seals.map((seal) => ({ targetId: seal.targetId, hitsLeft: seal.hitsLeft })),
       aimOffBy: (id: string) => {
         const world = controller.world();
         const active = activeWormOf(controller.state());

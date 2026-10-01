@@ -5,9 +5,9 @@ import type { WeaponDef, WeaponId } from '@/weapons/types.ts';
 import { CPU_WEAPON_META } from '../../../sidecar/weapon-meta.ts';
 
 /**
- * The 31 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
+ * The 38 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
  * cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the
- * Freezer and Gear 5, and the Saibaman seed.
+ * Freezer and Gear 5, the Saibaman seed, and the anime row's seven techniques.
  * Spelled out rather than derived so a lost or reordered id fails here instead of silently
  * changing what F1..F9 select.
  */
@@ -37,6 +37,13 @@ const SIDECAR_IDS = [
   'mine',
   'sheep',
   'saibaman',
+  'antares',
+  'galaxian',
+  'tenbu_horin',
+  'hiken',
+  'meteor',
+  'santoryu',
+  'zoltraak',
   'air_strike',
   'parachute',
   'jetpack',
@@ -47,7 +54,7 @@ const SIDECAR_IDS = [
 
 const UTILITY_IDS: readonly WeaponId[] = ['parachute', 'jetpack', 'teleport', 'girder', 'skip_go'];
 const TIMED_IDS: readonly WeaponId[] = ['grenade', 'cluster_bomb', 'banana_bomb', 'holy_hand_grenade'];
-const TARGETED_IDS: readonly WeaponId[] = ['homing_missile', 'air_strike', 'teleport', 'girder'];
+const TARGETED_IDS: readonly WeaponId[] = ['homing_missile', 'meteor', 'air_strike', 'teleport', 'girder'];
 
 function isDeepFrozen(value: unknown, path = 'root'): string[] {
   if (typeof value !== 'object' || value === null) return [];
@@ -59,10 +66,10 @@ function isDeepFrozen(value: unknown, path = 'root'): string[] {
 }
 
 describe('weapon registry: ids', () => {
-  it('has exactly the 31 sidecar ids in panel order', () => {
+  it('has exactly the 38 sidecar ids in panel order', () => {
     expect(WEAPON_IDS).toEqual(SIDECAR_IDS);
-    expect(WEAPON_IDS).toHaveLength(31);
-    expect(PANEL_SLOTS).toBe(31);
+    expect(WEAPON_IDS).toHaveLength(38);
+    expect(PANEL_SLOTS).toBe(38);
     expect(WEAPON_IDS).toEqual(PANEL_WEAPON_IDS);
   });
 
@@ -75,10 +82,17 @@ describe('weapon registry: ids', () => {
     for (const id of WEAPON_IDS) expect(WEAPONS[id].id).toBe(id);
   });
 
-  it('splits into 26 combat weapons and 5 utilities', () => {
+  it('splits into 33 combat weapons and 5 utilities', () => {
     const utilities = WEAPON_IDS.filter((id) => WEAPONS[id].kind === 'UTILITY');
     expect(utilities).toEqual(UTILITY_IDS);
-    expect(WEAPON_IDS.length - utilities.length).toBe(26);
+    expect(WEAPON_IDS.length - utilities.length).toBe(33);
+  });
+
+  it('keeps the technique blocks to the seven of the anime row, each aimed by the kind it needs', () => {
+    const techniques = WEAPON_IDS.filter((id) => WEAPONS[id].technique !== undefined);
+    expect(techniques).toEqual(['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak']);
+    for (const id of techniques) expect(WEAPONS[id].category).toBe('anime');
+    expect(WEAPON_IDS.filter((id) => WEAPONS[id].category === 'anime')).toEqual(techniques);
   });
 
   it('keeps the sprout block to the one seed, on a placed row, at half a worm', () => {
@@ -138,7 +152,7 @@ describe('weapon registry: helpers', () => {
     }
   });
 
-  it('isTargeted is true only for homing, air strike, teleport and girder', () => {
+  it('isTargeted is true only for homing, the meteor, air strike, teleport and girder', () => {
     for (const id of WEAPON_IDS) expect(isTargeted(id), id).toBe(TARGETED_IDS.includes(id));
   });
 
@@ -161,9 +175,9 @@ describe('weapon registry: data rows', () => {
     }
   });
 
-  it('draws no held sprite for the bare handed Kamehameha, Freezer, Gear 5 and seed, the air strike and the utilities only', () => {
+  it('draws no held sprite for the bare handed Kamehameha, Freezer, Gear 5, seed and techniques, the air strike and the utilities only', () => {
     const withoutHeld = WEAPON_IDS.filter((id) => WEAPONS[id].heldSprite === null);
-    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'saibaman', 'air_strike', ...UTILITY_IDS]);
+    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'air_strike', ...UTILITY_IDS]);
   });
 
   it('gives every weapon a non empty display name and a fire cue', () => {

@@ -10,14 +10,15 @@ import type { MatchEvent } from '../match/events.ts';
 import type { MatchState } from '../match/state.ts';
 import type { SimEvent, WormBody } from '../sim/types.ts';
 import type { SimWorld } from '../sim/world.ts';
+import { isWeaponId } from '../weapons/registry.ts';
 
-/** Sim damage, drown, activity, crate and new worm events become the match events the reducer understands. */
+/** Sim damage, drown, activity, crate, new worm and seal events become the match events the reducer understands. */
 export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
   const out: MatchEvent[] = [];
   for (const event of events) {
     switch (event.type) {
       case 'damage':
-        out.push({ type: 'DamageApplied', wormId: event.wormId, amount: event.amount, sourceTeamId: event.sourceTeamId, sourceWormId: event.sourceWormId, ...(event.cause === 'toll' ? { toll: true } : {}) });
+        out.push({ type: 'DamageApplied', wormId: event.wormId, amount: event.amount, sourceTeamId: event.sourceTeamId, sourceWormId: event.sourceWormId, ...(event.cause === 'toll' ? { toll: true } : {}), ...(event.cause === 'toll' && event.share !== undefined ? { tollShare: event.share } : {}) });
         break;
       case 'drown':
         out.push({ type: 'WormDrowned', wormId: event.wormId });
@@ -36,6 +37,9 @@ export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
         break;
       case 'wormSpawned':
         out.push({ type: 'WormSpawned', wormId: event.wormId, teamId: event.teamId, hpShare: event.hpShare, x: Math.round(event.x), y: Math.round(event.y) });
+        break;
+      case 'sealed':
+        if (isWeaponId(event.weaponId)) out.push({ type: 'WormSealed', weaponId: event.weaponId, casterId: event.casterId, targetId: event.targetId, hits: event.hits, hitToll: event.hitToll });
         break;
       default:
         break;

@@ -149,6 +149,36 @@ export interface PendingDeath {
   readonly creditTeamId: string | null;
 }
 
+/**
+ * A worm sealed by the Tesoro del Cielo (match/seals.ts): its team loses its next turns, a strike of
+ * the treasure each, until no strike is left (the last one kills it), or until the caster or the
+ * sealed worm dies first and the seal breaks.
+ */
+export interface Seal {
+  readonly weaponId: WeaponId;
+  readonly casterId: string;
+  readonly casterTeamId: string;
+  readonly targetId: string;
+  readonly targetTeamId: string;
+  /** Strikes in all, and strikes still to come. */
+  readonly hits: number;
+  readonly hitsLeft: number;
+  /** What each strike costs the caster, hp. */
+  readonly hitToll: number;
+}
+
+/** A strike of the treasure on a turn the ledger took from the sealed team: the controller plays it in the sim. */
+export interface SealStrike {
+  readonly weaponId: WeaponId;
+  readonly casterId: string;
+  readonly casterTeamId: string;
+  readonly targetId: string;
+  /** Which strike, from 1, and whether it is the last (it kills). */
+  readonly hit: number;
+  readonly fatal: boolean;
+  readonly hitToll: number;
+}
+
 export type SettleReason = 'rest' | 'inactivity' | 'absolute';
 
 /**
@@ -188,4 +218,8 @@ export interface MatchState {
   readonly lastHitBy: Readonly<Record<string, string>>;
   readonly shot: ShotState | null;
   readonly settle: SettleOutcome | null;
+  /** Worms the Tesoro del Cielo has sealed, still taking their teams' turns. */
+  readonly seals: readonly Seal[];
+  /** The strikes the ledger took this turn for (a sealed team's lost turn); cleared at the next TurnStart. */
+  readonly strikes: readonly SealStrike[];
 }

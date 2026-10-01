@@ -6,7 +6,7 @@
  * Who sends what:
  * - the loop: TimerTick every frame, BannerDone when a presentation phase finished showing;
  * - the sim: FireStarted, FireCompleted, RetreatDone, ActivityPing, DamageApplied, WormDied,
- *   WormDrowned, WormSpawned, AllBodiesAtRest, CrateLanded, CratePicked, CrateDestroyed;
+ *   WormDrowned, WormSpawned, WormSealed, AllBodiesAtRest, CrateLanded, CratePicked, CrateDestroyed;
  * - the input layer or the CPU: SkipTurn, Surrender;
  * - replays: WindRolled, to pin the wind instead of drawing it from the match rng.
  */
@@ -71,6 +71,11 @@ export interface DamageAppliedEvent {
    * the worm still finishes the move: the turn ends when the shot closes, not under it.
    */
   readonly toll?: boolean;
+  /**
+   * A toll by share (WeaponDef.tollShare, Antares): the worm pays this share of the health it has,
+   * rounded up, and amount is only the most that can come to.
+   */
+  readonly tollShare?: number;
 }
 
 export interface WormDiedEvent {
@@ -92,6 +97,18 @@ export interface WormSpawnedEvent {
   readonly hpShare: number;
   readonly x: number;
   readonly y: number;
+}
+
+/** The Tesoro del Cielo sealed a worm (sim/techniques/treasure.ts): its team loses its next hits turns (match/seals.ts). */
+export interface WormSealedEvent {
+  readonly type: 'WormSealed';
+  readonly weaponId: WeaponId;
+  readonly casterId: string;
+  readonly targetId: string;
+  /** Turns the sealed worm's team loses, a strike each; the last strike kills it. */
+  readonly hits: number;
+  /** What each strike costs the caster, hp. */
+  readonly hitToll: number;
 }
 
 export interface AllBodiesAtRestEvent {
@@ -146,6 +163,7 @@ export type MatchEvent =
   | WormDiedEvent
   | WormDrownedEvent
   | WormSpawnedEvent
+  | WormSealedEvent
   | AllBodiesAtRestEvent
   | CrateLandedEvent
   | CratePickedEvent
@@ -167,6 +185,7 @@ export const MATCH_EVENT_TYPES: readonly MatchEventType[] = Object.freeze([
   'WormDied',
   'WormDrowned',
   'WormSpawned',
+  'WormSealed',
   'AllBodiesAtRest',
   'CrateLanded',
   'CratePicked',

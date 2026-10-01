@@ -1,6 +1,6 @@
 ﻿# Oruga Worms
 
-A browser artillery game with destructible terrain, 30 weapons and utilities, animated worms,
+A browser artillery game with destructible terrain, 38 weapons and utilities, animated worms,
 local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2D.
 
 **Content warning:** the game shows cartoon blood and gore (blood sprays, stains, and worms bursting
@@ -30,10 +30,55 @@ and start the match.
 | Gear 5 | Pick it in Weapons, then press and release FIRE: the arm finds its own meal (costs 50 hp) |
 | Freezer | Pick it in Weapons, then press and release FIRE: the light finds its own victim (costs 50 hp) |
 | Saibaman seed | Pick it in Weapons (Animals), then press and release FIRE: it is planted in front |
+| Antares, Explosión de Galaxias, Hiken, Zoltraak | Pick it in Weapons (Anime), aim with ▲ ▼, then press and release FIRE |
+| Tesoro del Cielo | Pick it in Weapons (Anime), then press and release FIRE: it seals the nearest enemy in sight |
+| Meteorito | Pick it in Weapons (Anime), then tap where it should fall |
+| Santoryu | Pick it in Weapons (Anime), move the square with ▲ ▼, then press and release FIRE |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
+
+- **The Anime row**: seven techniques from Saint Seiya, One Piece and Frieren, one of each per worm,
+  recharged by power orbs and locked for the opening turns like every super. Each one shouts its
+  name across the screen with whose technique it is.
+  - **Antares** (Milo of Scorpio, from turn 5). The worm points along the aim and its nail grows
+    crimson; Scorpio is traced over the first worm on the line, and fourteen needles streak into it
+    (¡AGUJA ESCARLATA!), each lighting one of its stars red, until Antares, the heart's star, swells
+    and the last needle goes in (¡ANTARES!): the worm dies, whatever its health. The needles reach
+    420 px but stop at the first wall. It costs half the health its user has (rounded up), paid as
+    it starts, hit or miss; the panel marks it -50%♥.
+  - **Explosión de Galaxias** (Saga of Gemini, from turn 6). Night falls round the worm as it crosses
+    its arms overhead and the cosmos opens behind it; then it hurls a spinning galaxy along the aim,
+    slow enough to watch, until it hits a worm or the land: every worm within 44 px of where it
+    bursts dies, friends and the thrower too, and the crater is as wide. Like the other one hit
+    kills, it costs 50 hp.
+  - **Tesoro del Cielo** (Shaka of Virgo, from turn 5). The worm sits in the lotus, a golden halo
+    behind its head and the twin Sala trees blossoming either side, and the treasure's golden wheel
+    comes down over the nearest enemy in sight within 420 px and seals it (¡SELLADO!, 3 TURNOS SIN
+    JUGAR). That enemy's team loses its next three turns (¡SIN SENTIDOS! on its banner). At each one
+    the wheel opens over the sealed worm and bites: the first takes its touch (−TACTO), the second
+    its taste (−GUSTO), the third kills it. Every strike costs the caster 15 hp; if that kills the
+    caster before the third, or the sealed worm dies another way, the seal breaks. The panel marks
+    it -15♥×3.
+  - **Hiken** (Portgas D. Ace, from turn 3). The worm draws its fist back, its arm catches fire, and
+    it throws a fist of flame as big as a house straight along the aim (¡HIKEN!): a blast a little
+    bigger than the bazooka's where it lands (55 at most), and nine burning blobs spill forward,
+    away from the thrower.
+  - **Meteorito** (Fujitora, from turn 5). The worm raises its sword at the sky, a purple swirl of
+    gravity tightens over the spot you clicked or tapped, and a burning meteor comes down slanting
+    out of the top of the world onto it: the biggest crater in the game, and 80 at most, the worm
+    that called it included if it stands too close.
+  - **Santoryu** (Roronoa Zoro, from turn 3). Three swords out, one in the mouth: six slashes
+    criss-cross an 84 px square in front of the worm (moved with the aim), and the land in it falls
+    apart in cubes (¡TODO EN CUBOS!); every worm inside takes 45 and is thrown.
+  - **Zoltraak** (Frieren, from turn 3). Staff in hand, five magic circles open one by one over the
+    worm, and each fires a beam of white light that meets the others on one point along the aim:
+    18 at most each, 90 if all five land. They hardly push, so the first does not throw the target
+    out of the way of the rest.
+
+  The CPU uses all seven: it takes the price of the ones that cost health off what they are worth,
+  keeps its friends and itself out of the blasts, and counts the turns a seal steals.
 
 - **The price of the one hit kills**: Gear 5 and the Freezer, the two supers that kill whatever they
   touch, now cost the worm that uses them 50 of its own health, or all it has left. The price is
@@ -143,6 +188,10 @@ The CPU works without API credentials using its built-in heuristic.
 | Gear 5 | Select it in the inventory, then press and release Space (costs 50 hp) |
 | Freezer | Select it in the inventory, then press and release Space (costs 50 hp) |
 | Saibaman seed | Select it in the inventory, then press and release Space |
+| Antares, Explosión de Galaxias, Hiken, Zoltraak | Select it in the inventory, aim with Up/Down, then press and release Space |
+| Tesoro del Cielo | Select it in the inventory, then press and release Space: it seals the nearest enemy in sight |
+| Meteorito | Select it in the inventory, then click where it should fall |
+| Santoryu | Select it in the inventory, move the square with Up/Down, then press and release Space |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -189,6 +238,11 @@ heuristic remains available. Never commit real `.env` files or API keys.
   the mound, the cracks and the light through them); `src/sim/worm-size.ts` makes a small worm a
   small target everywhere.
 - `src/game/power-orb.ts`, `src/match/crates.ts`: the power orb's look, and what it recharges.
+- `src/weapons/defs/anime.ts`, `src/sim/techniques/`, `src/sim/technique.ts`: the Anime row's seven
+  techniques and their timelines; `src/match/seals.ts` holds the Tesoro del Cielo's seals and the
+  turns they steal; `src/game/antares.ts`, `galaxian.ts`, `tenbu.ts`, `hiken.ts`, `meteor.ts`,
+  `santoryu.ts`, `zoltraak.ts` and `technique-fx.ts` draw them; `src/ai/technique-eval.ts` scores them
+  for the CPU.
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

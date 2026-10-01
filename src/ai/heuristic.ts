@@ -29,6 +29,8 @@ import { pickLockTarget } from '../weapons/behaviors/combo.ts';
 import { degToRad } from '../core/math.ts';
 import { blastDamage } from '../sim/damage.ts';
 import { plantSpot } from '../sim/sprout.ts';
+import { tollFor } from '../weapons/fire.ts';
+import { evaluateTechnique } from './technique-eval.ts';
 
 export interface HeuristicInput {
   readonly request: CpuTurnRequest;
@@ -363,16 +365,19 @@ interface Choice extends Candidate {
 
 /**
  * Every shot but a shell's, which ballisticChoices searches across the spots at once. A super with
- * a toll (Gear 5, the Freezer) costs the CPU's own worm its price, or all it has left: that counts
- * against the move like damage to a friend would, so it is worth it only on a fat enough target.
+ * a toll (Gear 5, the Freezer, the Galaxian Explosion; Antares, half of what it has) costs the CPU's
+ * own worm its price, or all it has left: that counts against the move like damage to a friend
+ * would, so it is worth it only on a fat enough target.
  */
 function evaluate(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
   const candidate = evaluateMove(input, def, from, facing);
-  if (candidate === null || def.toll === undefined) return candidate;
-  return { ...candidate, score: candidate.score - Math.min(def.toll, Math.max(0, from.hp)) };
+  if (candidate === null || (def.toll === undefined && def.tollShare === undefined)) return candidate;
+  return { ...candidate, score: candidate.score - tollFor(from.hp, def) };
 }
 
 function evaluateMove(input: HeuristicInput, def: WeaponDef, from: WormPoint, facing: 1 | -1): Candidate | null {
+  // The anime row's techniques have rules of their own (technique-eval.ts), whatever their kind.
+  if (def.technique !== undefined) return evaluateTechnique({ mask: input.mask, waterY: input.request.waterY, team: input.request.active.team, worms: input.worms }, def, from, facing);
   if (def.combo !== undefined) return evaluateCombo(input, def, from, facing);
   if (def.devour !== undefined) return evaluateDevour(input, def, from, facing);
   if (def.hex !== undefined) return evaluateHex(input, def, from, facing);
@@ -450,7 +455,7 @@ export function decideHeuristic(input: HeuristicInput): CpuTurnResponse {
     if (entry.count === 0) continue;
     const def = input.registry[entry.weapon];
     if (def === undefined) continue;
-    if (def.kind === 'TARGETED') {
+    if (def.kind === 'TARGETED' && def.technique === undefined) {
       // Called in from the sky: where the worm stands and which way it faces do not matter.
       const stay = spots[0];
       const candidate = def.strike !== undefined && stay !== undefined ? evaluateTargeted(input, def) : null;

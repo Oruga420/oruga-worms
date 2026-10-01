@@ -8,7 +8,8 @@
  * victim's ?! as the light goes in, a pink ring on every throb, the burst in pink and red, the
  * scream of a friend lost and the emperor's laugh. A crate says what it gave over the worm that took
  * it (+1 BAZOOKA, +25), and a power orb sheds gold as it falls and goes off in gold when taken, with
- * the super it gave back rising as +1 KAMEHAMEHA!. A Saibaman seed throws up earth as it goes in and
+ * the super it gave back rising as +1 KAMEHAMEHA!. The techniques of the anime row get their names
+ * called, their sparks and their cubes from technique-fx.ts. A Saibaman seed throws up earth as it goes in and
  * at every crack of the ground, green light leaks out of the cracks, and the Saibaman leaps out in a
  * spray of earth with its name and its cackle, KEKEKE!. The gore layer (gore.ts) gets the blood of every
  * hit from here too, what a swallowed worm leaves when it is burped back up, and what is left of one
@@ -25,7 +26,7 @@ import { TWO_PI, clamp, degToRad } from '../core/math.ts';
 import type { Rng } from '../core/rng.ts';
 import { shakeOffset, type Camera } from '../engine/camera.ts';
 import type { Ctx2D, Size } from '../engine/canvas-types.ts';
-import { alphaCurve, type Particle, type ParticleSystem } from '../engine/particles.ts';
+import type { ParticleSystem } from '../engine/particles.ts';
 import { drawSprite } from '../engine/sprite.ts';
 import { WORM_HEIGHT } from '../sim/constants.ts';
 import { wormHeight, wormMiddleY } from '../sim/worm-size.ts';
@@ -39,6 +40,10 @@ import { ORB_RADIUS, POWER_GOLD, orbLift } from './power-orb.ts';
 import { SAIBA_GREEN, SPROUT_GLOW } from './saibaman.ts';
 import { LAUGH_TICK, hexLight } from '../sim/hex.ts';
 import type { CharacterSprites } from './render.ts';
+import { drawStar, initPuff, initSpark, outlinedText, pop, type Pop } from './fx-kit.ts';
+import { drawCubes, drawTechniqueCalls, emitTechniqueFx, onTechnique, stepCubes, type Cube, type TechniqueCall } from './technique-fx.ts';
+
+export type { Pop };
 
 export const TRACER_MS = 90;
 export const MUZZLE_MS = 70;
@@ -179,22 +184,6 @@ export interface HexShow {
   endedAt: number | null;
 }
 
-/** A sound effect written into the world, comic style: CHOMP!, GULP!, BURP!, HAHAHA! */
-export interface Pop {
-  readonly text: string;
-  readonly x: number;
-  readonly y: number;
-  readonly bornAt: number;
-  /** Letter height in screen px at the default zoom. */
-  readonly size: number;
-  readonly fill: string;
-  readonly outline: string;
-  /** Radians. */
-  readonly tilt: number;
-  /** How long it stays up, ms; POP_MS when absent. */
-  readonly ms?: number;
-}
-
 export interface ComboShow {
   readonly comboId: number;
   /** The super being played, for its name card. */
@@ -223,6 +212,9 @@ export interface FxState {
   devour: DevourShow | null;
   hex: HexShow | null;
   readonly pops: Pop[];
+  /** The techniques' names called over the screen, and the cubes the Santoryu cut loose (technique-fx.ts). */
+  readonly calls: TechniqueCall[];
+  readonly cubes: Cube[];
   /** A full screen flash: white for the super, colour and strength per event. */
   screenFlash: { readonly at: number; readonly strength: number; readonly color: string; readonly ms: number } | null;
   /** Red at the screen's edges after a heavy hit. */
@@ -230,7 +222,7 @@ export interface FxState {
 }
 
 export function createFx(): FxState {
-  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, hex: null, pops: [], screenFlash: null, redPulse: null };
+  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, hex: null, pops: [], calls: [], cubes: [], screenFlash: null, redPulse: null };
 }
 
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
@@ -286,42 +278,6 @@ function muzzleOf(x: number, y: number, facing: 1 | -1, angleDeg: number, reach:
   const sx = x + facing * 6;
   const sy = y - WORM_HEIGHT * 0.6;
   return { x: sx + dx * reach, y: sy + dy * reach, angle: Math.atan2(dy, dx) };
-}
-
-function initPuff(p: Particle, x: number, y: number, rng: Rng, size: number, color: string, rise: number): void {
-  p.kind = 'smoke';
-  p.x = x;
-  p.y = y;
-  p.vx = rng.nextFloat(-10, 10);
-  p.vy = rng.nextFloat(-rise, -rise * 0.2);
-  p.maxLife = rng.nextFloat(0.45, 0.9);
-  p.life = p.maxLife;
-  p.size = size * rng.nextFloat(0.7, 1.2);
-  p.growth = p.size * 1.3;
-  p.rotation = 0;
-  p.spin = 0;
-  p.alpha = alphaCurve('smoke', 1);
-  p.gravityScale = -0.12;
-  p.drag = 1.6;
-  p.color = color;
-}
-
-function initSpark(p: Particle, x: number, y: number, vx: number, vy: number, rng: Rng, color: string, life: number): void {
-  p.kind = 'spark';
-  p.x = x;
-  p.y = y;
-  p.vx = vx;
-  p.vy = vy;
-  p.maxLife = life * rng.nextFloat(0.6, 1.2);
-  p.life = p.maxLife;
-  p.size = rng.nextFloat(0.5, 1.1);
-  p.growth = 0;
-  p.rotation = 0;
-  p.spin = 0;
-  p.alpha = 1;
-  p.gravityScale = 0.3;
-  p.drag = 2;
-  p.color = color;
 }
 
 const GUN_FLASH: Readonly<Partial<Record<WeaponId, number>>> = Object.freeze({ shotgun: 9, handgun: 6, uzi: 5, minigun: 6, sonic_blast: 10 });
@@ -404,10 +360,6 @@ function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comb
   }
   // Every few blows the blood reaches the lens.
   if (e.hit % 5 === 0) splatterLens(deps.gore, 1, 0.5, deps.rng);
-}
-
-function pop(fx: FxState, text: string, x: number, y: number, size: number, fill: string, outline: string, tilt: number, ms?: number): void {
-  fx.pops.push(ms === undefined ? { text, x, y, bornAt: fx.now, size, fill, outline, tilt } : { text, x, y, bornAt: fx.now, size, fill, outline, tilt, ms });
 }
 
 /** The colours of a worm's life draining out of it to pay for its super. */
@@ -732,6 +684,11 @@ export function applyFxEvents(fx: FxState, events: readonly GameEvent[], deps: F
       case 'toll':
         onToll(fx, e, deps);
         break;
+      case 'techniqueStart':
+      case 'techniqueBeat':
+      case 'techniqueEnd':
+        onTechnique(fx, e, deps);
+        break;
       default:
         break;
     }
@@ -798,6 +755,12 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
     emitHexSparkles(fx, scene.world, deps);
     emitPowerSparkles(fx, scene.world, deps);
     emitSproutMotes(fx, scene.world, deps);
+    emitTechniqueFx(scene.world, deps);
+  }
+  stepCubes(fx, dtMs, scene?.world ?? null);
+  for (let i = fx.calls.length - 1; i >= 0; i -= 1) {
+    const c = fx.calls[i];
+    if (c !== undefined && fx.now - c.at > c.ms) fx.calls.splice(i, 1);
   }
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
@@ -845,18 +808,6 @@ function toScreen(camera: Camera, viewport: Size): { readonly z: number; readonl
   return { z, ox: viewport.w / 2 - (camera.x + shake.x) * z, oy: viewport.h / 2 - (camera.y + shake.y) * z };
 }
 
-function drawStar(ctx: Ctx2D, x: number, y: number, outer: number, inner: number, points: number, rotation: number): void {
-  ctx.beginPath();
-  for (let i = 0; i < points * 2; i += 1) {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = rotation + (i / (points * 2)) * TWO_PI;
-    if (i === 0) ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-    else ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
 /**
  * World space effects, drawn over the worms and the gore. On the super move's white screen
  * (whiteout above one half) the light effects would vanish into the white, so the blows' impact
@@ -866,6 +817,7 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
   const { z, ox, oy } = toScreen(camera, viewport);
   const sx = (x: number): number => x * z + ox;
   const sy = (y: number): number => y * z + oy;
+  drawCubes(ctx, fx, camera, viewport);
   ctx.save();
 
   for (const sinker of fx.sinkers) {
@@ -1237,13 +1189,6 @@ function emitPowerSparkles(fx: FxState, world: SimWorld, deps: FxDeps): void {
   }
 }
 
-function outlinedText(ctx: Ctx2D, text: string, x: number, y: number, fill: string, outline: string, offset: number): void {
-  ctx.fillStyle = outline;
-  for (const [dx, dy] of [[-offset, 0], [offset, 0], [0, -offset], [0, offset], [offset, offset]] as const) ctx.fillText(text, x + dx, y + dy);
-  ctx.fillStyle = fill;
-  ctx.fillText(text, x, y);
-}
-
 /** Screen space overlays: the super's name card, the hit counter, K.O., MISS, flashes and the red edges. */
 export interface FxScreenOptions {
   /**
@@ -1342,6 +1287,7 @@ export function drawFxScreen(ctx: Ctx2D, fx: FxState, viewport: Size, options: F
   if (fx.beam !== null) drawBeamShout(ctx, fx, fx.beam, viewport, touch);
   if (fx.devour !== null) drawDevourCalls(ctx, fx, fx.devour, viewport, touch);
   if (fx.hex !== null) drawHexCalls(ctx, fx, fx.hex, viewport, touch);
+  drawTechniqueCalls(ctx, fx, viewport, touch);
 
   if (fx.screenFlash !== null) {
     const t = (fx.now - fx.screenFlash.at) / fx.screenFlash.ms;

@@ -17,15 +17,18 @@ import { cancelCombos, heldWormIds } from '../sim/combo.ts';
 import { cancelDevours, heldByDevours } from '../sim/devour.ts';
 import { cancelHexes, heldByHexes } from '../sim/hex.ts';
 import { cancelSprouts } from '../sim/sprout.ts';
+import { cancelTechniques, heldByTechniques, techniquePlaying } from '../sim/technique.ts';
+import { spawnTreasureStrike } from '../sim/techniques/treasure.ts';
 import { reduce } from '../match/machine.ts';
 import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
 import type { CrateType, MatchState } from '../match/state.ts';
 import { activeTeamOf, activeWormOf, findWorm as findWormState } from '../match/ledger.ts';
+import { teamSealed } from '../match/seals.ts';
 import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
 import { stepWorld } from '../sim/world.ts';
-import { IDLE_INTENT, type DevourBeat, type HexBeat, type SimEvent, type SproutBeat, type WormIntent } from '../sim/types.ts';
+import { IDLE_INTENT, type DevourBeat, type DiceCell, type HexBeat, type SimEvent, type SproutBeat, type TechniqueBeat, type WormIntent } from '../sim/types.ts';
 import { pickCrateColumn, spawnCrate } from '../sim/crate.ts';
 import { detonate } from '../sim/projectile.ts';
 import { detonateSheep } from '../sim/sheep.ts';
@@ -37,7 +40,7 @@ import type { SnapshotInput } from '../ai/snapshot.ts';
 import { INITIAL_AIM, aimBy, release, setAngle, tickCharge, type AimState } from './aim.ts';
 import { isSimPhase, snapshotPositions, syncMatchToSim, translateSimEvents } from './bridge.ts';
 import type { Game } from './setup.ts';
-import type { WeaponId } from '../weapons/types.ts';
+import type { TechniqueKind, WeaponId } from '../weapons/types.ts';
 
 export interface ControllerInput {
   readonly moveX: -1 | 0 | 1;
@@ -109,6 +112,11 @@ export type GameEvent =
   /** One blow of a super move; ko once the victim has nothing left. */
   | { readonly type: 'comboHit'; readonly comboId: number; readonly attackerId: string; readonly victimId: string; readonly hit: number; readonly finisher: boolean; readonly ko: boolean; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number }
   | { readonly type: 'comboEnd'; readonly comboId: number; readonly attackerId: string; readonly victimId: string | null; readonly hits: number; readonly x: number; readonly y: number }
+  /** A technique of the anime row starts; colorIndex is its target's team colour (0 without one). */
+  | { readonly type: 'techniqueStart'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly weapon: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number; readonly strike?: number }
+  /** A beat of a technique; the Santoryu's cut brings the cubes the land fell apart into. */
+  | { readonly type: 'techniqueBeat'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly beat: TechniqueBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly colorIndex: number; readonly cells?: readonly DiceCell[] }
+  | { readonly type: 'techniqueEnd'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly landed: boolean }
   /**
    * A worm opened a crate: the weapon it got (a super, out of a power orb) or the hp it healed,
    * for the callout over its head. (x, y) is the top of the worm.
@@ -199,6 +207,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const goneWorms = new Set<string>();
   // Worms that paid for a super with their last hp: they finish the move before they burst.
   const lastBreath = new Set<string>();
+  // The turn whose strikes of the Tesoro del Cielo have been played, so a lost turn plays them once.
+  let strikesTurn = -1;
 
   // Movement budget: real horizontal displacement spent while walking this turn, in world px.
   // Measured, not assumed, so pushing against a wall costs nothing and knockback is never billed.
@@ -321,7 +331,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
         const body = findBody(world, e.wormId);
         const at = e.at ?? (body === undefined ? null : { x: body.x, y: wormMiddleY(body), dx: 0, dy: -1 });
         const left = hpLeft.get(e.wormId) ?? 0;
-        const lost = Number.isFinite(e.amount) && e.amount > 0 ? Math.min(e.amount, left) : 0;
+        // A toll by share (Antares) is that share of what the worm has, rounded up, as the ledger books it.
+        const asked = e.share !== undefined && e.share > 0 ? Math.min(e.amount, Math.ceil(left * Math.min(1, e.share))) : e.amount;
+        const lost = Number.isFinite(asked) && asked > 0 ? Math.min(asked, left) : 0;
         hpLeft.set(e.wormId, left - lost);
         if (at !== null) events.push({ type: 'damage', wormId: e.wormId, amount: e.amount, lost, cause: e.cause, x: at.x, y: at.y, dx: at.dx, dy: at.dy });
         if (e.cause === 'toll' && at !== null) {
@@ -397,6 +409,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
       case 'sproutEnd':
         events.push({ type: 'sproutEnd', sproutId: e.sproutId, planterId: e.planterId, wormId: e.wormId });
         return;
+      case 'techniqueStart':
+        events.push({ type: 'techniqueStart', techniqueId: e.techniqueId, kind: e.kind, weapon: e.weaponId, attackerId: e.attackerId, victimId: e.victimId, x: e.x, y: e.y, facing: e.facing, colorIndex: e.victimId === null ? 0 : colorIndexOf(e.victimId), ...(e.strike === undefined ? {} : { strike: e.strike }) });
+        return;
+      case 'techniqueBeat':
+        events.push({ type: 'techniqueBeat', techniqueId: e.techniqueId, kind: e.kind, attackerId: e.attackerId, victimId: e.victimId, beat: e.beat, n: e.n, x: e.x, y: e.y, facing: e.facing, colorIndex: e.victimId === null ? 0 : colorIndexOf(e.victimId), ...(e.cells === undefined ? {} : { cells: e.cells }) });
+        return;
+      case 'techniqueEnd':
+        events.push({ type: 'techniqueEnd', techniqueId: e.techniqueId, kind: e.kind, attackerId: e.attackerId, victimId: e.victimId, landed: e.landed });
+        return;
       default:
         return;
     }
@@ -413,11 +434,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const held = heldWormIds(world.combos);
     const eating = heldByDevours(world.devours);
     const hexed = heldByHexes(world.hexes);
+    // A worm a technique still holds (Antares' victim until the last needle, the sealed worm in the wheel) goes when it lets go.
+    const performing = heldByTechniques(world.techniques);
     // A worm that paid for its super with its last hp is up until the move is over.
     const finishing = sequencePlaying();
     for (const team of state.teams) {
       for (const worm of team.worms) {
-        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id) || (finishing && lastBreath.has(worm.id))) continue;
+        if (worm.hp > 0 || goneWorms.has(worm.id) || held.has(worm.id) || eating.has(worm.id) || hexed.has(worm.id) || performing.has(worm.id) || (finishing && lastBreath.has(worm.id))) continue;
         lastBreath.delete(worm.id);
         goneWorms.add(worm.id);
         const body = findBody(world, worm.id);
@@ -438,9 +461,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
     applySimEvents(world.events.splice(0, world.events.length));
   };
 
-  /** A super move, a beam, Gear 5, the Freezer or a Saibaman seed is still playing out in the sim. */
+  /** A super move, a beam, Gear 5, the Freezer, a Saibaman seed or a technique is still playing out in the sim. */
   const sequencePlaying = (): boolean =>
-    world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive) || world.sprouts.some((s) => s.alive);
+    world.combos.some((c) => c.alive) || world.beams.some((b) => b.alive) || world.devours.some((d) => d.alive) || world.hexes.some((h) => h.alive) || world.sprouts.some((s) => s.alive) || techniquePlaying(world);
 
   /**
    * The match ended while a super move, a beam, Gear 5, the Freezer or a seed played (a surrender):
@@ -455,6 +478,23 @@ export function createController(game: Game, options: ControllerOptions): Contro
     cancelDevours(world);
     cancelHexes(world);
     cancelSprouts(world);
+    cancelTechniques(world);
+    drainSimAfterFire();
+  };
+
+  /**
+   * A sealed team's turn: the ledger took it for the Tesoro del Cielo and left its strikes, which play
+   * out in the sim (the sense taken, the caster's toll, the last one's kill) while the turn resolves.
+   */
+  const playStrikes = (): void => {
+    if (state.strikes.length === 0 || strikesTurn === state.turn) return;
+    strikesTurn = state.turn;
+    for (const strike of state.strikes) {
+      const target = findBody(world, strike.targetId);
+      const spec = getWeapon(strike.weaponId).technique;
+      if (target === undefined || !target.alive || spec?.kind !== 'treasure') continue;
+      spawnTreasureStrike(world, { weaponId: strike.weaponId, casterId: strike.casterId, casterTeamId: strike.casterTeamId, target, spec, hit: strike.hit, fatal: strike.fatal });
+    }
     drainSimAfterFire();
   };
 
@@ -533,7 +573,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const def = getWeapon(weapon);
     // Nothing leaves the worm's hands for a utility, a super move, a seed or an air strike (it comes
     // from the sky), so there is no muzzle flash, smoke or recoil to show; a beam brings its own, later.
-    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined) return;
+    if (def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined || def.technique !== undefined) return;
     events.push({ type: 'fired', wormId: body.id, weapon, x: body.x, y: body.y, angleDeg, facing: body.facing });
   };
 
@@ -761,6 +801,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       }
 
       if (isSimPhase(state.phase)) {
+        playStrikes();
         // The retreat window belongs to the player: walk, jump, and steer a parachute or jetpack.
         // The CPU never walks in it, so its retreat ends at once instead of standing 3 s (RetreatDone
         // was sent by nobody in production before this).
@@ -804,6 +845,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
       const team = activeTeamOf(state);
       switch (state.phase) {
         case 'TurnStart':
+          // A sealed team's turn goes to the Tesoro del Cielo: its worms have no senses left to fight with.
+          if (team !== undefined && teamSealed(state, team.id)) return `${team.name}: ¡SIN SENTIDOS!`;
           return `${team?.name ?? ''}: ${activeWormOf(state)?.name ?? ''}`;
         case 'SuddenDeathCheck':
           return state.suddenDeath ? 'Sudden death' : null;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlan, parseSfxTable, parseVoiceBanks, parseVoiceIds, superVoiceItems } from '../../../../tools/audio/build-plan.ts';
+import { readFileSync } from 'node:fs';
+import { buildPlan, parseSfxTable, parseVoiceBanks, parseVoiceIds, PLAN_PATH, superVoiceItems } from '../../../../tools/audio/build-plan.ts';
 import { estimateCredits, totalCredits, validatePlan } from '../../../../tools/audio/plan.ts';
 
 const REPORT = `
@@ -9,6 +10,7 @@ const REPORT = `
 |---|---|---|---|
 | 1 | Timmy - Anxious Nerd | mrQhZWGbb2k9qWJb5qeA | young. Primary. |
 | 1 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr | rough. Primary. |
+| 1 | Ricardo voice | CoAqFXxZEa3kpJmE7rDr | warm. Primary. |
 
 ## 5. SFX list (task E)
 
@@ -72,11 +74,11 @@ describe('parseVoiceBanks', () => {
 });
 
 describe('superVoiceItems', () => {
-  const CANDIDATES = '| 1 | Timmy - Anxious Nerd | mrQhZWGbb2k9qWJb5qeA |\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |';
+  const CANDIDATES = '| 1 | Timmy - Anxious Nerd | mrQhZWGbb2k9qWJb5qeA |\n| 2 | Ricardo voice | CoAqFXxZEa3kpJmE7rDr |\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |';
 
   it('voices the Kamehameha and the scream for a friend lost in the fierce warrior voice, as its own bank', () => {
     const items = superVoiceItems(CANDIDATES);
-    expect(items.map((i) => i.id)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha', 'voice_super_freezer_krilin', 'voice_super_freezer_laugh', 'voice_super_saibaman_kekeke']);
+    expect(items.map((i) => i.id).slice(0, 5)).toEqual(['voice_super_kamehameha_chant', 'voice_super_kamehameha_ha', 'voice_super_freezer_krilin', 'voice_super_freezer_laugh', 'voice_super_saibaman_kekeke']);
     for (const item of items) {
       expect(item.bank).toBe('super');
       expect(item.bus).toBe('voice');
@@ -101,13 +103,44 @@ describe('superVoiceItems', () => {
     expect(cackle?.text).toMatch(/^Ke(ke)+! Ke(ke)+!$/);
   });
 
+  it('shouts the anime techniques in the Mexican voice, as the Latin American dubs do, and Frieren names her spell quietly', () => {
+    const items = superVoiceItems(CANDIDATES).slice(5);
+    expect(items.map((i) => i.id)).toEqual([
+      'voice_super_scarlet_needle',
+      'voice_super_antares',
+      'voice_super_galaxian',
+      'voice_super_tenbu_horin',
+      'voice_super_hiken',
+      'voice_super_meteor',
+      'voice_super_santoryu',
+      'voice_super_zoltraak',
+    ]);
+    for (const item of items.slice(0, 7)) expect(item.voiceId).toBe('CoAqFXxZEa3kpJmE7rDr');
+    expect(items[0]?.text).toBe('¡Aguja Escarlata!');
+    expect(items[1]?.text).toMatch(/^¡ANTARE+S!$/);
+    expect(items[2]?.text).toBe('¡Explosión de Galaxias!');
+    expect(items[3]?.text).toMatch(/^Tesoro del Cielo/);
+    // The calm ones are steadier and drier than the shouts.
+    expect(items[3]?.settings.stability).toBeGreaterThan(items[0]?.settings.stability ?? 1);
+    expect(items[3]?.settings.style).toBeLessThan(items[0]?.settings.style ?? 0);
+    expect(items[7]).toMatchObject({ voiceId: 'mrQhZWGbb2k9qWJb5qeA', text: 'Zoltraak.' });
+    expect(items[7]?.settings).toEqual(items[3]?.settings);
+  });
+
   it('is in the plan, before the music', () => {
     const plan = buildPlan(`${REPORT}\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |\n`, 'now');
     const ids = plan.items.map((i) => i.id);
-    expect(ids.indexOf('voice_super_saibaman_kekeke')).toBe(ids.length - 2);
-    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 3);
-    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 5);
+    expect(ids.indexOf('voice_super_zoltraak')).toBe(ids.length - 2);
+    expect(ids.indexOf('voice_super_scarlet_needle')).toBe(ids.length - 9);
+    expect(ids.indexOf('voice_super_saibaman_kekeke')).toBe(ids.length - 10);
+    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 11);
+    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 13);
     expect(validatePlan(plan).ok).toBe(true);
+  });
+
+  it('matches the committed plan, line for line', () => {
+    const committed = JSON.parse(readFileSync(PLAN_PATH, 'utf8')) as { items: { id: string }[] };
+    for (const item of superVoiceItems(CANDIDATES)) expect(committed.items.find((i) => i.id === item.id)).toEqual(item);
   });
 });
 

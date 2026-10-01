@@ -274,9 +274,9 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
 
   // Every panel weapon fires in a real browser without throwing: the Goal's 23 slots plus the tank
   // cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the Freezer
-  // and Gear 5, and the Saibaman seed.
+  // and Gear 5, the Saibaman seed, and the Anime row's seven techniques.
   const fired = await page.evaluate(() => window.__orugas?.fireAll() ?? []);
-  expect(fired).toHaveLength(31);
+  expect(fired).toHaveLength(38);
   expect(fired.filter((entry) => !entry.ok)).toEqual([]);
   await page.waitForTimeout(500);
 
@@ -505,7 +505,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
   );
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
   await waitForHook(page);
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(31);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(38);
   await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
   expect(requested.some((r) => r.startsWith('/sprites/weapons/sheet.png?v='))).toBe(true);
   expect(requested.filter((r) => !/\?v=[0-9a-f]{10}$/.test(r))).toEqual([]);
@@ -517,7 +517,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(31);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(38);
 
   // Title to the team setup card.
   await page.keyboard.press('Enter');
@@ -958,6 +958,148 @@ test('saibaman seed from the inventory: the ground cracks and a small green worm
   expect(errors).toEqual([]);
 });
 
+/** Ends `count` turns one after another, each time waiting for the next to be under way. */
+async function endTurns(page: Page, count: number): Promise<void> {
+  for (let ended = 0; ended < count; ended += 1) {
+    const turn = await page.evaluate(() => window.__orugas!.turn());
+    await page.evaluate(() => window.__orugas!.endTurn());
+    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
+    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  }
+}
+
+/** Opens the inventory, clicks the weapon's cell (which must be enabled) and checks it is picked. */
+async function pickWeapon(page: Page, stage: { readonly x: number; readonly y: number }, id: string): Promise<void> {
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const cell = (await page.evaluate(() => window.__orugas!.panelCells())).find((c) => c.id === id);
+  if (cell === undefined) throw new Error(`Missing ${id} inventory cell`);
+  expect(cell.enabled).toBe(true);
+  await page.mouse.click(stage.x + cell.x + cell.w / 2, stage.y + cell.y + cell.h / 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.selectedWeapon())).toBe(id);
+}
+
+test('zoltraak from the anime row: aimed with the keys, five circles open and their beams meet on the worm in the aim', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const stage = await startTwoHumans(page);
+  // Zoltraak unlocks on turn 3 (its scheme delay): end the first two turns.
+  await endTurns(page, 2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(60));
+  if (victim === null) throw new Error('No enemy to line up');
+  await page.waitForTimeout(600);
+  const before = await page.evaluate((id: string) => window.__orugas!.wormHp(id), victim);
+  const mage = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  await pickWeapon(page, stage, 'zoltraak');
+
+  // Aimed with the arrow keys onto the victim, as the Kamehameha is.
+  let off: number | null = null;
+  for (let i = 0; i < 30; i += 1) {
+    off = await page.evaluate((id: string) => window.__orugas!.aimOffBy(id), victim);
+    if (off === null || Math.abs(off) <= 2) break;
+    const key = off > 0 ? 'ArrowDown' : 'ArrowUp';
+    await page.keyboard.down(key);
+    await page.waitForTimeout(Math.max(25, (Math.abs(off) / 60) * 800));
+    await page.keyboard.up(key);
+  }
+  expect(Math.abs(off ?? 99)).toBeLessThanOrEqual(2);
+
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 3000 }).toBe(1);
+  // The circles opening one by one over the mage, then the beams.
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/zoltraak-circles.png') });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/zoltraak-beams.png') });
+  // Five beams of 18 at most: most of them find the worm they meet on.
+  await expect.poll(() => page.evaluate((id: string) => window.__orugas!.wormHp(id), victim), { timeout: 8000 }).toBeLessThanOrEqual(Math.max(0, before - 30));
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 8000 }).toBe(0);
+  const inventory = await page.evaluate(() => window.__orugas!.inventory());
+  expect(inventory.worms.find((worm) => worm.id === mage)?.ammo['zoltraak']).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('tesoro del cielo from the anime row: the enemy in sight is sealed, its team loses three turns, and the third strike kills', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  // Four turns to the unlock, the cast, then three lost turns with a strike each.
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const stage = await startTwoHumans(page);
+  // The Tesoro del Cielo unlocks on turn 5 (its scheme delay): end the first four turns.
+  await endTurns(page, 4);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  // Close enough to be the one the wheel picks.
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(70));
+  if (victim === null) throw new Error('No enemy to line up');
+  await page.waitForTimeout(600);
+  const hp = (id: string): Promise<number> => page.evaluate((worm: string) => window.__orugas!.wormHp(worm), id);
+  const victimHp = await hp(victim);
+  expect(victimHp).toBeGreaterThan(0);
+  const caster = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  const casterTeam = caster.split('-worm-')[0];
+  const casterHp = await hp(caster);
+  expect(casterHp).toBeGreaterThan(45);
+  await pickWeapon(page, stage, 'tenbu_horin');
+
+  // No aim: the wheel comes down over the nearest enemy in sight.
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 3000 }).toBe(1);
+  // The lotus, the Sala trees and the wheel closing on the victim.
+  await page.waitForTimeout(1800);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/tesoro-cast.png') });
+  await expect.poll(() => page.evaluate(() => window.__orugas!.seals().map((seal) => seal.targetId)), { timeout: 8000 }).toEqual([victim]);
+  const ammo = (await page.evaluate(() => window.__orugas!.inventory())).worms.find((worm) => worm.id === caster)?.ammo['tenbu_horin'];
+  expect(ammo).toBe(0);
+
+  // Each of the victim's team's turns is lost to a strike, 15 from the caster each, and play comes
+  // straight back to the caster's team. The first two take a sense; the third kills.
+  const backToCaster = async (after: number): Promise<number> => {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            ({ team, turn }) => {
+              const api = window.__orugas!;
+              return api.phase() === 'Active' && api.turn() > turn && api.inventory().activeId.split('-worm-')[0] === team;
+            },
+            { team: casterTeam, turn: after },
+          ),
+        { timeout: 30000 },
+      )
+      .toBe(true);
+    return page.evaluate(() => window.__orugas!.turn());
+  };
+  const struck = async (strike: number): Promise<void> => {
+    expect(await page.evaluate(() => window.__orugas!.seals())).toEqual([{ targetId: victim, hitsLeft: 3 - strike }]);
+    expect(await hp(victim)).toBe(victimHp);
+    expect(await hp(caster)).toBe(casterHp - 15 * strike);
+  };
+  let turn = await backToCaster(await page.evaluate(() => window.__orugas!.turn()));
+  await struck(1);
+  await page.evaluate(() => window.__orugas!.endTurn());
+  // The wheel opening over the sealed worm in the lost turn.
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 15000 }).toBe(1);
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/tesoro-strike.png') });
+  turn = await backToCaster(turn);
+  await struck(2);
+  await page.evaluate(() => window.__orugas!.endTurn());
+  await expect.poll(() => hp(victim), { timeout: 30000 }).toBe(0);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/tesoro-nirvana.png') });
+  await backToCaster(turn);
+  expect(await page.evaluate(() => window.__orugas!.seals())).toEqual([]);
+  expect(await hp(caster)).toBe(casterHp - 45);
+  expect(errors).toEqual([]);
+});
+
 test('a power orb falls out of the sky onto the land and gives a super to the worm that walks into it', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   const errors: string[] = [];
@@ -1127,7 +1269,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(31);
+    expect(cells.length).toBe(38);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);

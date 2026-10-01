@@ -1,7 +1,8 @@
 /**
  * Registry invariants (architecture.md section D), run at boot and in the tests: every kind has
  * its spec block, a combo or a devour only rides a melee row (never both), a beam or a hex a
- * hitscan row (never both) and a sprout a placed row, fuses are consistent, cluster children never cluster again and never name a registry
+ * hitscan row (never both) and a sprout a placed row, a technique the kind it is aimed by (and no
+ * other block), fuses are consistent, cluster children never cluster again and never name a registry
  * weapon, sprites are named, every number is finite and non negative (ammo may be -1), infinite
  * weapons never drop from crates, multi shot weapons do not end the turn early, charged weapons
  * have a launch speed, keys match ids, the panel is complete, and the sidecar metadata table
@@ -13,7 +14,7 @@ import { err, ok, type Result } from '../core/result.ts';
 import { CPU_WEAPON_META } from '../../sidecar/weapon-meta.ts';
 import type { SanitizeWeaponInfo } from '../../sidecar/sanitize.ts';
 import type { WeaponRegistry } from './registry.ts';
-import { PANEL_WEAPON_IDS, type ClusterSpec, type FuseSpec, type WeaponDef, type WeaponKind } from './types.ts';
+import { PANEL_WEAPON_IDS, type ClusterSpec, type FuseSpec, type TechniqueKind, type WeaponDef, type WeaponKind } from './types.ts';
 
 type Rec = Readonly<Record<string, unknown>>;
 
@@ -49,10 +50,52 @@ function checkNumbers(id: string, value: unknown, path: string, out: string[]): 
   }
 }
 
+/** The row kind each technique is aimed by: the aim line, the square ahead, or the clicked point. */
+const TECHNIQUE_KINDS: Readonly<Record<TechniqueKind, WeaponKind>> = Object.freeze({
+  needle: 'HITSCAN',
+  galaxy: 'HITSCAN',
+  treasure: 'HITSCAN',
+  hiken: 'HITSCAN',
+  meteor: 'TARGETED',
+  dice: 'MELEE',
+  zoltraak: 'HITSCAN',
+});
+
+function wholeAtLeast(value: number, min: number): boolean {
+  return Number.isInteger(value) && value >= min;
+}
+
+/** A technique row: aimed by the kind its technique needs, no other super block, and counts that are whole numbers. */
+function checkTechnique(id: string, def: WeaponDef, out: string[]): void {
+  const spec = def.technique;
+  if (spec === undefined) return;
+  const kind = TECHNIQUE_KINDS[spec.kind];
+  if (kind === undefined) {
+    out.push(`${id}: unknown technique ${String(spec.kind)}`);
+    return;
+  }
+  if (def.kind !== kind) out.push(`${id}: a ${spec.kind} technique is aimed as ${kind}, not ${def.kind}`);
+  if ((spec.kind === 'meteor') !== def.requiresTargetSelect) out.push(`${id}: only the meteor is called down on a clicked point`);
+  if (def.combo !== undefined || def.beam !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined) out.push(`${id}: a technique row carries no other super block`);
+  const counts: Readonly<Record<TechniqueKind, () => boolean>> = {
+    needle: () => spec.kind === 'needle' && wholeAtLeast(spec.stings, 1) && spec.rangePx > 0,
+    galaxy: () => spec.kind === 'galaxy' && spec.rangePx > 0 && spec.speedPxPerS > 0 && spec.killRadiusPx > 0,
+    treasure: () => spec.kind === 'treasure' && wholeAtLeast(spec.hits, 1) && spec.rangePx > 0,
+    hiken: () => spec.kind === 'hiken' && wholeAtLeast(spec.flames, 0) && spec.rangePx > 0 && spec.speedPxPerS > 0,
+    meteor: () => spec.kind === 'meteor' && spec.fallSpeedPxPerS > 0 && spec.radiusPx > 0,
+    dice: () => spec.kind === 'dice' && wholeAtLeast(spec.slashes, 0) && spec.cubePx >= 1 && spec.sizePx >= spec.cubePx,
+    zoltraak: () => spec.kind === 'zoltraak' && wholeAtLeast(spec.circles, 1) && spec.rangePx > 0,
+  };
+  if (!counts[spec.kind]()) out.push(`${id}: ${spec.kind} needs whole counts and positive reaches and speeds`);
+}
+
 function checkKindSpecs(id: string, def: WeaponDef, out: string[]): void {
-  for (const spec of REQUIRED_SPECS[def.kind] ?? []) {
+  // A technique row is everything its technique block says: it needs no block of its kind.
+  for (const spec of def.technique === undefined ? (REQUIRED_SPECS[def.kind] ?? []) : []) {
     if ((def as unknown as Rec)[spec] === undefined) out.push(`${id}: kind ${def.kind} requires a ${spec} block`);
   }
+  checkTechnique(id, def, out);
+  if (def.tollShare !== undefined && !(def.tollShare > 0 && def.tollShare <= 1)) out.push(`${id}: tollShare must be in (0, 1]`);
   if (def.kind === 'PLACED' && def.fuse === undefined && def.spawn === undefined && def.sprout === undefined) {
     out.push(`${id}: kind PLACED requires a fuse (dynamite), a spawn block (mine) or a sprout block (saibaman)`);
   }
@@ -119,7 +162,7 @@ function checkRow(id: string, def: WeaponDef, registryIds: ReadonlySet<string>, 
   if (def.shotsPerTurn > 1 && def.endsTurnOnFire) out.push(`${id}: endsTurnOnFire must be false for a ${def.shotsPerTurn} shot weapon`);
   if (def.charged && !(def.maxPower > 0)) out.push(`${id}: maxPower must be positive for a charged weapon`);
   // Paid once per use, as it fires: a weapon that fires more than once a turn would charge it per barrel.
-  if (def.toll !== undefined && def.shotsPerTurn !== 1) out.push(`${id}: a toll belongs on a single shot weapon`);
+  if ((def.toll !== undefined || def.tollShare !== undefined) && def.shotsPerTurn !== 1) out.push(`${id}: a toll belongs on a single shot weapon`);
   checkKindSpecs(id, def, out);
   checkFuse(id, def.fuse, out);
   checkCluster(id, def.cluster, registryIds, out);

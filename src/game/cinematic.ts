@@ -18,6 +18,10 @@
  * A Saibaman seed gets a lighter touch: the camera leans in as the seed goes in and a little more at
  * every crack of the ground, the world dimming a shade so the green light shows, and eases back out
  * as the Saibaman leaps.
+ *
+ * The techniques of the anime row each get theirs (techniqueCinematic): the night falls round the
+ * worm while it gathers itself, the camera closing in, then eases back to take in what it sends,
+ * and the dark lifts once it has landed.
  */
 
 import { clamp } from '../core/math.ts';
@@ -25,7 +29,8 @@ import { beamProgress } from '../sim/beam.ts';
 import { stageProgress, ticksFor } from '../sim/combo.ts';
 import { devourProgress } from '../sim/devour.ts';
 import { hexProgress } from '../sim/hex.ts';
-import type { BeamBody, ComboBody, DevourBody, HexBody, SproutBody } from '../sim/types.ts';
+import type { BeamBody, ComboBody, DevourBody, HexBody, SproutBody, TechniqueBody } from '../sim/types.ts';
+import { techniqueProgress } from '../sim/technique.ts';
 import { sproutProgress } from '../sim/sprout.ts';
 import { drumBounce } from './gear-five.ts';
 
@@ -132,7 +137,67 @@ function sproutCinematic(sprout: SproutBody): Cinematic {
   }
 }
 
-export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = [], sprouts: readonly SproutBody[] = []): Cinematic {
+/**
+ * How a technique's stages look, as dim and zoom: the gathering (how dark, how close), the delivery
+ * (how dark, how close), and how close the camera is when it lands. The recovery lifts the dark
+ * and eases the zoom back to 1 from the delivery's.
+ */
+interface TechniqueLook {
+  readonly gatherDim: number;
+  readonly gatherZoom: number;
+  readonly deliverDim: number;
+  readonly deliverZoom: number;
+}
+
+const TECHNIQUE_LOOKS: Readonly<Record<TechniqueBody['kind'], TechniqueLook>> = Object.freeze({
+  // The stars of Scorpio light up in the dark, closer and closer as the needles go in.
+  needle: { gatherDim: 0.5, gatherZoom: 1.2, deliverDim: 0.6, deliverZoom: 1.35 },
+  // Deep space falls round the worm as the galaxies gather; the camera backs off for the throw.
+  galaxy: { gatherDim: 0.78, gatherZoom: 1.25, deliverDim: 0.62, deliverZoom: 1 },
+  // The lotus in a golden dusk; the wheel's strike close on its worm.
+  treasure: { gatherDim: 0.5, gatherZoom: 1.15, deliverDim: 0.55, deliverZoom: 1.3 },
+  hiken: { gatherDim: 0.4, gatherZoom: 1.25, deliverDim: 0.3, deliverZoom: 1 },
+  // The sky darkens and the camera pulls back to take in the fall.
+  meteor: { gatherDim: 0.45, gatherZoom: 0.95, deliverDim: 0.4, deliverZoom: 0.85 },
+  // Still air and the swords out, the camera close; the cuts close in on the square.
+  dice: { gatherDim: 0.5, gatherZoom: 1.3, deliverDim: 0.62, deliverZoom: 1.35 },
+  zoltraak: { gatherDim: 0.45, gatherZoom: 1.15, deliverDim: 0.5, deliverZoom: 1 },
+});
+
+/** The gathering stage of each technique; the strike of the treasure on a sealed turn delivers at once. */
+function gathering(body: TechniqueBody): boolean {
+  switch (body.kind) {
+    case 'needle':
+      return body.stage === 'point';
+    case 'galaxy':
+      return body.stage === 'charge';
+    case 'treasure':
+      return body.stage === 'cast';
+    case 'hiken':
+      return body.stage === 'windup';
+    case 'meteor':
+      return body.stage === 'call';
+    case 'dice':
+      return body.stage === 'draw';
+    case 'zoltraak':
+      return body.stage === 'form';
+  }
+}
+
+export function techniqueCinematic(body: TechniqueBody): Cinematic {
+  const look = TECHNIQUE_LOOKS[body.kind];
+  const p = techniqueProgress(body);
+  if (gathering(body)) return { whiteout: 0, dim: look.gatherDim * ease(p * 1.5), zoom: 1 + (look.gatherZoom - 1) * ease(p), aura: 0 };
+  if (body.stage !== 'recover') {
+    // From the gathering's look to the delivery's over the first stretch of it.
+    const from = body.kind === 'treasure' && body.mode === 'strike' ? { dim: 0, zoom: 1 } : { dim: look.gatherDim, zoom: look.gatherZoom };
+    const k = ease(p * 2.5);
+    return { whiteout: 0, dim: from.dim + (look.deliverDim - from.dim) * k, zoom: from.zoom + (look.deliverZoom - from.zoom) * k, aura: 0 };
+  }
+  return { whiteout: 0, dim: look.deliverDim * (1 - ease(p / 0.6)), zoom: look.deliverZoom + (1 - look.deliverZoom) * ease(p), aura: 0 };
+}
+
+export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = [], sprouts: readonly SproutBody[] = [], techniques: readonly TechniqueBody[] = []): Cinematic {
   const combo = combos.find((c) => c.alive);
   if (combo === undefined) {
     const beam = beams.find((b) => b.alive);
@@ -142,7 +207,9 @@ export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamB
     const hex = hexes.find((h) => h.alive);
     if (hex !== undefined) return hexCinematic(hex);
     const sprout = sprouts.find((s) => s.alive);
-    return sprout === undefined ? NO_CINEMATIC : sproutCinematic(sprout);
+    if (sprout !== undefined) return sproutCinematic(sprout);
+    const technique = techniques.find((t) => t.alive);
+    return technique === undefined ? NO_CINEMATIC : techniqueCinematic(technique);
   }
   const p = stageProgress(combo);
   const landed = combo.victimId !== null;

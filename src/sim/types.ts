@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, HexSpec, ProjectileSpec, SpawnSpec, SproutSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, DiceSpec, GalaxySpec, HexSpec, HikenSpec, MeteorSpec, NeedleSpec, ProjectileSpec, SpawnSpec, SproutSpec, TechniqueKind, TreasureSpec, ZoltraakSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -300,6 +300,201 @@ export interface SproutBody {
   alive: boolean;
 }
 
+/**
+ * The techniques of the anime row in progress (sim/technique.ts): one body per technique, tagged by
+ * kind, all stepped from one list. What they share: who uses it, the stage clock, where the attacker
+ * stands while the technique holds it, and which way it faces.
+ */
+interface TechniqueBase {
+  readonly id: number;
+  readonly weaponId: string;
+  readonly attackerId: string;
+  readonly ownerTeamId: string;
+  /** Ticks spent in the current stage, counted from 1 on the stage's first tick. */
+  stageTicks: number;
+  readonly holdX: number;
+  readonly holdY: number;
+  readonly facing: 1 | -1;
+  alive: boolean;
+}
+
+export type NeedleStage = 'point' | 'sting' | 'antares' | 'recover';
+
+/** Antares in progress (sim/techniques/needle.ts): both worms are held from the point to Antares. */
+export interface NeedleBody extends TechniqueBase {
+  readonly kind: 'needle';
+  readonly spec: NeedleSpec;
+  stage: NeedleStage;
+  /** Null when nobody was on the line: the needles fly on and the light dies. */
+  readonly victimId: string | null;
+  /** The fingertip, and where the needles go: the victim's middle, or as far as they got. */
+  readonly tipX: number;
+  readonly tipY: number;
+  readonly targetX: number;
+  readonly targetY: number;
+  /** The victim's feet, where it is held while it is stung. */
+  readonly groundX: number;
+  readonly groundY: number;
+  stings: number;
+  /** Antares went in. */
+  pierced: boolean;
+}
+
+export type GalaxyStage = 'charge' | 'fly' | 'recover';
+
+/** The Galaxian Explosion in progress (sim/techniques/galaxy.ts): the attacker is held until the burst. */
+export interface GalaxyBody extends TechniqueBase {
+  readonly kind: 'galaxy';
+  readonly spec: GalaxySpec;
+  stage: GalaxyStage;
+  /** Where the galaxy leaves the hands, its unit direction, and how far it has flown. */
+  readonly x0: number;
+  readonly y0: number;
+  readonly dx: number;
+  readonly dy: number;
+  travelled: number;
+  /** Where it went off, once it has. */
+  burstX: number | null;
+  burstY: number | null;
+  /** Worms it took. */
+  readonly killed: string[];
+}
+
+export type TreasureStage = 'cast' | 'strike' | 'recover';
+
+/**
+ * The Tesoro del Cielo in progress (sim/techniques/treasure.ts): the cast, on the caster's turn,
+ * holds the caster in the lotus and seals the target; a strike, on a turn the target's team loses,
+ * holds the target in the wheel while a sense is taken from it.
+ */
+export interface TreasureBody extends TechniqueBase {
+  readonly kind: 'treasure';
+  readonly spec: TreasureSpec;
+  stage: TreasureStage;
+  readonly mode: 'cast' | 'strike';
+  /** The sealed worm; null for a cast that found nobody in reach and in sight. */
+  readonly victimId: string | null;
+  /** The target's feet. */
+  readonly targetX: number;
+  readonly targetY: number;
+  /** For a strike: which one, from 1, and whether it is the last (it kills). */
+  readonly hit: number;
+  readonly fatal: boolean;
+  /** The cast sealed its target, or the strike took its sense. */
+  landed: boolean;
+}
+
+export type HikenStage = 'windup' | 'fly' | 'recover';
+
+/** The Hiken in progress (sim/techniques/hiken.ts): the attacker is held through the windup and the throw. */
+export interface HikenBody extends TechniqueBase {
+  readonly kind: 'hiken';
+  readonly spec: HikenSpec;
+  stage: HikenStage;
+  readonly x0: number;
+  readonly y0: number;
+  readonly dx: number;
+  readonly dy: number;
+  travelled: number;
+  burstX: number | null;
+  burstY: number | null;
+}
+
+export type MeteorStage = 'call' | 'fall' | 'recover';
+
+/** Fujitora's meteor in progress (sim/techniques/meteor.ts): the caller is held until it lands. */
+export interface MeteorBody extends TechniqueBase {
+  readonly kind: 'meteor';
+  readonly spec: MeteorSpec;
+  stage: MeteorStage;
+  /** Where it was called down on, where its fall starts, and its unit direction of fall. */
+  readonly targetX: number;
+  readonly targetY: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly dx: number;
+  readonly dy: number;
+  /** The rock, while it falls. */
+  x: number;
+  y: number;
+  burstX: number | null;
+  burstY: number | null;
+}
+
+/** One cube the land fell apart into: its top left corner, its side, and whether grass grew on it. */
+export interface DiceCell {
+  readonly x: number;
+  readonly y: number;
+  readonly size: number;
+  readonly surface: boolean;
+}
+
+export type DiceStage = 'draw' | 'slash' | 'recover';
+
+/** The Santoryu in progress (sim/techniques/dice.ts): the swordsman is held until the cut lands. */
+export interface DiceBody extends TechniqueBase {
+  readonly kind: 'dice';
+  readonly spec: DiceSpec;
+  stage: DiceStage;
+  /** The square's top left corner and side, world px: axis aligned, centred along the aim. */
+  readonly squareX: number;
+  readonly squareY: number;
+  readonly side: number;
+  slashes: number;
+  cut: boolean;
+  /** Worms the cut caught. */
+  readonly caught: string[];
+}
+
+export type ZoltraakStage = 'form' | 'fire' | 'recover';
+
+/** Zoltraak in progress (sim/techniques/zoltraak.ts): the mage is held until the last beam. */
+export interface ZoltraakBody extends TechniqueBase {
+  readonly kind: 'zoltraak';
+  readonly spec: ZoltraakSpec;
+  stage: ZoltraakStage;
+  /** The circles, where they hang, in the order they open and fire. */
+  readonly circles: readonly { readonly x: number; readonly y: number }[];
+  /** Where the beams meet: the first land or worm along the aim, or the end of its reach. */
+  readonly targetX: number;
+  readonly targetY: number;
+  opened: number;
+  /** Where each beam fired so far ended: on the way, or where they meet. */
+  readonly ends: { readonly x: number; readonly y: number }[];
+}
+
+export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody | MeteorBody | DiceBody | ZoltraakBody;
+
+/**
+ * The beats of the techniques the presentation plays, by kind:
+ * - needle: sting (n from 1), antares, fizzle;
+ * - galaxy: release, burst (n the worms it took);
+ * - treasure: wheel (the cast closes on its target), seal, miss, sense (a strike, n from 1), nirvana (the last);
+ * - hiken: flare, release, burst;
+ * - meteor: call, fall, burst;
+ * - dice: draw, slash (n from 1), cut (with the cubes);
+ * - zoltraak: circle (n from 1), beam (n from 1).
+ */
+export type TechniqueBeat =
+  | 'sting'
+  | 'antares'
+  | 'fizzle'
+  | 'release'
+  | 'burst'
+  | 'wheel'
+  | 'seal'
+  | 'miss'
+  | 'sense'
+  | 'nirvana'
+  | 'flare'
+  | 'call'
+  | 'fall'
+  | 'draw'
+  | 'slash'
+  | 'cut'
+  | 'circle'
+  | 'beam';
+
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
   readonly x: number;
@@ -310,8 +505,12 @@ export interface HitPoint {
 }
 
 export type SimEvent =
-  /** cause 'toll' is a worm paying for its own super (WeaponDef.toll): no source, no points, no kill credit. */
-  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee' | 'toll'; readonly at?: HitPoint }
+  /**
+   * cause 'toll' is a worm paying for its own super (WeaponDef.toll): no source, no points, no kill
+   * credit. A toll with a share (WeaponDef.tollShare) costs that share of the health the worm has,
+   * rounded up, and the ledger works it out: amount is only the most it can be.
+   */
+  | { readonly type: 'damage'; readonly wormId: string; readonly amount: number; readonly sourceTeamId: string | null; readonly sourceWormId: string | null; readonly cause: 'blast' | 'fall' | 'hit' | 'melee' | 'toll'; readonly at?: HitPoint; readonly share?: number }
   | { readonly type: 'drown'; readonly wormId: string }
   | { readonly type: 'activity'; readonly kind: 'bounce' | 'carve' | 'spawn' }
   | { readonly type: 'explosion'; readonly x: number; readonly y: number; readonly radius: number; readonly particle: BlastSpec['particle']; readonly shake: number }
@@ -349,7 +548,14 @@ export type SimEvent =
   | { readonly type: 'sproutBeat'; readonly sproutId: number; readonly planterId: string; readonly beat: SproutBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
   | { readonly type: 'sproutEnd'; readonly sproutId: number; readonly planterId: string; readonly wormId: string | null }
   /** A new worm is in the world (a Saibaman out of the ground): the ledger gives it a place in its team. */
-  | { readonly type: 'wormSpawned'; readonly wormId: string; readonly teamId: string; readonly x: number; readonly y: number; readonly size: number; readonly hpShare: number };
+  | { readonly type: 'wormSpawned'; readonly wormId: string; readonly teamId: string; readonly x: number; readonly y: number; readonly size: number; readonly hpShare: number }
+  /** A technique of the anime row starts: the attacker, and its target when it has one; strike numbers a strike of the treasure on a sealed turn. */
+  | { readonly type: 'techniqueStart'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly weaponId: string; readonly attackerId: string; readonly victimId: string | null; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly strike?: number }
+  /** One beat of a technique at (x, y); n counts what it counts (the stings, the strikes, the circles), 0 for the rest. Presentation only. */
+  | { readonly type: 'techniqueBeat'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly beat: TechniqueBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly cells?: readonly DiceCell[] }
+  | { readonly type: 'techniqueEnd'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly landed: boolean }
+  /** The Tesoro del Cielo sealed a worm: the ledger takes its team's next turns, hits of them (match/seals.ts). */
+  | { readonly type: 'sealed'; readonly weaponId: string; readonly casterId: string; readonly casterTeamId: string; readonly targetId: string; readonly hits: number; readonly hitToll: number };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

@@ -135,6 +135,7 @@ export function enterTurnStart(state: MatchState, deps: MatchDeps): MatchState {
     lastHitBy: {},
     shot: null,
     settle: null,
+    strikes: [],
   };
   const team = activeTeamOf(next);
   const worm = team?.worms[selection.wormIndex];
