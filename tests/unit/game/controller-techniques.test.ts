@@ -10,8 +10,9 @@ import { createFakeFactory } from '../terrain/fakes.ts';
 
 /**
  * The techniques of the anime row through the whole match flow: the shot stays open while they
- * play, Antares costs half of what its user has, and the Tesoro del Cielo takes the sealed team's
- * turns, a strike each that the caster pays 15 for, until the last one takes the sealed worm.
+ * play, Antares costs half of what its user has, and the Tesoro del Cielo's sealed worm sits out
+ * its team's turns while the others play them, a strike as each settles that the caster pays 15
+ * for, until the last one takes the sealed worm.
  */
 
 const IDLE: ControllerInput = Object.freeze({
@@ -112,7 +113,7 @@ describe('controller: Antares', () => {
 });
 
 describe('controller: the Tesoro del Cielo', () => {
-  it('seals the target, takes its team\'s next three turns with a strike each, 15 from the caster for each, and the third kills', () => {
+  it('seals the target, which sits out its team\'s next three turns while the others play, a strike as each settles, 15 from the caster for each, and the third kills', () => {
     const controller = makeController(100);
     const { attackerId, victimId } = lineUp(controller, 120);
     const casterTeam = activeTeamOf(controller.state())?.id ?? '';
@@ -123,28 +124,27 @@ describe('controller: the Tesoro del Cielo', () => {
     expect(events.some((e) => e.type === 'techniqueBeat' && e.beat === 'seal')).toBe(true);
     const banners: string[] = [];
     const strikes: string[] = [];
+    const played: string[] = [];
     for (let turn = 0; turn < 12 && aliveOf(controller.state(), victimId); turn += 1) {
       playUntil(controller, () => controller.state().phase === 'TurnStart' || controller.state().phase === 'MatchEnd', events);
       if (controller.state().phase === 'MatchEnd') break;
       banners.push(controller.banner() ?? '');
-      const sealedTurn = activeTeamOf(controller.state())?.id !== casterTeam;
-      if (sealedTurn) {
-        // The treasure's turn: no Active for the sealed team, the strike plays out while it resolves.
-        const seen: GameEvent[] = [];
-        playUntil(controller, () => controller.state().phase === 'TurnEnd', seen);
-        expect(seen.some((e) => e.type === 'techniqueBeat' && (e.beat === 'sense' || e.beat === 'nirvana'))).toBe(true);
-        strikes.push(...seen.flatMap((e) => (e.type === 'techniqueBeat' && (e.beat === 'sense' || e.beat === 'nirvana') ? [`${e.beat}${e.n}`] : [])));
-        events.push(...seen);
-      } else {
-        // The caster's team: let the clock run its turn out.
-        playUntil(controller, () => controller.state().phase === 'Active');
-        controller.advanceRoundClock(60_000);
-      }
+      // Every team plays its turns, the sealed worm's too: let the clock run each one out.
+      playUntil(controller, () => controller.state().phase === 'Active');
+      if (activeTeamOf(controller.state())?.id !== casterTeam) played.push(activeWormOf(controller.state())?.id ?? '');
+      controller.advanceRoundClock(60_000);
+      const seen: GameEvent[] = [];
+      playUntil(controller, () => controller.state().phase === 'TurnEnd' || controller.state().phase === 'MatchEnd', seen);
+      strikes.push(...seen.flatMap((e) => (e.type === 'techniqueBeat' && (e.beat === 'sense' || e.beat === 'nirvana') ? [`${e.beat}${e.n}`] : [])));
+      events.push(...seen);
     }
     expect(strikes).toEqual(['sense1', 'sense2', 'nirvana3']);
     expect(aliveOf(controller.state(), victimId)).toBe(false);
     expect(hpOf(controller.state(), attackerId)).toBe(100 - 45);
-    expect(banners.some((b) => b.includes('SIN SENTIDOS'))).toBe(true);
+    // The sealed worm never played: its team's turns went to the others, and no turn was taken whole.
+    expect(played.length).toBeGreaterThanOrEqual(3);
+    expect(played).not.toContain(victimId);
+    expect(banners.some((b) => b.includes('SIN SENTIDOS'))).toBe(false);
     expect(controller.state().seals).toEqual([]);
   });
 });

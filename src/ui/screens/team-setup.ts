@@ -15,17 +15,17 @@ import { centerText, leftText } from '../widgets/text.ts';
 
 export const MIN_TEAMS = 2;
 export const MAX_TEAMS = 4;
-export const WORMS_PER_TEAM = 3;
+export const WORMS_PER_TEAM = 6;
 
 /** Preset team names, cycled by clicking the name cell; 16 characters at most (setup validation). */
 export const TEAM_NAME_PRESETS: readonly string[] = Object.freeze(['Reds', 'Blues', 'Greens', 'Golds', 'Orugas', 'Larvas', 'Capullos', 'Polillas']);
 
-/** Worm names per team, three per team; the fourth set is reused when a name list runs out. */
+/** Worm names per team, six per team; the fourth set is reused when a name list runs out. */
 const WORM_NAMES: readonly (readonly string[])[] = Object.freeze([
-  Object.freeze(['Rojo', 'Rita', 'Rex']),
-  Object.freeze(['Azul', 'Ana', 'Ash']),
-  Object.freeze(['Verde', 'Vera', 'Vic']),
-  Object.freeze(['Oro', 'Olga', 'Otto']),
+  Object.freeze(['Rojo', 'Rita', 'Rex', 'Rosa', 'Rudy', 'Rocco']),
+  Object.freeze(['Azul', 'Ana', 'Ash', 'Alma', 'Axel', 'Abril']),
+  Object.freeze(['Verde', 'Vera', 'Vic', 'Vale', 'Vito', 'Vilma']),
+  Object.freeze(['Oro', 'Olga', 'Otto', 'Omar', 'Olivia', 'Oscar']),
 ]);
 
 export const DIFFICULTIES: readonly CpuDifficulty[] = Object.freeze(['easy', 'normal', 'hard']);
@@ -106,7 +106,7 @@ export function reduceTeamSetup(state: TeamSetupState, action: TeamSetupAction):
   return Object.freeze({ teams: Object.freeze(teams) });
 }
 
-/** The MatchSetup buildGame consumes: colours follow the slot index, worms three per team. */
+/** The MatchSetup buildGame consumes: colours follow the slot index, worms six per team. */
 export function toMatchSetup(state: TeamSetupState, seed: number, worldSize: Size): MatchSetup {
   const teams: TeamSetup[] = state.teams.map((slot, index) => {
     const names = WORM_NAMES[index] ?? WORM_NAMES[WORM_NAMES.length - 1] ?? ['A', 'B', 'C'];

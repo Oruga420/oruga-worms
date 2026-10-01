@@ -442,11 +442,11 @@ test('pauses on Escape, holds the clock, resumes, and surrender ends the match',
   expect(await page.evaluate(() => window.__orugas?.paused() ?? true)).toBe(false);
 
   // The end screen's scoreboard: the CPU team (Blues) won by surrender and leads the table with
-  // its survivors intact; the human team (Reds) is listed second with no worms left standing.
+  // its six survivors intact; the human team (Reds) is listed second with no worms left standing.
   const rows = await page.evaluate(() => window.__orugas?.scoreboard() ?? []);
   expect(rows.map((row) => row.name)).toEqual(['Blues', 'Reds']);
   expect(rows[0]?.winner).toBe(true);
-  expect(rows[0]?.aliveWorms).toBe(3);
+  expect(rows[0]?.aliveWorms).toBe(6);
   expect(rows[1]?.winner).toBe(false);
   expect(rows[1]?.aliveWorms).toBe(0);
   expect(rows[0]?.points ?? 0).toBeGreaterThan(rows[1]?.points ?? 0);
@@ -1024,9 +1024,9 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
   expect(errors).toEqual([]);
 });
 
-test('tesoro del cielo from the anime row: the enemy in sight is sealed, its team loses three turns, and the third strike kills', async ({ page }) => {
+test('tesoro del cielo from the anime row: the enemy in sight is sealed and sits out its team\'s turns, struck as each ends, and the third strike kills', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  // The cast, then three lost turns with a strike each.
+  // The cast, then three turns of each team with a strike as each of the sealed team's ends.
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -1034,15 +1034,16 @@ test('tesoro del cielo from the anime row: the enemy in sight is sealed, its tea
   // The Tesoro del Cielo unlocks on turn 2 (its scheme delay): end the first turn.
   await endTurns(page, 1);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
-  // Close enough to be the one the wheel picks.
-  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(70));
+  // Nearer than any other worm stands at the start, so it is the one the wheel picks.
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));
   if (victim === null) throw new Error('No enemy to line up');
   await page.waitForTimeout(600);
   const hp = (id: string): Promise<number> => page.evaluate((worm: string) => window.__orugas!.wormHp(worm), id);
   const victimHp = await hp(victim);
   expect(victimHp).toBeGreaterThan(0);
   const caster = await page.evaluate(() => window.__orugas!.inventory().activeId);
-  const casterTeam = caster.split('-worm-')[0];
+  const casterTeam = caster.split('-worm-')[0] ?? '';
+  const victimTeam = victim.split('-worm-')[0] ?? '';
   const casterHp = await hp(caster);
   expect(casterHp).toBeGreaterThan(45);
   await pickWeapon(page, stage, 'tenbu_horin');
@@ -1059,44 +1060,45 @@ test('tesoro del cielo from the anime row: the enemy in sight is sealed, its tea
   const ammo = (await page.evaluate(() => window.__orugas!.inventory())).worms.find((worm) => worm.id === caster)?.ammo['tenbu_horin'];
   expect(ammo).toBe(0);
 
-  // Each of the victim's team's turns is lost to a strike, 15 from the caster each, and play comes
-  // straight back to the caster's team. The first two take a sense; the third kills.
-  const backToCaster = async (after: number): Promise<number> => {
+  // The victim's team plays its next three turns with its other worms; as each ends the wheel
+  // strikes the victim, 15 from the caster each. The first two take a sense; the third kills.
+  const upNext = async (team: string, after: number): Promise<number> => {
     await expect
       .poll(
         () =>
           page.evaluate(
-            ({ team, turn }) => {
+            ({ team: wanted, turn }) => {
               const api = window.__orugas!;
-              return api.phase() === 'Active' && api.turn() > turn && api.inventory().activeId.split('-worm-')[0] === team;
+              return api.phase() === 'Active' && api.turn() > turn && api.inventory().activeId.split('-worm-')[0] === wanted;
             },
-            { team: casterTeam, turn: after },
+            { team, turn: after },
           ),
         { timeout: 30000 },
       )
       .toBe(true);
     return page.evaluate(() => window.__orugas!.turn());
   };
-  const struck = async (strike: number): Promise<void> => {
+  let turn = await page.evaluate(() => window.__orugas!.turn());
+  for (let strike = 1; strike <= 3; strike += 1) {
+    turn = await upNext(victimTeam, turn);
+    // Its team plays the turn, with another worm: the sealed one sits it out.
+    expect(await page.evaluate(() => window.__orugas!.inventory().activeId)).not.toBe(victim);
+    await page.evaluate(() => window.__orugas!.endTurn());
+    // As that turn ends, the wheel opens over the sealed worm and bites.
+    await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 15000 }).toBe(1);
+    if (strike !== 2) {
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: resolve(ROOT, `test-results/tesoro-strike-${strike}.png`) });
+    }
+    turn = await upNext(casterTeam, turn);
+    expect(await hp(caster)).toBe(casterHp - 15 * strike);
+    if (strike === 3) break;
     expect(await page.evaluate(() => window.__orugas!.seals())).toEqual([{ targetId: victim, hitsLeft: 3 - strike }]);
     expect(await hp(victim)).toBe(victimHp);
-    expect(await hp(caster)).toBe(casterHp - 15 * strike);
-  };
-  let turn = await backToCaster(await page.evaluate(() => window.__orugas!.turn()));
-  await struck(1);
-  await page.evaluate(() => window.__orugas!.endTurn());
-  // The wheel opening over the sealed worm in the lost turn.
-  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 15000 }).toBe(1);
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: resolve(ROOT, 'test-results/tesoro-strike.png') });
-  turn = await backToCaster(turn);
-  await struck(2);
-  await page.evaluate(() => window.__orugas!.endTurn());
-  await expect.poll(() => hp(victim), { timeout: 30000 }).toBe(0);
-  await page.screenshot({ path: resolve(ROOT, 'test-results/tesoro-nirvana.png') });
-  await backToCaster(turn);
+    await page.evaluate(() => window.__orugas!.endTurn());
+  }
+  expect(await hp(victim)).toBe(0);
   expect(await page.evaluate(() => window.__orugas!.seals())).toEqual([]);
-  expect(await hp(caster)).toBe(casterHp - 45);
   expect(errors).toEqual([]);
 });
 

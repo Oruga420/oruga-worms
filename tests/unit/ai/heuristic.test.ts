@@ -488,6 +488,16 @@ describe('decideHeuristic: the anime row', () => {
     expect(decideHeuristic(input(req('tenbu_horin', 400, 100, 45), pair(400, 100, 45))).weapon).not.toBe('tenbu_horin');
   });
 
+  it('values the seal by the turns it takes: whole turns from a last worm, little from one whose team plays on', () => {
+    // The last of its team: 100 for the kill, and three turns its team loses, 20 each less the 15 a strike costs.
+    expect(decideHeuristic(input(req('tenbu_horin', 400), pair(400))).reasoning).toContain('expected score 115');
+    // A teammate out of reach plays the turns instead: only that worm sits them out, 5 each less the 15.
+    const withTeammate = [...pair(400), { id: 'b2', teamId: 'blue', x: 900, y: 299, hp: 100, alive: true }];
+    const decision = decideHeuristic(input(req('tenbu_horin', 400), withTeammate));
+    expect(decision.weapon).toBe('tenbu_horin');
+    expect(decision.reasoning).toContain('expected score 70');
+  });
+
   it('throws the Hiken at an enemy in reach', () => {
     const decision = decideHeuristic(input(req('hiken', 420), pair(420)));
     expect(decision.weapon).toBe('hiken');

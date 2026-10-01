@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { WORLD_SIZE_DEFAULT } from '@/config/constants.ts';
 import { buildGame, quickGame } from '@/game/setup.ts';
 import { solidCount } from '@/terrain/terrain.ts';
+import { toMatchSetup, type TeamSetupState } from '@/ui/screens/team-setup.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 
 describe('buildGame / quickGame', () => {
@@ -44,5 +46,23 @@ describe('buildGame / quickGame', () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) for (const body of result.value.world.worms) expect(body.y).toBeLessThan(result.value.terrain.water.y);
+  });
+
+  it('fits four teams of six on the default island, standing them closer where the widest spacing has no room', () => {
+    const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })) };
+    let closer = 0;
+    for (let seed = 1; seed <= 12; seed += 1) {
+      const result = buildGame({ setup: toMatchSetup(four, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
+      expect(result.ok, result.ok ? '' : `seed ${seed}: ${result.error.message}`).toBe(true);
+      if (!result.ok) continue;
+      const xs = result.value.state.teams.flatMap((team) => team.worms.map((worm) => worm.x)).sort((a, b) => a - b);
+      expect(xs).toHaveLength(24);
+      const gap = Math.min(...xs.slice(1).map((x, i) => x - (xs[i] ?? 0)));
+      // Never closer than the tightest spacing: still well clear of each other.
+      expect(gap).toBeGreaterThanOrEqual(24);
+      if (gap < 48) closer += 1;
+    }
+    // Some of these islands only fit everyone closer than the widest spacing.
+    expect(closer).toBeGreaterThan(0);
   });
 });

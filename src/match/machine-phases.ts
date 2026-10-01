@@ -13,6 +13,7 @@ import { activeTeamOf, appendLog, findTeamIndex, findWorm, replaceWorm, updateTe
 import { canTransition } from './phases.ts';
 import { startRetreat } from './retreat.ts';
 import { finalizeScores, scoreKill, scoreShotClosed } from './scoring.ts';
+import { sealedWorms, strikeAtTurnEnd } from './seals.ts';
 import { makeWindState, WIND_STEP_MAX, WIND_STEP_MIN, type MatchPhase, type MatchState, type PendingDeath, type SettleReason } from './state.ts';
 import { applySuddenDeathCheck } from './sudden-death.ts';
 import { selectNextTurn } from './turn.ts';
@@ -95,8 +96,19 @@ function enterTurnEnd(state: MatchState, deps: MatchDeps): MatchState {
   return transition(next, 'TurnEnd');
 }
 
-/** Ends Resolving: records how it ended (a cap means the sim must detonate what is still live) and moves to TurnEnd. */
+/**
+ * Ends Resolving: records how it ended (a cap means the sim must detonate what is still live) and
+ * moves to TurnEnd. A team with a worm sealed by the Tesoro del Cielo played its turn with its other
+ * worms, so first the treasure strikes the sealed worm, with fresh caps, and the turn settles again
+ * once the strike is over.
+ */
 export function settleResolving(state: MatchState, reason: SettleReason, deps: MatchDeps): MatchState {
+  const { pruned, struck } = strikeAtTurnEnd(state);
+  if (struck !== null) return withTimers(struck, { resolveElapsedMs: 0, resolveInactiveMs: 0 });
+  return settleTurn(pruned, reason, deps);
+}
+
+function settleTurn(state: MatchState, reason: SettleReason, deps: MatchDeps): MatchState {
   const forceSettled = reason !== 'rest';
   const settled: MatchState = { ...state, settle: { forceSettled, reason, elapsedMs: state.timers.resolveElapsedMs } };
   const text = forceSettled ? `Force settled after ${state.timers.resolveElapsedMs} ms (${reason} cap)` : 'All bodies at rest';
@@ -120,7 +132,8 @@ export function enterMatchEnd(state: MatchState): MatchState {
  * SuddenDeathCheck. No living worm anywhere ends the match instead.
  */
 export function enterTurnStart(state: MatchState, deps: MatchDeps): MatchState {
-  const selection = selectNextTurn(state.teams, state.activeTeamIndex);
+  // A worm the Tesoro del Cielo sealed sits its turns out while its team has another to play.
+  const selection = selectNextTurn(state.teams, state.activeTeamIndex, sealedWorms(state));
   if (selection === null) return enterMatchEnd(state);
   const wrapped = state.turn > 0 && selection.teamIndex <= state.activeTeamIndex;
   const withSelection = updateTeam(state, selection.teamIndex, (team) => ({ ...team, activeWormIndex: selection.wormIndex }));

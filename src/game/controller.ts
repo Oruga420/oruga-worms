@@ -23,7 +23,7 @@ import { reduce } from '../match/machine.ts';
 import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
 import type { CrateType, MatchState } from '../match/state.ts';
 import { activeTeamOf, activeWormOf, findWorm as findWormState } from '../match/ledger.ts';
-import { teamSealed } from '../match/seals.ts';
+import { activeWormSealed } from '../match/seals.ts';
 import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
@@ -207,7 +207,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const goneWorms = new Set<string>();
   // Worms that paid for a super with their last hp: they finish the move before they burst.
   const lastBreath = new Set<string>();
-  // The turn whose strikes of the Tesoro del Cielo have been played, so a lost turn plays them once.
+  // The turn whose strikes of the Tesoro del Cielo have been played, so a turn plays them once.
   let strikesTurn = -1;
 
   // Movement budget: real horizontal displacement spent while walking this turn, in world px.
@@ -483,8 +483,10 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   /**
-   * A sealed team's turn: the ledger took it for the Tesoro del Cielo and left its strikes, which play
-   * out in the sim (the sense taken, the caster's toll, the last one's kill) while the turn resolves.
+   * The Tesoro del Cielo's strikes the ledger left for this turn, at the end of a turn the sealed
+   * worm's team played without it, or in a turn taken whole because only sealed worms were left:
+   * they play out in the sim (the sense taken, the caster's toll, the last one's kill) while the
+   * turn resolves.
    */
   const playStrikes = (): void => {
     if (state.strikes.length === 0 || strikesTurn === state.turn) return;
@@ -845,8 +847,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
       const team = activeTeamOf(state);
       switch (state.phase) {
         case 'TurnStart':
-          // A sealed team's turn goes to the Tesoro del Cielo: its worms have no senses left to fight with.
-          if (team !== undefined && teamSealed(state, team.id)) return `${team.name}: ¡SIN SENTIDOS!`;
+          // Only sealed worms left: the turn goes to the Tesoro del Cielo, they have no senses to fight with.
+          if (team !== undefined && activeWormSealed(state)) return `${team.name}: ¡SIN SENTIDOS!`;
           return `${team?.name ?? ''}: ${activeWormOf(state)?.name ?? ''}`;
         case 'SuddenDeathCheck':
           return state.suddenDeath ? 'Sudden death' : null;

@@ -1,17 +1,21 @@
 /**
  * The Tesoro del Cielo's seals in the ledger. The cast (sim/techniques/treasure.ts) reports the worm
- * it sealed (WormSealed); from then on, whenever the sealed worm's team comes up to play, the turn is
- * taken from it: every seal still holding on the team strikes once, and the turn goes straight to
- * Resolving. The controller plays each strike in the sim, where the caster pays its toll and the
- * last strike takes the sealed worm's life, so the ledger books both the way it books any damage.
+ * it sealed (WormSealed); from then on that worm sits its turns out, not its team: the rotation
+ * passes over it (sealedWorms) and the team plays with its other worms, and at the end of each of
+ * the team's turns every seal on it strikes once (strikeAtTurnEnd). Only when the sealed worms are
+ * all the team has left is the turn itself taken (takeSealedTurn): the seals strike and the turn
+ * goes straight to Resolving. The controller plays each strike in the sim, where the caster pays
+ * its toll and the last strike takes the sealed worm's life, so the ledger books both the way it
+ * books any damage.
  *
  * A seal holds while its caster and its target are both alive: either dying first breaks it, and the
- * team plays its turns again. Pure functions over MatchState, like the rest of the reducer.
+ * worm plays its turns again. Pure functions over MatchState, like the rest of the reducer.
  */
 
 import type { WormSealedEvent } from './events.ts';
-import { activeTeamOf, appendLog, findWorm, resetInactivity } from './ledger.ts';
+import { activeTeamOf, activeWormOf, appendLog, findWorm, resetInactivity } from './ledger.ts';
 import type { MatchState, Seal, SealStrike } from './state.ts';
+import type { HeldOut } from './turn.ts';
 
 /** The most strikes a seal may carry: the treasure takes the senses, and a worm has only so many. */
 export const MAX_SEAL_HITS = 6;
@@ -30,9 +34,16 @@ export function sealsOn(state: MatchState, wormId: string): readonly Seal[] {
   return state.seals.filter((seal) => seal.targetId === wormId && sealHolds(state, seal));
 }
 
-/** A seal holds on one of the team's worms: its next turn is the treasure's. */
-export function teamSealed(state: MatchState, teamId: string): boolean {
-  return state.seals.some((seal) => seal.targetTeamId === teamId && sealHolds(state, seal));
+/** The worms a seal holds on, for the rotation to pass over while their teams have others to play. */
+export function sealedWorms(state: MatchState): HeldOut {
+  const sealed = new Set(state.seals.filter((seal) => sealHolds(state, seal)).map((seal) => seal.targetId));
+  return (wormId) => sealed.has(wormId);
+}
+
+/** The worm whose turn it is sits it out: a seal holds on it, so every worm its team has left is sealed. */
+export function activeWormSealed(state: MatchState): boolean {
+  const worm = activeWormOf(state);
+  return worm !== undefined && sealsOn(state, worm.id).length > 0;
 }
 
 /** A worm sealed by the cast joins the ledger's seals; a report about worms that are not both alive and on different teams changes nothing. */
@@ -68,17 +79,11 @@ export function pruneSeals(state: MatchState): MatchState {
 }
 
 /**
- * The team whose turn is starting is sealed: the turn is the treasure's. Every seal on it strikes
- * once (the last one of a seal kills), the strikes are left for the controller to play, and the
- * seals that have struck their last are spent. Null when no seal holds on the team; the broken ones
- * are dropped either way, so the caller keeps `pruned`.
+ * Every seal on the team strikes once: the strikes are left for the controller to play (the last
+ * one of a seal kills), and the seals that have struck their last are spent.
  */
-export function takeSealedTurn(state: MatchState): { readonly pruned: MatchState; readonly taken: MatchState | null } {
-  const pruned = pruneSeals(state);
-  const team = activeTeamOf(pruned);
-  if (team === undefined) return { pruned, taken: null };
-  const striking = pruned.seals.filter((seal) => seal.targetTeamId === team.id);
-  if (striking.length === 0) return { pruned, taken: null };
+function strikeTeam(state: MatchState, teamId: string): MatchState {
+  const striking = state.seals.filter((seal) => seal.targetTeamId === teamId);
   const strikes: SealStrike[] = striking.map((seal) => ({
     weaponId: seal.weaponId,
     casterId: seal.casterId,
@@ -88,11 +93,36 @@ export function takeSealedTurn(state: MatchState): { readonly pruned: MatchState
     fatal: seal.hitsLeft <= 1,
     hitToll: seal.hitToll,
   }));
-  const seals = pruned.seals.map((seal) => (striking.includes(seal) ? { ...seal, hitsLeft: seal.hitsLeft - 1 } : seal)).filter((seal) => seal.hitsLeft > 0);
-  let taken: MatchState = { ...pruned, seals, strikes };
+  const seals = state.seals.map((seal) => (striking.includes(seal) ? { ...seal, hitsLeft: seal.hitsLeft - 1 } : seal)).filter((seal) => seal.hitsLeft > 0);
+  let next: MatchState = { ...state, seals, strikes };
   for (const strike of strikes) {
-    const target = findWorm(pruned, strike.targetId)?.worm.name ?? strike.targetId;
-    taken = appendLog(taken, 'seal.strike', strike.fatal ? `The treasure takes ${target}'s last sense` : `The treasure takes a sense from ${target} (${strike.hit})`);
+    const target = findWorm(state, strike.targetId)?.worm.name ?? strike.targetId;
+    next = appendLog(next, 'seal.strike', strike.fatal ? `The treasure takes ${target}'s last sense` : `The treasure takes a sense from ${target} (${strike.hit})`);
   }
-  return { pruned, taken };
+  return next;
+}
+
+/**
+ * The worm whose turn is starting is sealed, so its team has no other to play: the turn is the
+ * treasure's, and every seal on the team strikes. Null when the worm is free; the broken seals are
+ * dropped either way, so the caller keeps `pruned`.
+ */
+export function takeSealedTurn(state: MatchState): { readonly pruned: MatchState; readonly taken: MatchState | null } {
+  const pruned = pruneSeals(state);
+  const team = activeTeamOf(pruned);
+  if (team === undefined || !activeWormSealed(pruned)) return { pruned, taken: null };
+  return { pruned, taken: strikeTeam(pruned, team.id) };
+}
+
+/**
+ * The turn is settling: if the team that played it has a worm sealed and the treasure has not
+ * struck this turn yet (a taken turn already has), every seal on the team strikes now. Null when
+ * nothing strikes; the broken seals are dropped either way, so the caller keeps `pruned`.
+ */
+export function strikeAtTurnEnd(state: MatchState): { readonly pruned: MatchState; readonly struck: MatchState | null } {
+  if (state.strikes.length > 0) return { pruned: state, struck: null };
+  const pruned = pruneSeals(state);
+  const team = activeTeamOf(pruned);
+  if (team === undefined || !pruned.seals.some((seal) => seal.targetTeamId === team.id)) return { pruned, struck: null };
+  return { pruned, struck: strikeTeam(pruned, team.id) };
 }
