@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLedger, INFINITE_AMMO } from '@/weapons/ammo.ts';
-import { WEAPONS, WEAPON_IDS } from '@/weapons/registry.ts';
+import { WEAPONS, WEAPON_IDS, isSuper } from '@/weapons/registry.ts';
 import {
   CATEGORY_ORDER,
   ammoBadge,
@@ -82,6 +82,25 @@ describe('weapon panel layout', () => {
     const late = panelCells(layoutWeaponPanel(VIEWPORT, { ammo: stocked, turnsElapsed: delay }));
     expect(early.find((cell) => cell.id === delayed)?.enabled).toBe(false);
     expect(late.find((cell) => cell.id === delayed)?.enabled).toBe(true);
+  });
+});
+
+describe('weapon panel: the rest between supers', () => {
+  const ledger = createLedger(WEAPONS);
+
+  it('greys out every super while the team rests them, flagged so the HUD can say when they are back', () => {
+    const stocked = Object.fromEntries(WEAPON_IDS.map((id) => [id, ledger[id] === 0 ? 1 : ledger[id]])) as typeof ledger;
+    const resting = panelCells(layoutWeaponPanel(VIEWPORT, { ammo: stocked, turnsElapsed: 10, supersResting: true }));
+    const open = panelCells(layoutWeaponPanel(VIEWPORT, { ammo: stocked, turnsElapsed: 10 }));
+    for (const cell of resting) {
+      expect(cell.resting).toBe(isSuper(cell.id));
+      expect(cell.enabled).toBe(!isSuper(cell.id));
+    }
+    for (const cell of open) {
+      expect(cell.resting).toBe(false);
+      expect(cell.enabled).toBe(true);
+    }
+    expect(resting.filter((cell) => cell.resting).map((cell) => cell.id)).toContain('kamehameha');
   });
 });
 

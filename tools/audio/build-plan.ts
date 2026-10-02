@@ -50,7 +50,8 @@ export const MUSIC_ITEM: MusicItem = Object.freeze({
  * comedic bank's nerd, pitched up into a sneer. The same nerd, pitched higher still, is the
  * Saibaman's cackle as it leaps out of the ground. The anime row's techniques shout their names in
  * the Mexican bank's voice, as the Latin American dubs have them (Milo, Saga, Ace and Zoro loud,
- * Shaka and Fujitora calm), and Frieren names her spell quietly in the nerd, pitched up.
+ * Shaka and Fujitora calm), Frieren names her spell quietly in the nerd, pitched up, and Majin
+ * Vegeta says his goodbye in the Mexican voice, low and calm.
  */
 const SUPER_VOICE_NAME = 'Harry - Fierce Warrior';
 const EMPEROR_VOICE_NAME = 'Timmy - Anxious Nerd';
@@ -74,6 +75,7 @@ const SUPER_LINES: readonly { readonly event: string; readonly text: string; rea
   { event: 'meteor', text: 'Que caiga... del cielo.', settings: CALM_SETTINGS, gainDb: 0, voiceName: DUB_VOICE_NAME, pitchFactor: 0.92 },
   { event: 'santoryu', text: '¡Santoryu!', settings: SHOUT_SETTINGS, gainDb: 2, voiceName: DUB_VOICE_NAME, pitchFactor: 1 },
   { event: 'zoltraak', text: 'Zoltraak.', settings: CALM_SETTINGS, gainDb: 0, voiceName: EMPEROR_VOICE_NAME, pitchFactor: 1.25 },
+  { event: 'final_explosion', text: 'Adiós... Trunks.', settings: CALM_SETTINGS, gainDb: 0, voiceName: DUB_VOICE_NAME, pitchFactor: 0.9 },
 ]);
 
 /** The supers' voice lines, each with its voice's id from the candidates table. */

@@ -24,7 +24,8 @@ import type { CratePickedEvent, MatchEvent } from '../match/events.ts';
 import type { CrateType, MatchState } from '../match/state.ts';
 import { activeTeamOf, activeWormOf, findWorm as findWormState } from '../match/ledger.ts';
 import { activeWormSealed } from '../match/seals.ts';
-import { WEAPONS, WEAPON_IDS, getWeapon } from '../weapons/registry.ts';
+import { superResting } from '../match/super-rest.ts';
+import { WEAPONS, WEAPON_IDS, getWeapon, isSuper } from '../weapons/registry.ts';
 import { fire, type FireAim, type FireResult } from '../weapons/fire.ts';
 import { worldAtRest, findWorm as findBody, type SimWorld } from '../sim/world.ts';
 import { stepWorld } from '../sim/world.ts';
@@ -241,16 +242,34 @@ export function createController(game: Game, options: ControllerOptions): Contro
     return fuse.selectable && fuse.optionsMs.includes(chosen) ? chosen : fuse.defaultMs;
   };
 
+  /** The team may not use a super this turn: it used one last turn (match/super-rest.ts). */
+  const supersRest = (): boolean => {
+    const team = activeTeamOf(state);
+    return team !== undefined && superResting(team);
+  };
+
+  /** The weapon can be picked and fired now: stocked, unlocked, and not a super the team is resting. */
+  const usable = (id: WeaponId): boolean => {
+    const count = activeWormOf(state)?.ammo[id] ?? 0;
+    if (count === 0) return false;
+    if (state.turn < (getWeapon(id).delayTurns ?? 0)) return false;
+    return !(isSuper(id) && supersRest());
+  };
+
   const selectWeapon = (id: WeaponId): void => {
     const index = WEAPON_IDS.indexOf(id);
     if (index === -1) return;
-    const worm = activeWormOf(state);
-    // The panel greys out empty and delayed weapons, but a stale click or a script must not slip
-    // one through: no ammo, or a scheme delay not yet elapsed (the panel's isUnlocked rule).
-    const count = worm?.ammo[id] ?? 0;
-    if (count === 0) return;
-    if (state.turn < (getWeapon(id).delayTurns ?? 0)) return;
+    // The panel greys out empty, delayed and resting weapons, but a stale click or a script must
+    // not slip one through (the panel's own rule).
+    if (!usable(id)) return;
     setSlot(index);
+  };
+
+  /** A worm whose remembered weapon cannot be used this turn (spent, or a super its team rests) starts on the bazooka. */
+  const letGoOfUnusable = (): void => {
+    if (state.phase !== 'Active' && state.phase !== 'HotSeat') return;
+    if (usable(selectedWeapon())) return;
+    setSlot(Math.max(0, WEAPON_IDS.indexOf('bazooka')));
   };
 
   const apply = (event: MatchEvent): void => {
@@ -664,7 +683,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
       activeWormId: active?.id ?? '',
       activeTeamId: team?.id ?? '',
       worms,
-      ammo: active === undefined ? [] : (Object.entries(active.ammo) as [WeaponId, number][]).filter(([id, n]) => n !== 0 && state.turn >= (getWeapon(id).delayTurns ?? 0)).map(([weapon, count]) => ({ weapon, count })),
+      // Only what it may fire this turn: stocked, unlocked, and no super while the team rests them.
+      ammo: active === undefined ? [] : (Object.entries(active.ammo) as [WeaponId, number][]).filter(([id, n]) => n !== 0 && usable(id)).map(([weapon, count]) => ({ weapon, count })),
       canMoveLeft: true,
       canMoveRight: true,
       // The model is told the walk it can still afford, so its plan is never cut short (backlog 4.4).
@@ -731,6 +751,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
           // A fresh turn, a fresh movement budget and the first barrel.
           spentPx = 0;
           shotIndex = 0;
+          letGoOfUnusable();
         }
         return;
       }

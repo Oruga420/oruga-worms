@@ -1,6 +1,6 @@
 /**
  * The techniques of the anime row in the sim: Antares, the Galaxian Explosion, the Tesoro del Cielo,
- * the Hiken, Fujitora's meteor, the Santoryu and Zoltraak. Each is a timeline of its own module
+ * the Hiken, Fujitora's meteor, the Santoryu, Zoltraak and the Explosión Final. Each is a timeline of its own module
  * (sim/techniques/*.ts); they all live in one list, world.techniques, and the world steps, holds,
  * cancels and times them through here, by kind, so a new one is a module and a line in each switch.
  *
@@ -11,6 +11,7 @@
 import type { TechniqueBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 import { cancelDice, diceHolds, diceStageLength, stepDice } from './techniques/dice.ts';
+import { cancelFinal, finalHolds, finalStageLength, stepFinal } from './techniques/final.ts';
 import { cancelGalaxy, galaxyHolds, galaxyStageLength, stepGalaxy } from './techniques/galaxy.ts';
 import { cancelHiken, hikenHolds, hikenStageLength, stepHiken } from './techniques/hiken.ts';
 import { cancelMeteor, meteorHolds, meteorStageLength, stepMeteor } from './techniques/meteor.ts';
@@ -38,6 +39,8 @@ export function stepTechnique(world: SimWorld, body: TechniqueBody): void {
       return stepDice(world, body);
     case 'zoltraak':
       return stepZoltraak(world, body);
+    case 'final':
+      return stepFinal(world, body);
   }
 }
 
@@ -69,6 +72,9 @@ export function heldByTechniques(techniques: readonly TechniqueBody[]): Readonly
       case 'zoltraak':
         zoltraakHolds(body, held);
         break;
+      case 'final':
+        finalHolds(body, held);
+        break;
     }
   }
   return held;
@@ -91,6 +97,8 @@ export function techniqueStageLength(body: TechniqueBody): number {
       return diceStageLength(body);
     case 'zoltraak':
       return zoltraakStageLength(body);
+    case 'final':
+      return finalStageLength(body);
   }
 }
 
@@ -127,6 +135,9 @@ export function cancelTechniques(world: SimWorld): void {
         break;
       case 'zoltraak':
         cancelZoltraak(world, body);
+        break;
+      case 'final':
+        cancelFinal(world, body);
         break;
     }
   }

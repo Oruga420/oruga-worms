@@ -162,7 +162,12 @@ const TECHNIQUE_LOOKS: Readonly<Record<TechniqueBody['kind'], TechniqueLook>> = 
   // Still air and the swords out, the camera close; the cuts close in on the square.
   dice: { gatherDim: 0.5, gatherZoom: 1.3, deliverDim: 0.62, deliverZoom: 1.35 },
   zoltraak: { gatherDim: 0.45, gatherZoom: 1.15, deliverDim: 0.5, deliverZoom: 1 },
+  // The world darkens round the worm as it gathers itself; the burst whites the screen out.
+  final: { gatherDim: 0.6, gatherZoom: 1.3, deliverDim: 0.2, deliverZoom: 0.95 },
 });
+
+/** How long the Explosión Final's flash takes to fade, as a share of its recovery. */
+const FINAL_FLASH_SHARE = 0.4;
 
 /** The gathering stage of each technique; the strike of the treasure on a sealed turn delivers at once. */
 function gathering(body: TechniqueBody): boolean {
@@ -181,6 +186,8 @@ function gathering(body: TechniqueBody): boolean {
       return body.stage === 'draw';
     case 'zoltraak':
       return body.stage === 'form';
+    case 'final':
+      return body.stage === 'charge';
   }
 }
 
@@ -194,7 +201,8 @@ export function techniqueCinematic(body: TechniqueBody): Cinematic {
     const k = ease(p * 2.5);
     return { whiteout: 0, dim: from.dim + (look.deliverDim - from.dim) * k, zoom: from.zoom + (look.deliverZoom - from.zoom) * k, aura: 0 };
   }
-  return { whiteout: 0, dim: look.deliverDim * (1 - ease(p / 0.6)), zoom: look.deliverZoom + (1 - look.deliverZoom) * ease(p), aura: 0 };
+  const whiteout = body.kind === 'final' ? 1 - ease(p / FINAL_FLASH_SHARE) : 0;
+  return { whiteout, dim: look.deliverDim * (1 - ease(p / 0.6)), zoom: look.deliverZoom + (1 - look.deliverZoom) * ease(p), aura: 0 };
 }
 
 export function cinematicFor(combos: readonly ComboBody[], beams: readonly BeamBody[] = [], devours: readonly DevourBody[] = [], hexes: readonly HexBody[] = [], sprouts: readonly SproutBody[] = [], techniques: readonly TechniqueBody[] = []): Cinematic {

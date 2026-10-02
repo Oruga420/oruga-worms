@@ -14,6 +14,7 @@ import { canTransition } from './phases.ts';
 import { startRetreat } from './retreat.ts';
 import { finalizeScores, scoreKill, scoreShotClosed } from './scoring.ts';
 import { sealedWorms, strikeAtTurnEnd } from './seals.ts';
+import { restTurnEnded } from './super-rest.ts';
 import { makeWindState, WIND_STEP_MAX, WIND_STEP_MIN, type MatchPhase, type MatchState, type PendingDeath, type SettleReason } from './state.ts';
 import { applySuddenDeathCheck } from './sudden-death.ts';
 import { selectNextTurn } from './turn.ts';
@@ -83,7 +84,8 @@ export function applyDeath(state: MatchState, death: PendingDeath): MatchState {
 }
 
 function enterTurnEnd(state: MatchState, deps: MatchDeps): MatchState {
-  let next = closeShotWindow(state);
+  // One of the team's turns is over: a turn nearer to its next super (match/super-rest.ts).
+  let next = updateTeam(closeShotWindow(state), state.activeTeamIndex, restTurnEnded);
   for (const death of next.pendingDeaths) next = applyDeath(next, death);
   next = { ...next, pendingDeaths: [] };
   const pendingDrop = next.crateDrop !== null;

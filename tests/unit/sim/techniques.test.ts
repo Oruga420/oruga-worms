@@ -46,8 +46,8 @@ function tolls(events: readonly SimEvent[], wormId: string): Extract<SimEvent, {
 }
 
 describe('techniques: the rows', () => {
-  it('are seven supers of the anime row, one per worm, open from the second turn, never in a crate, aimed by their kind', () => {
-    const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak'] as const;
+  it('are eight supers of the anime row, one per worm, open from the second turn, never in a crate, aimed by their kind', () => {
+    const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion'] as const;
     for (const id of ids) {
       const def = WEAPONS[id];
       expect(def.category).toBe('anime');
@@ -166,6 +166,49 @@ describe('the Galaxian Explosion', () => {
     expect(worldAtRest(world)).toBe(false);
     playOut(world);
     expect(heldByTechniques(world.techniques).has('hero')).toBe(false);
+  });
+});
+
+describe('the Explosión Final', () => {
+  const FINAL = WEAPONS.final_explosion;
+
+  it('is a melee row with no aim and no toll: the worm is the price', () => {
+    expect(FINAL.kind).toBe('MELEE');
+    expect(FINAL.toll).toBeUndefined();
+    expect(FINAL.tollShare).toBeUndefined();
+    expect(FINAL.technique?.kind).toBe('final');
+  });
+
+  it('goes off where the worm stands and takes every worm in reach, the worm first of all, and the land', () => {
+    const { world, hero } = arena();
+    const near = addWorm(world, { id: 'near', teamId: 'b', x: 350, y: 349 });
+    const friend = addWorm(world, { id: 'friend', teamId: 'a', x: 260, y: 349 });
+    const far = addWorm(world, { id: 'far', teamId: 'b', x: 420, y: 349 });
+    const solidBefore = countSolid(world.terrain.mask);
+    fire(world, hero, FINAL, { angleDeg: 0, power: 1 });
+    expect(tolls(world.events, 'hero')).toEqual([]);
+    expect(heldByTechniques(world.techniques).has('hero')).toBe(true);
+    const events = playOut(world);
+    expect(beats(events)).toEqual(['burst3']);
+    expect(damageTo(events, 'hero')).toEqual([KILL_DAMAGE]);
+    expect(damageTo(events, near.id)).toEqual([KILL_DAMAGE]);
+    expect(damageTo(events, friend.id)).toEqual([KILL_DAMAGE]);
+    expect(damageTo(events, far.id)).toEqual([]);
+    expect(beatsOf(events, 'burst')[0]?.x).toBe(300);
+    expect(countSolid(world.terrain.mask)).toBeLessThan(solidBefore);
+    expect(heldByTechniques(world.techniques).has('hero')).toBe(false);
+  });
+
+  it('comes to nothing when its worm is gone before it lets go', () => {
+    const { world, hero } = arena();
+    addWorm(world, { id: 'near', teamId: 'b', x: 350, y: 349 });
+    fire(world, hero, FINAL, { angleDeg: 0, power: 1 });
+    stepWorld(world);
+    hero.alive = false;
+    const events = playOut(world);
+    expect(beats(events)).toEqual([]);
+    expect(damageTo(events, 'near')).toEqual([]);
+    expect(world.techniques).toEqual([]);
   });
 });
 

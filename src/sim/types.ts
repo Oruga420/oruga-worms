@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, DiceSpec, GalaxySpec, HexSpec, HikenSpec, MeteorSpec, NeedleSpec, ProjectileSpec, SpawnSpec, SproutSpec, TechniqueKind, TreasureSpec, ZoltraakSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, DiceSpec, FinalSpec, GalaxySpec, HexSpec, HikenSpec, MeteorSpec, NeedleSpec, ProjectileSpec, SpawnSpec, SproutSpec, TechniqueKind, TreasureSpec, ZoltraakSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -463,7 +463,21 @@ export interface ZoltraakBody extends TechniqueBase {
   readonly ends: { readonly x: number; readonly y: number }[];
 }
 
-export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody | MeteorBody | DiceBody | ZoltraakBody;
+export type FinalStage = 'charge' | 'recover';
+
+/** The Explosión Final in progress (sim/techniques/final.ts): the worm is held through the charge, and gone with the burst. */
+export interface FinalBody extends TechniqueBase {
+  readonly kind: 'final';
+  readonly spec: FinalSpec;
+  stage: FinalStage;
+  /** Where it went off, once it has: where the worm stood. */
+  burstX: number | null;
+  burstY: number | null;
+  /** Worms it took, the worm itself among them. */
+  readonly killed: string[];
+}
+
+export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody | MeteorBody | DiceBody | ZoltraakBody | FinalBody;
 
 /**
  * The beats of the techniques the presentation plays, by kind:
@@ -473,7 +487,8 @@ export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody |
  * - hiken: flare, release, burst;
  * - meteor: call, fall, burst;
  * - dice: draw, slash (n from 1), cut (with the cubes);
- * - zoltraak: circle (n from 1), beam (n from 1).
+ * - zoltraak: circle (n from 1), beam (n from 1);
+ * - final: burst (n the worms it took, its user among them).
  */
 export type TechniqueBeat =
   | 'sting'

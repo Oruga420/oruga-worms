@@ -140,6 +140,8 @@ export function techniqueFocus(body: TechniqueBody, worms: readonly { readonly i
       if (body.stage === 'form') return { x: home.x, y: home.y - 10 };
       if (body.stage === 'fire') return { x: (home.x + body.targetX) / 2, y: (home.y + body.targetY) / 2 };
       return { x: body.targetX, y: body.targetY };
+    case 'final':
+      return home;
   }
 }
 

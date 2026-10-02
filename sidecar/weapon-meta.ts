@@ -24,9 +24,9 @@ function targeted(id: string): SanitizeWeaponInfo {
 }
 
 /**
- * 33 combat weapons plus 5 utilities: the ultraplan rev 2 roster, plus the tank cannon, napalm gun,
+ * 34 combat weapons plus 5 utilities: the ultraplan rev 2 roster, plus the tank cannon, napalm gun,
  * sonic blast gun, the four supers (Ryuko Ranbu, the Kamehameha, the Freezer and Gear 5), the
- * Saibaman seed and the anime row's seven techniques (Fujitora's meteor is called down on a
+ * Saibaman seed and the anime row's eight techniques (Fujitora's meteor is called down on a
  * clicked point, so it is targeted). validate.ts fails
  * the boot when a registry weapon is missing here, which is what keeps this table and src/weapons
  * from drifting apart.
@@ -69,6 +69,7 @@ export const CPU_WEAPON_META: Readonly<Record<string, SanitizeWeaponInfo>> = Obj
   meteor: targeted('meteor'),
   santoryu: plain('santoryu'),
   zoltraak: plain('zoltraak'),
+  final_explosion: plain('final_explosion'),
   air_strike: targeted('air_strike'),
   parachute: plain('parachute'),
   jetpack: plain('jetpack'),

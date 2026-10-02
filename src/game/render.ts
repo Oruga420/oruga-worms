@@ -43,6 +43,7 @@ import { drawGravityWell, drawMeteor, drawRaisedSword, gravityPull, swordUp } fr
 import { cutFlash, cutLine, drawCutSquare, drawCuts, drawThreeSwords, sinceCut, swordsOut } from './santoryu.ts';
 import { LOTUS_LIFT_PX, TREASURE_GOLD, drawHalo, drawLotus, drawSalaTree, drawSealMark, drawWheel, lotusBloom, wheelState } from './tenbu.ts';
 import { beamLight, circleLook, drawMagicCircle, drawStaff, drawZoltraakBeam, staffOut } from './zoltraak.ts';
+import { MAJIN_GOLD, auraCharge, drawFinalBurst, drawMajinAura, finalBloom } from './final-explosion.ts';
 import { sproutProgress } from '../sim/sprout.ts';
 import { wormHalfWidth, wormHeight, wormMiddleY } from '../sim/worm-size.ts';
 import { beamProgress } from '../sim/beam.ts';
@@ -530,6 +531,10 @@ function techniquePose(input: PoseInput, role: TechniqueRole): WormPose {
     case 'zoltraak':
       if (body.stage === 'recover') return { ...base, frame: 'idle_a' };
       return { ...base, frame: 'hold_gun', stretchY: 1 + Math.sin(input.timeMs / 380) * 0.015 };
+    case 'final':
+      // Feet planted, arms out, shaking harder and glowing gold as everything it has gathers.
+      if (body.stage === 'charge') return { ...base, frame: 'victory', offsetX: shake(0.3 + 1.2 * p), offsetY: -1.5 * p, stretchY: 1 + 0.08 * p, stretchX: 1 + 0.04 * p, tint: MAJIN_GOLD, tintAlpha: 0.45 * p };
+      return { ...base, frame: 'idle_a' };
   }
 }
 
@@ -1486,7 +1491,8 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
         const square = diceSquare(technique, activeBody, activeBody.facing, model.aim.angleDeg);
         const corner = worldToScreen(camera, viewport, { x: square.x, y: square.y });
         drawCutSquare(ctx, corner.x, corner.y, square.side * camera.zoom, camera.zoom, model.timeMs);
-      } else if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
+      } else if (technique?.kind === 'final') drawKillRing(ctx, viewport, camera, activeBody, technique.killRadiusPx, model.timeMs);
+      else if (def.beam !== undefined) drawBeamPath(ctx, viewport, camera, activeBody, model.aim.angleDeg, def.beam, model.timeMs);
       else if (def.combo !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.combo.rangePx, model.timeMs);
       else if (def.devour !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.devour.rangePx, model.timeMs);
       else if (def.hex !== undefined) drawLock(ctx, viewport, camera, model.world, activeBody, def.hex.rangePx, model.timeMs);
@@ -1494,7 +1500,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
       else if (def.kind === 'MELEE' && def.melee !== undefined) drawReach(ctx, viewport, camera, activeBody.x, activeBody.y, activeBody.facing, def.melee.reachPx, activeBody.size);
     }
     // Utilities, the air strike, the supers that lock and the seed do not aim: the crosshair or the lock says it all.
-    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined || def.technique?.kind === 'treasure');
+    const aims = def === undefined || !(def.kind === 'UTILITY' || def.kind === 'TARGETED' || def.combo !== undefined || def.devour !== undefined || def.hex !== undefined || def.sprout !== undefined || def.technique?.kind === 'treasure' || def.technique?.kind === 'final');
     const colorIndex = infoById.get(activeBody.id)?.colorIndex ?? 0;
     const armColor = model.sprites?.has(colorIndex) === true ? bodyPalette(colorIndex).skin : WORM_SKIN;
     if (aims) drawAim(ctx, viewport, camera, activeBody.x, activeBody.y, model.aim.angleDeg, activeBody.facing, model.aim.power, model.timeMs, isSaibaman(activeBody) ? SAIBA_GREEN : armColor, activeBody.size);
@@ -1926,6 +1932,17 @@ function drawTechniqueScene(ctx: Ctx2D, viewport: Size, camera: Camera, body: Te
       drawCuts(ctx, segments, z, flash);
       return;
     }
+    case 'final': {
+      const feet = toScreen(camera, viewport, body.holdX, body.holdY);
+      if (body.stage === 'charge') drawMajinAura(ctx, feet.x, feet.y, z, auraCharge(body), body.id * 17, t);
+      draw(attacker);
+      const bloom = finalBloom(body);
+      if (bloom !== null && body.burstX !== null && body.burstY !== null) {
+        const p = toScreen(camera, viewport, body.burstX, body.burstY);
+        drawFinalBurst(ctx, p.x, p.y, body.spec.killRadiusPx * z, bloom, body.id);
+      }
+      return;
+    }
     case 'zoltraak': {
       body.circles.forEach((circle, k) => {
         const look = circleLook(body, k);
@@ -1949,6 +1966,25 @@ function drawTechniqueScene(ctx: Ctx2D, viewport: Size, camera: Camera, body: Te
       return;
     }
   }
+}
+
+/** The reach of the Explosión Final while it is picked: a turning ring round the worm; everyone inside it goes, the worm too. */
+function drawKillRing(ctx: Ctx2D, viewport: Size, camera: Camera, body: SimWorld['worms'][number], radiusPx: number, timeMs: number): void {
+  const z = camera.zoom;
+  const c = worldToScreen(camera, viewport, { x: body.x, y: wormMiddleY(body) });
+  const r = radiusPx * z;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 214, 80, ${(0.55 + Math.sin(timeMs / 220) * 0.2).toFixed(3)})`;
+  ctx.lineWidth = Math.max(1.5, 1.2 * z);
+  const dashes = 36;
+  for (let i = 0; i < dashes; i += 1) {
+    const a0 = (i / dashes) * Math.PI * 2 + timeMs / 2400;
+    const a1 = a0 + ((Math.PI * 2) / dashes) * 0.55;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, a0, a1);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /**

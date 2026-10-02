@@ -22,6 +22,7 @@ export type MatchLogKind =
   | 'hotseat'
   | 'fire'
   | 'fire.rejected'
+  | 'super.rest'
   | 'retreat'
   | 'resolve'
   | 'damage'

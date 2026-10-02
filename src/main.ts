@@ -70,6 +70,7 @@ import { WORM_HEIGHT } from './sim/constants.ts';
 import { muzzlePoint } from './weapons/behaviors/types.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
+import { superResting } from './match/super-rest.ts';
 import { fire } from './weapons/fire.ts';
 
 /** How hard each beat of Gear 5 shakes the camera: the drums and the awakening hardest. */
@@ -672,7 +673,8 @@ function boot(): void {
           const clickTakenByPanel = panelOpen && intent.pointerClicked;
           if (panelOpen) {
             const worm = activeWormOf(panelState);
-            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn });
+            const panelTeam = activeTeamOf(panelState);
+            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn, supersResting: panelTeam !== undefined && superResting(panelTeam) });
             if (panelLayout !== null && intent.pointerClicked) {
               const picked = hitTestWeaponPanel(panelLayout, intent.pointerScreen);
               if (picked !== null) {

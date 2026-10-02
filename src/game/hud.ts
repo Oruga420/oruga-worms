@@ -45,6 +45,9 @@ export interface HudModel {
   readonly weaponSprites: CharacterSprites | null;
 }
 
+/** Across the cell of a super the team rests this turn (match/super-rest.ts). */
+export const SUPER_REST_NOTE = 'NEXT TURN';
+
 /** The price of a super on its panel cell: the health it costs, with a heart. */
 export function tollBadge(toll: number): string {
   return `-${toll}♥`;
@@ -220,6 +223,15 @@ function drawWeaponPanel(ctx: Ctx2D, panel: PanelLayout, selected: WeaponId, spr
         ctx.font = 'bold 10px system-ui, sans-serif';
         ctx.fillStyle = cell.enabled ? '#ff5a6e' : 'rgba(255,90,110,0.45)';
         ctx.fillText(price.badge, cell.x + 4, cell.y + 8);
+      }
+      // A super the team rests this turn says when it is back, across the icon.
+      if (cell.resting) {
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 9px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(cell.x + 3, cell.y + cell.h / 2 - 11, cell.w - 6, 12);
+        ctx.fillStyle = '#ffd36a';
+        ctx.fillText(SUPER_REST_NOTE, cell.x + cell.w / 2, cell.y + cell.h / 2 - 2, cell.w - 8);
       }
     }
   }

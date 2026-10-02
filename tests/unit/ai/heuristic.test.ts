@@ -498,6 +498,22 @@ describe('decideHeuristic: the anime row', () => {
     expect(decision.reasoning).toContain('expected score 70');
   });
 
+  it('lets a worm on its last legs go off among the enemy with the Explosión Final, never alone or for one', () => {
+    // Two fat enemies in reach of a worm with 20 left: 200 against its own 20 three times over.
+    const crowd = [
+      { id: 'r1', teamId: 'red', x: 200, y: 299, hp: 20, alive: true },
+      { id: 'b1', teamId: 'blue', x: 240, y: 299, hp: 100, alive: true },
+      { id: 'b2', teamId: 'blue', x: 160, y: 299, hp: 100, alive: true },
+    ];
+    const amongThem = still(request({ ammo: only('final_explosion'), active: { wormId: 'r1', team: 'red', x: 200, y: 299, hp: 20, canMoveLeft: true, canMoveRight: true, maxWalkMs: 0 }, enemies: [{ id: 'b1', team: 'blue', x: 240, y: 299, hp: 100 }, { id: 'b2', team: 'blue', x: 160, y: 299, hp: 100 }] }));
+    const decision = decideHeuristic(input(amongThem, crowd));
+    expect(decision.weapon).toBe('final_explosion');
+    expect(decision.reasoning).toContain('expected score 140');
+    // Nobody in reach, or one enemy for a whole worm: not worth it.
+    expect(decideHeuristic(input(req('final_explosion', 600), pair(600))).weapon).not.toBe('final_explosion');
+    expect(decideHeuristic(input(req('final_explosion', 240), pair(240))).weapon).not.toBe('final_explosion');
+  });
+
   it('throws the Hiken at an enemy in reach', () => {
     const decision = decideHeuristic(input(req('hiken', 420), pair(420)));
     expect(decision.weapon).toBe('hiken');

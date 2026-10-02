@@ -88,6 +88,7 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   meteor: 1,
   santoryu: 1,
   zoltraak: 1,
+  final_explosion: 1,
   air_strike: 1,
   parachute: 2,
   jetpack: 1,
@@ -228,6 +229,7 @@ function buildTeam(team: TeamSetup, index: number, config: MatchConfig): TeamSta
     controller: team.controller,
     worms: team.wormNames.map((name, wormIndex) => buildWorm(id, name, wormIndex, config, team.ammo)),
     activeWormIndex: -1,
+    superRest: 0,
     score: emptyScore(),
     voice: team.voice ?? DEFAULT_VOICE,
   };

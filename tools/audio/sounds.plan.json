@@ -2167,6 +2167,27 @@
       "gainDb": 0
     },
     {
+      "kind": "voice",
+      "id": "voice_super_final_explosion",
+      "group": "voice",
+      "bus": "voice",
+      "bank": "super",
+      "event": "final_explosion",
+      "text": "Adiós... Trunks.",
+      "voiceId": "CoAqFXxZEa3kpJmE7rDr",
+      "voiceName": "Ricardo voice",
+      "pitchFactor": 0.9,
+      "tempo": 1,
+      "settings": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "use_speaker_boost": true,
+        "speed": 0.85
+      },
+      "gainDb": 0
+    },
+    {
       "kind": "music",
       "id": "music_theme_loop",
       "group": "music",
