@@ -36,6 +36,11 @@ describe('validateSetup', () => {
   it('rejects a starting team outside the sheet', () => {
     expect(validateSetup({ ...base(), startingTeamIndex: 5 })?.code).toBe('STARTING_TEAM');
   });
+
+  it('accepts a known map and rejects an unknown one', () => {
+    expect(validateSetup({ ...base(), scenario: 'castle' })).toBeNull();
+    expect(validateSetup({ ...base(), scenario: 'moon' as never })?.code).toBe('SCENARIO');
+  });
 });
 
 describe('buildInitialState', () => {

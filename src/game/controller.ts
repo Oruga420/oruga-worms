@@ -242,13 +242,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
     return fuse.selectable && fuse.optionsMs.includes(chosen) ? chosen : fuse.defaultMs;
   };
 
-  /** The team may not use a super this turn: it used one last turn (match/super-rest.ts). */
+  /** The worm may not use a super this turn: it used one on its last (match/super-rest.ts). */
   const supersRest = (): boolean => {
-    const team = activeTeamOf(state);
-    return team !== undefined && superResting(team);
+    const worm = activeWormOf(state);
+    return worm !== undefined && superResting(worm);
   };
 
-  /** The weapon can be picked and fired now: stocked, unlocked, and not a super the team is resting. */
+  /** The weapon can be picked and fired now: stocked, unlocked, and not a super the worm is resting. */
   const usable = (id: WeaponId): boolean => {
     const count = activeWormOf(state)?.ammo[id] ?? 0;
     if (count === 0) return false;
@@ -265,7 +265,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
     setSlot(index);
   };
 
-  /** A worm whose remembered weapon cannot be used this turn (spent, or a super its team rests) starts on the bazooka. */
+  /** A worm whose remembered weapon cannot be used this turn (spent, or a super it rests) starts on the bazooka. */
   const letGoOfUnusable = (): void => {
     if (state.phase !== 'Active' && state.phase !== 'HotSeat') return;
     if (usable(selectedWeapon())) return;
@@ -683,7 +683,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
       activeWormId: active?.id ?? '',
       activeTeamId: team?.id ?? '',
       worms,
-      // Only what it may fire this turn: stocked, unlocked, and no super while the team rests them.
+      // Only what it may fire this turn: stocked, unlocked, and no super while the worm rests them.
       ammo: active === undefined ? [] : (Object.entries(active.ammo) as [WeaponId, number][]).filter(([id, n]) => n !== 0 && usable(id)).map(([weapon, count]) => ({ weapon, count })),
       canMoveLeft: true,
       canMoveRight: true,

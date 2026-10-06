@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createController, type Controller, type ControllerInput } from '@/game/controller.ts';
 import { quickGame } from '@/game/setup.ts';
-import { activeTeamOf } from '@/match/ledger.ts';
+import { activeWormOf } from '@/match/ledger.ts';
 import type { MatchState } from '@/match/state.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 
 /**
- * The rest between a team's supers at the controller: a super used, and on the team's next turn no
- * super can be picked, a remembered one is let go of, and the turn after that they are open again.
+ * The rest between a worm's supers at the controller: a super used, its team mates pick what they
+ * like, on the worm's own next turn no super can be picked (and its spent super is let go of), and
+ * the turn after that they are open to it again.
  */
 
 const IDLE: ControllerInput = Object.freeze({
@@ -24,7 +25,7 @@ const IDLE: ControllerInput = Object.freeze({
   pointerClicked: false,
 });
 
-/** Two human teams, past every super's scheme delay, into the first Active. */
+/** Two human teams of three, past every super's scheme delay, into the first Active. */
 function makeController(): Controller {
   const game = quickGame(7, createFakeFactory().factory, { w: 1200, h: 500 });
   if (!game.ok) throw new Error(game.error.message);
@@ -49,65 +50,60 @@ function endTurn(controller: Controller): void {
   playUntil(controller, () => controller.state().phase === 'Active' && controller.state().turn > turn);
 }
 
-/** Plays until the given team is up and Active. */
-function untilTeam(controller: Controller, teamId: string): void {
-  for (let i = 0; i < 6 && activeTeamOf(controller.state())?.id !== teamId; i += 1) endTurn(controller);
-  expect(activeTeamOf(controller.state())?.id).toBe(teamId);
+/** Plays until the given worm is up and Active. */
+function untilWorm(controller: Controller, wormId: string): void {
+  for (let i = 0; i < 12 && activeWormOf(controller.state())?.id !== wormId; i += 1) endTurn(controller);
+  expect(activeWormOf(controller.state())?.id).toBe(wormId);
 }
 
-describe('controller: the rest between supers', () => {
-  it('lets no super be picked on the turn after one, and opens them again on the turn after that', () => {
-    const controller = makeController();
-    const team = activeTeamOf(controller.state())?.id ?? '';
-    // The seed is the quickest super to play out; picked and fired like any weapon.
-    controller.selectWeapon('saibaman');
-    expect(controller.selectedWeapon()).toBe('saibaman');
-    controller.tick({ ...IDLE, fireHeld: true });
-    controller.tick({ ...IDLE, fireReleased: true });
-    expect(controller.state().phase).toBe('Firing');
-    playUntil(controller, () => controller.state().phase !== 'Firing');
-    expect(controller.state().teams.find((t) => t.id === team)?.superRest).toBe(2);
+function fire(controller: Controller, weapon: 'kamehameha' | 'saibaman'): void {
+  controller.selectWeapon(weapon);
+  expect(controller.selectedWeapon()).toBe(weapon);
+  controller.tick({ ...IDLE, fireHeld: true });
+  controller.tick({ ...IDLE, fireReleased: true });
+  expect(controller.state().phase).toBe('Firing');
+  playUntil(controller, () => controller.state().phase !== 'Firing');
+}
 
-    // The other team's turn, then back: the supers rest, the rest of the panel does not.
+describe('controller: the rest between a worm\'s supers', () => {
+  it('lets no super be picked on the worm\'s next turn, while its team mates pick what they like, and opens them on the turn after', () => {
+    const controller = makeController();
+    const first = activeWormOf(controller.state())?.id ?? '';
+    fire(controller, 'kamehameha');
+    expect(activeWormOf(controller.state())?.superRest).toBe(2);
+
+    // A team mate is up next for the team: every super is open to it.
     endTurn(controller);
-    untilTeam(controller, team);
-    expect(controller.selectedWeapon()).toBe('bazooka');
+    endTurn(controller);
+    const mate = activeWormOf(controller.state())?.id ?? '';
+    expect(mate).not.toBe(first);
+    expect(mate.split('-worm-')[0]).toBe(first.split('-worm-')[0]);
     controller.selectWeapon('kamehameha');
+    expect(controller.selectedWeapon()).toBe('kamehameha');
+
+    // The worm's own next turn: its spent Kamehameha is let go of, no super can be picked, the rest can.
+    untilWorm(controller, first);
     expect(controller.selectedWeapon()).toBe('bazooka');
     controller.selectWeapon('antares');
+    expect(controller.selectedWeapon()).toBe('bazooka');
+    controller.selectWeapon('gear_five');
     expect(controller.selectedWeapon()).toBe('bazooka');
     controller.selectWeapon('grenade');
     expect(controller.selectedWeapon()).toBe('grenade');
-    // A super fired anyway (a script) is refused by the ledger and the turn goes on.
-    controller.selectWeapon('bazooka');
-    const slotOf = (id: string): number => Object.keys(WEAPONS).indexOf(id);
-    expect(slotOf('kamehameha')).toBeGreaterThan(0);
 
-    // Round again: open.
+    // Its turn after that: open.
     endTurn(controller);
-    untilTeam(controller, team);
-    controller.selectWeapon('kamehameha');
-    expect(controller.selectedWeapon()).toBe('kamehameha');
-  });
-
-  it('lets go of a remembered super the team is resting when the worm comes up again', () => {
-    const controller = makeController();
-    const team = activeTeamOf(controller.state())?.id ?? '';
-    // The first worm picks Antares and keeps it; a team mate fires the Kamehameha meanwhile.
+    untilWorm(controller, first);
     controller.selectWeapon('antares');
     expect(controller.selectedWeapon()).toBe('antares');
-    endTurn(controller);
-    untilTeam(controller, team);
-    controller.selectWeapon('kamehameha');
-    controller.tick({ ...IDLE, fireHeld: true });
-    controller.tick({ ...IDLE, fireReleased: true });
-    playUntil(controller, () => controller.state().phase !== 'Firing');
-    endTurn(controller);
-    // The third worm's turn: resting. Then the first worm is up again, its Antares open.
-    untilTeam(controller, team);
-    expect(controller.selectedWeapon()).toBe('bazooka');
-    endTurn(controller);
-    untilTeam(controller, team);
-    expect(controller.selectedWeapon()).toBe('antares');
+  });
+
+  it('counts the seed as a super and keeps the count on the worm that planted it', () => {
+    const controller = makeController();
+    const first = activeWormOf(controller.state())?.id ?? '';
+    fire(controller, 'saibaman');
+    const worms = controller.state().teams.flatMap((team) => team.worms);
+    expect(worms.find((worm) => worm.id === first)?.superRest).toBe(2);
+    expect(worms.filter((worm) => worm.id !== first).every((worm) => worm.superRest === 0)).toBe(true);
   });
 });

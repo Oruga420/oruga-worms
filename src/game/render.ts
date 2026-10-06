@@ -81,6 +81,7 @@ import { HEX_PINK, TYRANT_WHITE, drawHexLight, drawHexTrail, drawInnerGlow, draw
 import { drawPowerOrb } from './power-orb.ts';
 import { superPrice } from './price.ts';
 import { SAIBA_GREEN, SAIBA_SKIN_ALPHA, drawSproutScene, isSaibaman, seedHand } from './saibaman.ts';
+import { drawProps, drawSkyTheme, drawWaterTheme, sceneryOf } from './scenery.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -619,115 +620,6 @@ function ellipsePath(ctx: Ctx2D, cx: number, cy: number, rx: number, ry: number)
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.restore();
 }
-
-/** Cloud blobs in world x, drawn with parallax and wrapped so some are always in view. */
-const CLOUDS: readonly { readonly x: number; readonly y: number; readonly s: number }[] = Object.freeze([
-  { x: 120, y: 74, s: 1.0 },
-  { x: 560, y: 46, s: 1.4 },
-  { x: 980, y: 104, s: 0.8 },
-  { x: 1420, y: 66, s: 1.2 },
-  { x: 1840, y: 96, s: 0.9 },
-]);
-
-/** A soft sun: concentric arcs of falling alpha, since Ctx2D has no radial gradient. */
-function drawSun(ctx: Ctx2D, cx: number, cy: number, radius: number): void {
-  for (let i = 6; i >= 1; i -= 1) {
-    ctx.globalAlpha = 0.05 + (6 - i) * 0.012;
-    ctx.fillStyle = '#fff3c4';
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * (i / 2), 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = '#fff6d8';
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius * 0.42, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-/** One rolling silhouette ridge, sampled from two sines so it does not read as a pure wave. */
-function drawRidge(ctx: Ctx2D, viewport: Size, camera: Camera, baseY: number, parallax: number, amp: number, wavelength: number, color: string, alpha: number): void {
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(0, viewport.h);
-  for (let x = 0; x <= viewport.w; x += 8) {
-    const wx = x + camera.x * parallax;
-    const y = baseY - amp * (0.55 + 0.45 * Math.sin(wx / wavelength) * Math.cos(wx / (wavelength * 2.3)));
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(viewport.w, viewport.h);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha = 1;
-}
-
-function drawClouds(ctx: Ctx2D, viewport: Size, camera: Camera, timeMs: number): void {
-  const span = viewport.w + 400;
-  const drift = timeMs * 0.004;
-  ctx.fillStyle = '#ffffff';
-  for (const cloud of CLOUDS) {
-    let sx = ((cloud.x + drift - camera.x * 0.14 + 200) % span + span) % span - 200;
-    if (!Number.isFinite(sx)) continue;
-    sx = Math.round(sx);
-    const r = 22 * cloud.s;
-    ctx.globalAlpha = 0.82;
-    ellipsePath(ctx, sx, cloud.y, r * 1.6, r * 0.7);
-    ctx.fill();
-    ellipsePath(ctx, sx - r * 0.9, cloud.y + r * 0.22, r * 1.0, r * 0.52);
-    ctx.fill();
-    ellipsePath(ctx, sx + r * 0.95, cloud.y + r * 0.26, r * 0.9, r * 0.46);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawSky(ctx: Ctx2D, viewport: Size, camera: Camera, horizonY: number, timeMs: number): void {
-  const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
-  sky.addColorStop(0, '#2d6ea6');
-  sky.addColorStop(0.34, '#6aa6cf');
-  sky.addColorStop(0.66, '#a9d0e5');
-  sky.addColorStop(1, '#e7dcbc');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, viewport.w, viewport.h);
-
-  drawSun(ctx, viewport.w * 0.8, viewport.h * 0.17, 34);
-  drawClouds(ctx, viewport, camera, timeMs);
-
-  // Two ridges behind the playfield: the far one hazier and slower, the near one darker.
-  drawRidge(ctx, viewport, camera, horizonY + 26, 0.22, 58, 260, '#7ea6b8', 0.55);
-  drawRidge(ctx, viewport, camera, horizonY + 48, 0.42, 44, 170, '#4f7a6a', 0.7);
-}
-
-function drawWater(ctx: Ctx2D, viewport: Size, camera: Camera, waterY: number, timeMs: number): void {
-  const surface = worldToScreen(camera, viewport, { x: camera.x, y: waterY }).y;
-  if (surface > viewport.h) return;
-  const wave = (x: number): number => {
-    const wx = x + camera.x;
-    return surface + Math.sin(wx / 44 + timeMs / 800) * 2.5 + Math.sin(wx / 19 - timeMs / 430) * 1.2;
-  };
-
-  const body = ctx.createLinearGradient(0, surface, 0, viewport.h);
-  body.addColorStop(0, 'rgba(86, 166, 214, 0.58)');
-  body.addColorStop(1, 'rgba(16, 54, 102, 0.88)');
-  ctx.beginPath();
-  ctx.moveTo(0, wave(0));
-  for (let x = 6; x <= viewport.w; x += 6) ctx.lineTo(x, wave(x));
-  ctx.lineTo(viewport.w, viewport.h);
-  ctx.lineTo(0, viewport.h);
-  ctx.closePath();
-  ctx.fillStyle = body;
-  ctx.fill();
-
-  // Foam line on the crest.
-  ctx.beginPath();
-  ctx.moveTo(0, wave(0));
-  for (let x = 6; x <= viewport.w; x += 6) ctx.lineTo(x, wave(x));
-  ctx.strokeStyle = 'rgba(233, 247, 255, 0.72)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
 
 export interface WormVisual {
   readonly x: number;
@@ -1395,16 +1287,19 @@ function drawSpeedLines(ctx: Ctx2D, cx: number, cy: number, seed: number, alpha:
 }
 
 export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: RenderModel): void {
+  // The scenario's sky behind the land, its props and water in front of it (game/scenery.ts).
+  const scenery = sceneryOf(model.world.terrain);
   // The ridges sit just under the land surface line so they read as distant hills behind it.
   const horizonY = worldToScreen(camera, viewport, { x: camera.x, y: model.world.terrain.height * 0.45 }).y;
-  drawSky(ctx, viewport, camera, horizonY, model.timeMs);
+  drawSkyTheme(ctx, viewport, camera, scenery.sky, horizonY, model.timeMs);
   const view = visibleRect(camera, viewport);
   const origin = worldToScreen(camera, viewport, { x: view.x, y: view.y });
   ctx.save();
   ctx.translate(origin.x, origin.y);
   blitTiles(model.world.terrain.tiles, asTileContext(ctx), view, camera.zoom);
   ctx.restore();
-  drawWater(ctx, viewport, camera, model.state.waterY, model.timeMs);
+  drawProps(ctx, viewport, camera, scenery.props, model.timeMs);
+  drawWaterTheme(ctx, viewport, camera, scenery.sky.water, model.state.waterY, model.timeMs);
 
   const phase = model.state.phase;
   const activeId = activeWormOf(model.state)?.id;

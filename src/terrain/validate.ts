@@ -268,13 +268,14 @@ export function generateUntilValid(
       message: `no valid level in ${attempts} attempts from seed ${options.seed}; last: ${lastRejection?.message ?? 'no attempt ran'}`,
       attempts,
       lastSeed,
-      lastRejection: lastRejection ?? emptyRejection(),
+      lastRejection: lastRejection ?? noAttemptRejection(),
     }),
   );
 }
 
 /** Placeholder for the impossible zero attempt case; attempts is clamped to at least 1. */
-function emptyRejection(): LevelRejection {
+/** The rejection reported when no attempt ran at all (a zero attempt budget). */
+export function noAttemptRejection(): LevelRejection {
   return Object.freeze({
     code: 'too_few_spawns' as const,
     message: 'no attempt ran',

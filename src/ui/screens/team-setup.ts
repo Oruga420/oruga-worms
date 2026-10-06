@@ -1,15 +1,17 @@
 /**
- * Team setup screen (architecture.md, ui/screens/team-setup.ts): team count (2 to 4), a name per
- * team from a preset list, the team colour by index, human or CPU, and the CPU difficulty. Pure:
- * the state is an immutable value updated by reduceTeamSetup, the layout owns every rectangle,
- * the hit test returns a typed action, and toMatchSetup turns the state into the MatchSetup that
- * buildGame consumes. Text entry on a canvas is deliberately avoided: names cycle through presets.
+ * Team setup screen (architecture.md, ui/screens/team-setup.ts): the map (terrain/scenarios.ts),
+ * team count (2 to 4), a name per team from a preset list, the team colour by index, human or
+ * CPU, and the CPU difficulty. Pure: the state is an immutable value updated by reduceTeamSetup,
+ * the layout owns every rectangle, the hit test returns a typed action, and toMatchSetup turns
+ * the state into the MatchSetup that buildGame consumes. Text entry on a canvas is deliberately
+ * avoided: names cycle through presets, and so does the map.
  */
 
 import type { CpuDifficulty } from '../../ai/contract.ts';
 import type { Ctx2D, Size } from '../../engine/canvas-types.ts';
 import type { MatchSetup, TeamSetup } from '../../match/setup.ts';
 import type { TeamColorIndex, TeamController } from '../../match/state.ts';
+import { DEFAULT_SCENARIO, SCENARIOS, SCENARIO_IDS, type ScenarioId } from '../../terrain/scenarios.ts';
 import { BUTTON_H_PX, drawButton, hitTestButtons, type ButtonRect, type ScreenPoint } from '../widgets/button.ts';
 import { centerText, leftText } from '../widgets/text.ts';
 
@@ -38,6 +40,8 @@ export interface TeamSlot {
 
 export interface TeamSetupState {
   readonly teams: readonly TeamSlot[];
+  /** The map the match is played on. */
+  readonly scenario: ScenarioId;
 }
 
 export const DEFAULT_TEAM_SETUP: TeamSetupState = Object.freeze({
@@ -45,6 +49,7 @@ export const DEFAULT_TEAM_SETUP: TeamSetupState = Object.freeze({
     Object.freeze({ nameIndex: 0, controller: 'human' as const, difficulty: 'normal' as const }),
     Object.freeze({ nameIndex: 1, controller: 'cpu' as const, difficulty: 'normal' as const }),
   ]),
+  scenario: DEFAULT_SCENARIO,
 });
 
 export type TeamSetupAction =
@@ -53,6 +58,7 @@ export type TeamSetupAction =
   | { readonly kind: 'cycleDifficulty'; readonly team: number }
   | { readonly kind: 'addTeam' }
   | { readonly kind: 'removeTeam' }
+  | { readonly kind: 'cycleScenario' }
   | { readonly kind: 'start' };
 
 /** Pure update; every branch returns a new frozen state and the input is never mutated. */
@@ -100,13 +106,17 @@ export function reduceTeamSetup(state: TeamSetupState, action: TeamSetupAction):
       teams.pop();
       break;
     }
+    case 'cycleScenario': {
+      const index = SCENARIO_IDS.indexOf(state.scenario);
+      return Object.freeze({ ...state, scenario: SCENARIO_IDS[(index + 1) % SCENARIO_IDS.length] ?? DEFAULT_SCENARIO });
+    }
     case 'start':
       return state;
   }
-  return Object.freeze({ teams: Object.freeze(teams) });
+  return Object.freeze({ ...state, teams: Object.freeze(teams) });
 }
 
-/** The MatchSetup buildGame consumes: colours follow the slot index, worms six per team. */
+/** The MatchSetup buildGame consumes: the chosen map, colours following the slot index, worms six per team. */
 export function toMatchSetup(state: TeamSetupState, seed: number, worldSize: Size): MatchSetup {
   const teams: TeamSetup[] = state.teams.map((slot, index) => {
     const names = WORM_NAMES[index] ?? WORM_NAMES[WORM_NAMES.length - 1] ?? ['A', 'B', 'C'];
@@ -118,13 +128,13 @@ export function toMatchSetup(state: TeamSetupState, seed: number, worldSize: Siz
     };
     return slot.controller === 'cpu' ? { ...base, cpu: { difficulty: slot.difficulty, personality: 'aggressive' } } : base;
   });
-  return { seed, teams, worldSize, waterY: worldSize.h - 24, startingTeamIndex: 0 };
+  return { seed, teams, worldSize, waterY: worldSize.h - 24, startingTeamIndex: 0, scenario: state.scenario };
 }
 
-export type TeamSetupCellKind = 'name' | 'controller' | 'difficulty' | 'add' | 'remove' | 'start';
+export type TeamSetupCellKind = 'map' | 'name' | 'controller' | 'difficulty' | 'add' | 'remove' | 'start';
 
 export interface TeamSetupCell {
-  /** "team:0:name", "team:1:controller", "team:1:difficulty", "add", "remove", "start". */
+  /** "map", "team:0:name", "team:1:controller", "team:1:difficulty", "add", "remove", "start". */
   readonly id: string;
   readonly kind: TeamSetupCellKind;
   readonly team?: number;
@@ -147,11 +157,14 @@ const ROW_GAP = 10;
 
 export function layoutTeamSetup(viewport: Size, state: TeamSetupState): TeamSetupLayout {
   const rows = state.teams.length;
-  const cardH = PAD + 44 + rows * (ROW_H + ROW_GAP) + 16 + BUTTON_H_PX + PAD;
+  // The title, the map row, a row per team, then the buttons.
+  const cardH = PAD + 44 + (ROW_H + ROW_GAP) + rows * (ROW_H + ROW_GAP) + 16 + BUTTON_H_PX + PAD;
   const x0 = Math.round((viewport.w - CARD_W) / 2);
   const y0 = Math.round((viewport.h - cardH) / 2);
   const cells: TeamSetupCell[] = [];
-  const rowsTop = y0 + PAD + 44;
+  const mapY = y0 + PAD + 44;
+  cells.push(Object.freeze({ id: 'map', kind: 'map', x: x0 + PAD, y: mapY, w: CARD_W - PAD * 2, h: ROW_H }));
+  const rowsTop = mapY + ROW_H + ROW_GAP;
   state.teams.forEach((slot, index) => {
     const y = rowsTop + index * (ROW_H + ROW_GAP);
     const nameX = x0 + PAD + 36;
@@ -182,6 +195,7 @@ export function hitTestTeamSetup(layout: TeamSetupLayout, point: ScreenPoint): T
   if (button === 'remove') return { kind: 'removeTeam' };
   if (button === 'start') return { kind: 'start' };
   for (const cell of layout.cells) {
+    if (cell.kind === 'map' && inside(cell, point)) return { kind: 'cycleScenario' };
     if (cell.team === undefined || !inside(cell, point)) continue;
     if (cell.kind === 'name') return { kind: 'cycleName', team: cell.team };
     if (cell.kind === 'controller') return { kind: 'toggleController', team: cell.team };
@@ -203,6 +217,19 @@ export function drawTeamSetup(ctx: Ctx2D, viewport: Size, layout: TeamSetupLayou
   ctx.strokeRect(card.x + 0.5, card.y + 0.5, card.w - 1, card.h - 1);
   ctx.fillStyle = '#ffd166';
   centerText(ctx, 'TEAMS', viewport.w / 2, card.y + PAD + 14, 28);
+
+  // The map row: its name in the middle, a click cycles it.
+  const map = layout.cells.find((c) => c.id === 'map');
+  if (map !== undefined) {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(map.x, map.y, map.w, map.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    leftText(ctx, 'Map', map.x + 12, map.y + ROW_H / 2, 15, '600');
+    ctx.fillStyle = '#ffffff';
+    centerText(ctx, SCENARIOS[state.scenario].name, map.x + map.w / 2, map.y + ROW_H / 2, 18, '700');
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    centerText(ctx, 'click to change', map.x + map.w - 62, map.y + ROW_H / 2, 12, '400');
+  }
 
   state.teams.forEach((slot, index) => {
     const name = layout.cells.find((c) => c.id === `team:${index}:name`);
@@ -229,7 +256,7 @@ export function drawTeamSetup(ctx: Ctx2D, viewport: Size, layout: TeamSetupLayou
 
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   const hintY = (layout.buttons[0]?.y ?? card.y + card.h) - 12;
-  centerText(ctx, 'Click a name to change it, Human or CPU to switch, the difficulty to cycle it', viewport.w / 2, hintY, 12, '400');
+  centerText(ctx, 'Click the map or a name to change it, Human or CPU to switch, the difficulty to cycle it', viewport.w / 2, hintY, 12, '400');
   for (const button of layout.buttons) drawButton(ctx, button);
   ctx.restore();
 }

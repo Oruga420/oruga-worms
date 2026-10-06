@@ -1040,30 +1040,77 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
   const inventory = await page.evaluate(() => window.__orugas!.inventory());
   expect(inventory.worms.find((worm) => worm.id === mage)?.ammo['zoltraak']).toBe(0);
 
-  // The rest between supers: on the mage's team's next turn every super is greyed out in the
-  // panel, with a note saying when it is back; the turn after that they are open again.
+  // The rest between supers is the mage's own: it carries two counts right after the technique,
+  // one once its turn has ended, and its team mates are not held by it. On the mage's team's next
+  // turn a different worm is up, and every super is open to it.
+  const restOf = (id: string): Promise<number | undefined> => page.evaluate((wormId: string) => window.__orugas!.inventory().worms.find((worm) => worm.id === wormId)?.superRest, id);
+  expect(await restOf(mage)).toBe(2);
   const mageTeam = mage.split('-worm-')[0] ?? '';
   const otherTeam = victim.split('-worm-')[0] ?? '';
-  let turn = await untilTeamUp(page, otherTeam, await page.evaluate(() => window.__orugas!.turn()));
-  await page.evaluate(() => window.__orugas!.endTurn());
-  turn = await untilTeamUp(page, mageTeam, turn);
-  await page.keyboard.press('Tab');
-  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
-  const resting = await page.evaluate(() => window.__orugas!.panelCells());
-  expect(resting.find((c) => c.id === 'kamehameha')?.enabled).toBe(false);
-  expect(resting.find((c) => c.id === 'gear_five')?.enabled).toBe(false);
-  expect(resting.find((c) => c.id === 'bazooka')?.enabled).toBe(true);
-  await page.screenshot({ path: resolve(ROOT, 'test-results/super-rest-panel.png') });
-  await page.keyboard.press('Tab');
-  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(false);
-  await page.evaluate(() => window.__orugas!.endTurn());
-  turn = await untilTeamUp(page, otherTeam, turn);
+  const turn = await untilTeamUp(page, otherTeam, await page.evaluate(() => window.__orugas!.turn()));
+  expect(await restOf(mage)).toBe(1);
   await page.evaluate(() => window.__orugas!.endTurn());
   await untilTeamUp(page, mageTeam, turn);
+  const mate = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  expect(mate).not.toBe(mage);
+  expect(await restOf(mate)).toBe(0);
   await page.keyboard.press('Tab');
   await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
   const open = await page.evaluate(() => window.__orugas!.panelCells());
   expect(open.find((c) => c.id === 'kamehameha')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'gear_five')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'bazooka')?.enabled).toBe(true);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/super-rest-mate.png') });
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(false);
+  // The mage itself still carries its one count until its own next turn ends.
+  expect(await restOf(mage)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('maps: ?map= starts on a built scenario, the setup card cycles it, and a shot craters each one', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  // ?map=castle: the castle is under the title already, and the card shows it as the map.
+  await page.goto(`${baseUrl}/?seed=1&map=castle`, { waitUntil: 'load' });
+  await waitForHook(page);
+  expect(await page.evaluate(() => window.__orugas!.scenario())).toBe('castle');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.appPhase() ?? ''), { timeout: 4000 }).toBe('setup');
+  const stage = await page.locator('#stage').boundingBox();
+  if (stage === null) throw new Error('stage element has no bounding box');
+  const mapCell = (await page.evaluate(() => window.__orugas!.teamSetupCells())).find((cell) => cell.id === 'map');
+  if (mapCell === undefined) throw new Error('map cell missing from the team setup card');
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/setup-map.png') });
+  // One click on the map row: the castle gives way to Kame House; Start plays there.
+  await page.mouse.click(stage.x + mapCell.x + mapCell.w / 2, stage.y + mapCell.y + mapCell.h / 2);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+  expect(await page.evaluate(() => window.__orugas!.scenario())).toBe('kame_house');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/map-kame-house.png') });
+
+  // The built maps are the sim's terrain like the island: a bazooka craters the sand, the deck and the stone.
+  for (const map of ['kame_house', 'spaceship', 'castle'] as const) {
+    if (map !== 'kame_house') {
+      await page.goto(`${baseUrl}/?seed=1&map=${map}`, { waitUntil: 'load' });
+      await waitForHook(page);
+      await startGame(page);
+      await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+      expect(await page.evaluate(() => window.__orugas!.scenario())).toBe(map);
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: resolve(ROOT, `test-results/map-${map}.png`) });
+    }
+    await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround), { timeout: 8000 }).toBe(true);
+    const solidBefore = await page.evaluate(() => window.__orugas!.solidCount());
+    expect(solidBefore).toBeGreaterThan(0);
+    await page.evaluate(() => window.__orugas!.fireBazooka());
+    await expect.poll(() => page.evaluate(() => window.__orugas!.solidCount()), { timeout: 8000 }).toBeLessThan(solidBefore);
+  }
   expect(errors).toEqual([]);
 });
 

@@ -84,8 +84,8 @@ export function applyDeath(state: MatchState, death: PendingDeath): MatchState {
 }
 
 function enterTurnEnd(state: MatchState, deps: MatchDeps): MatchState {
-  // One of the team's turns is over: a turn nearer to its next super (match/super-rest.ts).
-  let next = updateTeam(closeShotWindow(state), state.activeTeamIndex, restTurnEnded);
+  // The worm's turn is over: a turn nearer to its next super (match/super-rest.ts).
+  let next = updateTeam(closeShotWindow(state), state.activeTeamIndex, (team) => ({ ...team, worms: team.worms.map((worm, index) => (index === team.activeWormIndex ? restTurnEnded(worm) : worm)) }));
   for (const death of next.pendingDeaths) next = applyDeath(next, death);
   next = { ...next, pendingDeaths: [] };
   const pendingDrop = next.crateDrop !== null;

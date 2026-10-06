@@ -83,7 +83,7 @@ export interface PanelModel {
   readonly ammo: AmmoLedger;
   /** Turns played so far; a weapon with delayTurns above this is shown locked. */
   readonly turnsElapsed: number;
-  /** The team used a super last turn, so the supers are shown resting (match/super-rest.ts). */
+  /** The worm used a super on its last turn, so the supers are shown resting (match/super-rest.ts). */
   readonly supersResting?: boolean;
 }
 

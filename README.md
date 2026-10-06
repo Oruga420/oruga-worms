@@ -12,8 +12,9 @@ https://oruga-worms.vercel.app
 
 Pick your device on the title screen: **Computer** (keyboard and mouse) or **Phone / Tablet**
 (on-screen touch controls). The game suggests one from your screen and remembers your pick;
-`?device=touch` or `?device=desktop` in the URL forces either. Then choose human or CPU teams
-and start the match.
+`?device=touch` or `?device=desktop` in the URL forces either. Then pick the map (the Island,
+the Spaceship, the Castle or Kame House: click the Map row to cycle it), choose human or CPU
+teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the URL starts on one.
 
 ### Touch controls
 
@@ -40,12 +41,25 @@ and start the match.
 
 ### What's new
 
-- **One super at a time**: a team that uses a super (Ryuko Ranbu, the Kamehameha, Gear 5, the
-  Freezer, the Saibaman seed or any technique of the Anime row) sits out supers for its next turn.
-  With teams A, B and C: A uses one, B and C play, A plays without one, B and C play again, and only
-  then may A use another. The panel greys the supers out with NEXT TURN across them while they rest,
-  a worm that comes up with a resting super in hand starts on the bazooka, and everything else stays
-  open. The CPU keeps to it too.
+- **Three new maps**, picked on the team setup card (the Map row) or with `?map=` in the URL:
+  - **Spaceship**: a long hull adrift in deep space, a banded planet and the stars behind it. The
+    worms fight on the deck, between the bridge, the fins, two sunken hatches and the engines that
+    burn at the stern; a cargo pod hangs under the keel. Whatever falls off is lost in the void.
+  - **Castle**: a keep between two towers on a hill at dusk, the moon up and dark ridges behind,
+    battlements along every top (a worm stands between the merlons), a gatehouse sealed in the
+    keep's foot that a bazooka opens, flags flying from the towers.
+  - **Kame House**: Master Roshi's island, a flat sandy beach in a turquoise sea with the pink
+    house and its red dome in the middle (hollow, so a shot opens it), the KAME HOUSE sign on top,
+    palms swaying either side and two rocks off shore.
+  Every map is the sim's terrain like the island: it craters, it burns, it is cut into cubes, and
+  the same spawn rules place every team on it, up to four teams of six. The island stays the
+  default, random per game as before.
+- **One super at a time, per worm**: a worm that uses a super (Ryuko Ranbu, the Kamehameha, Gear 5,
+  the Freezer, the Saibaman seed or any technique of the Anime row) sits out supers for its own next
+  turn; its team mates are not held by it. With six worms a team, that is the turn after the whole
+  team has been round once. The panel greys the supers out with NEXT TURN across them while the worm
+  rests, a worm that comes up with a resting super in hand starts on the bazooka, and everything else
+  stays open. The CPU keeps to it too.
 - **Explosión Final** (Majin Vegeta) joins the Anime row: the worm goes off where it stands and takes
   everyone within 70 px with it, itself first of all. See the row below.
 - **Six worms a team**: every team now fields six worms (three before), each with a name of its own,
@@ -251,7 +265,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
 ## Project layout
 
 - `src/match`: turns, individual inventories, supply drops, scoring, and victory.
-- `src/sim`, `src/terrain`: physics and destructible terrain.
+- `src/sim`, `src/terrain`: physics and destructible terrain; `src/terrain/scenarios.ts` and
+  `src/terrain/scenarios/` build the Spaceship, the Castle and Kame House into the mask, and
+  `src/game/scenery.ts` draws each map's sky, water and props (engines, flags, palms, the sign).
 - `src/weapons`: weapon definitions and behavior dispatch.
 - `src/game`, `src/engine`: controller, rendering, animation cues (`fx.ts`), gore (`gore.ts`), the
   supers' camera work (`cinematic.ts`), input, sound, and HUD.
@@ -272,7 +288,7 @@ heuristic remains available. Never commit real `.env` files or API keys.
   turns they steal; `src/game/antares.ts`, `galaxian.ts`, `tenbu.ts`, `hiken.ts`, `meteor.ts`,
   `santoryu.ts`, `zoltraak.ts`, `final-explosion.ts` and `technique-fx.ts` draw them;
   `src/ai/technique-eval.ts` scores them for the CPU; `src/match/super-rest.ts` holds the rest
-  between a team's supers.
+  between a worm's supers.
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.
