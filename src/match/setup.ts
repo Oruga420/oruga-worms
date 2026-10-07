@@ -222,7 +222,7 @@ export function saibamanAmmoTable(): Readonly<Record<WeaponId, number>> {
 }
 
 function buildWorm(teamId: string, name: string, index: number, config: MatchConfig, ammo: TeamSetup['ammo']): WormState {
-  return { id: `${teamId}-worm-${index + 1}`, name, hp: config.wormHp, maxHp: config.wormHp, alive: true, x: 0, y: 0, ammo: buildAmmoTable(ammo), superRest: 0 };
+  return { id: `${teamId}-worm-${index + 1}`, name, hp: config.wormHp, maxHp: config.wormHp, alive: true, x: 0, y: 0, ammo: buildAmmoTable(ammo), superRest: 0, turns: 0 };
 }
 
 function buildTeam(team: TeamSetup, index: number, config: MatchConfig): TeamState {

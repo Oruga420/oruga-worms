@@ -25,7 +25,7 @@ import { createRenderer } from './engine/renderer.ts';
 import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
 import { assetUrl } from './engine/asset-url.ts';
 import { createCpuClient } from './ai/client.ts';
-import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
+import { createController, type Controller, type ControllerInput, type ControllerOptions } from './game/controller.ts';
 import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
 import { createGore, drawGore, drawLens, goreEnabledFromSearch, resetGore, updateGore } from './game/gore.ts';
 import { advanceFx, applyFxEvents, createFx, drawFxScreen, drawFxWorld, noteWeapon, wormAnim, type FxDeps, type FxState } from './game/fx.ts';
@@ -92,7 +92,7 @@ interface OrugasDebug {
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
-  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
+  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number; turns: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
@@ -143,6 +143,13 @@ interface OrugasDebug {
   readonly activeController: () => string;
   readonly turn: () => number;
   readonly endTurn: () => void;
+  /**
+   * Passes `count` turns at once: each is skipped as the Skip Go would (none of the round clock
+   * spent, so sudden death stays where it is) and the controller ticked on, hot seat and banners
+   * included, until the next turn is Active. A test reaches a worm's second own turn (where its
+   * scheme delays end) without sitting through twelve real turns. The worm up after.
+   */
+  readonly skipTurns: (count: number) => string;
   /** Rolling average frame cost in ms, the same number the overlay draws. */
   readonly frameMs: () => number;
   readonly dpr: () => number;
@@ -678,7 +685,7 @@ function boot(): void {
           const clickTakenByPanel = panelOpen && intent.pointerClicked;
           if (panelOpen) {
             const worm = activeWormOf(panelState);
-            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn, supersResting: superResting(worm) });
+            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: worm.turns, supersResting: superResting(worm) });
             if (panelLayout !== null && intent.pointerClicked) {
               const picked = hitTestWeaponPanel(panelLayout, intent.pointerScreen);
               if (picked !== null) {
@@ -878,7 +885,7 @@ function boot(): void {
       inventory: () => ({
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),
-        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo, superRest: worm.superRest }))),
+        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo, superRest: worm.superRest, turns: worm.turns }))),
         drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed, x: crate.x, y: crate.y })),
       }),
       stepsRemaining: () => controller.stepsRemaining(),
@@ -963,6 +970,21 @@ function boot(): void {
       turn: () => controller.state().turn,
       // Expire the current turn timer so play passes to the next team.
       endTurn: () => controller.advanceRoundClock(DEFAULT_MATCH_CONFIG.turnMs),
+      skipTurns: (count: number) => {
+        const idle: ControllerInput = { moveX: 0, jump: false, backflip: false, aimDelta: 0, fireHeld: false, fireReleased: false, thrust: false, selectedSlot: null, pointer: { x: 0, y: 0 }, pointerClicked: false };
+        const untilActive = (after: number): void => {
+          for (let i = 0; i < 6000 && !(controller.state().phase === 'Active' && controller.state().turn > after); i += 1) controller.tick(idle);
+        };
+        for (let n = 0; n < count; n += 1) {
+          untilActive(controller.state().turn - 1);
+          const turn = controller.state().turn;
+          controller.skipTurn();
+          untilActive(turn);
+        }
+        // The skipped turns' sounds and effects are not worth replaying in a burst.
+        controller.drainEvents();
+        return activeWormOf(controller.state())?.id ?? '';
+      },
       frameMs: () => loop.stats().averageFrameMs,
       dpr: () => renderer.dpr(),
       dropWorm: (exempt: boolean) => {

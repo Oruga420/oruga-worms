@@ -138,7 +138,8 @@ function onFireStarted(state: MatchState, event: FireStartedEvent): MatchState {
   const worm = activeWormOf(state);
   if (worm === undefined) return state;
   const ammo = worm.ammo[event.weaponId];
-  if (ammo !== undefined && state.turn < (getWeapon(event.weaponId).delayTurns ?? 0)) return appendLog(state, 'fire.rejected', `${event.weaponId} is not unlocked yet`);
+  // The scheme delay is the worm's own: it counts the turns this worm has had, not the match's.
+  if (ammo !== undefined && worm.turns < (getWeapon(event.weaponId).delayTurns ?? 0)) return appendLog(state, 'fire.rejected', `${event.weaponId} is not unlocked yet for ${worm.name}`);
   if (ammo === undefined) return appendLog(state, 'fire.rejected', `Unknown weapon ${event.weaponId}`);
   // One super a turn, and none on the worm's next: the worm rests its supers (match/super-rest.ts).
   const superShot = isSuper(getWeapon(event.weaponId));
@@ -265,7 +266,7 @@ function onWormSpawned(state: MatchState, event: WormSpawnedEvent, deps: MatchDe
   let name = '';
   const next = updateTeam(state, teamIndex, (team) => {
     name = `Saiba ${team.worms.filter((w) => w.id.includes('-saiba-')).length + 1}`;
-    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable(), superRest: 0 };
+    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable(), superRest: 0, turns: 0 };
     return { ...team, worms: [...team.worms, worm] };
   });
   return appendLog(resetInactivity(next), 'worm.spawned', `${name} sprouts for ${state.teams[teamIndex]?.name ?? event.teamId}`);

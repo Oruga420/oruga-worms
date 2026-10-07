@@ -5,6 +5,7 @@ import { activeWormOf } from '@/match/ledger.ts';
 import type { MatchState } from '@/match/state.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
+import { pastDelays } from '../match/past-delays.ts';
 
 /**
  * The rest between a worm's supers at the controller: a super used, its team mates pick what they
@@ -30,7 +31,7 @@ function makeController(): Controller {
   const game = quickGame(7, createFakeFactory().factory, { w: 1200, h: 500 });
   if (!game.ok) throw new Error(game.error.message);
   const base = game.value.state;
-  const state: MatchState = { ...base, turn: 8, teams: base.teams.map((team) => ({ ...team, controller: 'human' as const })) };
+  const state: MatchState = pastDelays({ ...base, turn: 8, teams: base.teams.map((team) => ({ ...team, controller: 'human' as const })) }, 8);
   const controller = createController({ ...game.value, state }, { cpu: { client: null, registry: WEAPONS } });
   playUntil(controller, () => controller.state().phase === 'Active');
   return controller;

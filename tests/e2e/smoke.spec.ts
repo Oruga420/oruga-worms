@@ -480,8 +480,8 @@ test('mouse: dragging pans the camera without firing, a click fires a targeted w
   expect(await page.evaluate(() => window.__orugas?.phase() ?? '')).toBe('Active');
 
   // A plain click with a targeted weapon selected fires it where it points. The teleport is the
-  // one available on turn 1 (the air strike sits behind a five turn scheme delay, and the
-  // controller rightly refuses it). After the 200 px drag the worm sits about 200 screen px left
+  // one available on a worm's first turn (the air strike sits behind the scheme delay every
+  // worm waits out, and the controller rightly refuses it). After the 200 px drag the worm sits about 200 screen px left
   // of centre, so this click lands in the air just above and beside it: a legal destination.
   await page.evaluate(() => window.__orugas?.selectWeapon('teleport'));
   expect(await page.evaluate(() => window.__orugas?.selectedWeapon() ?? '')).toBe('teleport');
@@ -611,11 +611,8 @@ test('jetpack from inventory survives a pause after activation and flies with En
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // Jetpack unlocks on turn 2; ending turn 1 leaves another human in control.
-  const firstTurn = await page.evaluate(() => window.__orugas!.turn());
-  await page.evaluate(() => window.__orugas!.endTurn());
-  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(firstTurn);
-  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // The jetpack opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   await page.keyboard.press('Tab');
   await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
@@ -675,11 +672,8 @@ test('ryuko ranbu from the inventory: the screen whites out, the victim takes th
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // The super unlocks on turn 2 (its scheme delay): end turn 1, the other human takes over.
-  const firstTurn = await page.evaluate(() => window.__orugas!.turn());
-  await page.evaluate(() => window.__orugas!.endTurn());
-  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(firstTurn);
-  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // The super opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));
   if (victim === null) throw new Error('No enemy to line up');
@@ -724,13 +718,8 @@ test('kamehameha from the inventory: aimed with the keys, it charges, fires and 
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // The beam unlocks on turn 2 (its scheme delay): end the first turn.
-  for (let ended = 0; ended < 1; ended += 1) {
-    const turn = await page.evaluate(() => window.__orugas!.turn());
-    await page.evaluate(() => window.__orugas!.endTurn());
-    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
-    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  }
+  // The beam opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(70));
   if (victim === null) throw new Error('No enemy to line up');
@@ -793,13 +782,8 @@ test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // Gear 5 unlocks on turn 2 (its scheme delay): end the first turn.
-  for (let ended = 0; ended < 1; ended += 1) {
-    const turn = await page.evaluate(() => window.__orugas!.turn());
-    await page.evaluate(() => window.__orugas!.endTurn());
-    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
-    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  }
+  // Gear 5 opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(60));
   if (victim === null) throw new Error('No enemy to line up');
@@ -852,13 +836,8 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   await expect.poll(() => page.evaluate(() => window.__orugas!.teamSetupCells().some((cell) => cell.id === 'team:1:difficulty'))).toBe(false);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  // The Freezer unlocks on turn 2 (its scheme delay): end the first turn.
-  for (let ended = 0; ended < 1; ended += 1) {
-    const turn = await page.evaluate(() => window.__orugas!.turn());
-    await page.evaluate(() => window.__orugas!.endTurn());
-    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
-    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  }
+  // The Freezer opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   // Close enough to be the one the light picks, far enough to stay out of the burst.
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(70));
@@ -921,11 +900,8 @@ test('saibaman seed from the inventory: the ground cracks and a small green worm
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // The seed unlocks on turn 2 (its scheme delay): end the first turn.
-  const turn = await page.evaluate(() => window.__orugas!.turn());
-  await page.evaluate(() => window.__orugas!.endTurn());
-  await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
-  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  // The seed opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const before = await page.evaluate(() => window.__orugas!.inventory());
   const planter = before.activeId;
@@ -958,15 +934,62 @@ test('saibaman seed from the inventory: the ground cracks and a small green worm
   expect(errors).toEqual([]);
 });
 
-/** Ends `count` turns one after another, each time waiting for the next to be under way. */
-async function endTurns(page: Page, count: number): Promise<void> {
-  for (let ended = 0; ended < count; ended += 1) {
-    const turn = await page.evaluate(() => window.__orugas!.turn());
-    await page.evaluate(() => window.__orugas!.endTurn());
-    await expect.poll(() => page.evaluate(() => window.__orugas!.turn()), { timeout: 15000 }).toBeGreaterThan(turn);
-    await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
-  }
+/** The own turn count of the worm up (WormState.turns through the hook). */
+function ownTurns(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const inv = window.__orugas!.inventory();
+    return inv.worms.find((worm) => worm.id === inv.activeId)?.turns ?? 0;
+  });
 }
+
+/**
+ * Skips turns until the worm up is on its second own turn: the scheme delays count each worm's
+ * own turns, so its supers, techniques, seed, air strike and jetpack open only then (with six
+ * worms a team, the second time it comes up). The turns are run out through the dev hook, hot
+ * seats included, since twelve real ones would take longer than a test's budget.
+ */
+async function untilSecondOwnTurn(page: Page): Promise<void> {
+  for (let i = 0; i < 40 && (await ownTurns(page)) < 2; i += 1) {
+    await page.evaluate(() => window.__orugas!.skipTurns(1));
+  }
+  expect(await ownTurns(page)).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.phase())).toBe('Active');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround), { timeout: 8000 }).toBe(true);
+}
+
+test('every worm waits its first turn: the supers stay locked for a worm up for the first time late in the match, and open on its second', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await startTwoHumans(page);
+  const first = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  expect(await ownTurns(page)).toBe(1);
+  // Eleven turns on: match turn 12, the last worm of the second team on its first turn, its supers shut.
+  const twelfth = await page.evaluate(() => window.__orugas!.skipTurns(11));
+  expect(twelfth).not.toBe(first);
+  expect(await page.evaluate(() => window.__orugas!.turn())).toBe(12);
+  expect(await ownTurns(page)).toBe(1);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const shut = await page.evaluate(() => window.__orugas!.panelCells());
+  expect(shut.find((c) => c.id === 'kamehameha')?.enabled).toBe(false);
+  expect(shut.find((c) => c.id === 'air_strike')?.enabled).toBe(false);
+  expect(shut.find((c) => c.id === 'jetpack')?.enabled).toBe(false);
+  expect(shut.find((c) => c.id === 'bazooka')?.enabled).toBe(true);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/first-turn-locked.png') });
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(false);
+  // One more: the first worm again, on its second own turn, everything open.
+  expect(await page.evaluate(() => window.__orugas!.skipTurns(1))).toBe(first);
+  expect(await ownTurns(page)).toBe(2);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const open = await page.evaluate(() => window.__orugas!.panelCells());
+  expect(open.find((c) => c.id === 'kamehameha')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'air_strike')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'jetpack')?.enabled).toBe(true);
+  expect(errors).toEqual([]);
+});
 
 /** Plays on until `team` is up and Active in a turn later than `after`; the turn it is. */
 async function untilTeamUp(page: Page, team: string, after: number): Promise<number> {
@@ -1003,8 +1026,8 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // Zoltraak unlocks on turn 2 (its scheme delay): end the first turn.
-  await endTurns(page, 1);
+  // Zoltraak opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(60));
   if (victim === null) throw new Error('No enemy to line up');
@@ -1120,8 +1143,8 @@ test('explosión final from the anime row: the worm gathers itself and goes off 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // The explosion unlocks on turn 2 (its scheme delay): end the first turn.
-  await endTurns(page, 1);
+  // The explosion opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   // Well inside the 70 px it reaches.
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));
@@ -1155,8 +1178,8 @@ test('tesoro del cielo from the anime row: the enemy in sight is sealed and sits
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const stage = await startTwoHumans(page);
-  // The Tesoro del Cielo unlocks on turn 2 (its scheme delay): end the first turn.
-  await endTurns(page, 1);
+  // The Tesoro del Cielo opens on a worm's second own turn (its scheme delay): play on until the first worm is back.
+  await untilSecondOwnTurn(page);
   await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
   // Nearer than any other worm stands at the start, so it is the one the wheel picks.
   const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));

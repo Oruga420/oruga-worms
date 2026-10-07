@@ -7,6 +7,7 @@ import { buildInitialState, type MatchSetup, type TeamSetup } from '@/match/setu
 import type { MatchState, TeamController } from '@/match/state.ts';
 import { nextWormIndex } from '@/match/turn.ts';
 import { WEAPON_IDS, isSuper } from '@/weapons/registry.ts';
+import { pastDelays } from './past-delays.ts';
 
 const CONFIG: MatchConfig = { ...GAME_CONFIG, hotSeatMs: 1000 };
 
@@ -47,7 +48,7 @@ function toActive(state: MatchState, deps: MatchDeps): MatchState {
 describe('match reducer: the price of a super', () => {
   it('a toll that empties the firing worm leaves the move running, and the turn ends with the shot, no retreat', () => {
     const { state, deps } = start();
-    const active = toActive({ ...state, turn: 10 }, deps);
+    const active = toActive(pastDelays(state), deps);
     const shooter = active.teams[0]?.worms[0];
     if (shooter === undefined) throw new Error('no shooter');
     const firing = run({ ...active, teams: active.teams.map((t, i) => (i === 0 ? { ...t, worms: t.worms.map((w, j) => (j === 0 ? { ...w, hp: 30 } : w)) } : t)) }, deps, [
@@ -66,7 +67,7 @@ describe('match reducer: the price of a super', () => {
 
   it('a toll that leaves some health is paid and the turn goes on to the retreat as ever', () => {
     const { state, deps } = start();
-    const active = toActive({ ...state, turn: 10 }, deps);
+    const active = toActive(pastDelays(state), deps);
     const shooter = active.teams[0]?.worms[0];
     if (shooter === undefined) throw new Error('no shooter');
     const paid = run(active, deps, [
@@ -161,7 +162,7 @@ describe('match reducer: crates give what they promise', () => {
     const { state, deps } = start();
     const active = toActive(state, deps);
     // R1 fires its Kamehameha (unlocked for the test) and later walks into a power orb.
-    const unlocked = { ...active, turn: 10 };
+    const unlocked = pastDelays(active);
     const fired = run(unlocked, deps, [{ type: 'FireStarted', weaponId: 'kamehameha', shotsRemaining: 0 }]);
     const picker = fired.teams[0]?.worms[0];
     if (picker === undefined) throw new Error('no picker');
@@ -430,7 +431,7 @@ it('rejects scheme-locked weapons without spending personal ammo', () => {
   expect(denied.phase).toBe('Active');
   expect(denied.teams[0]?.worms[0]?.ammo.air_strike).toBe(1);
   expect(denied.log.at(-1)?.kind).toBe('fire.rejected');
-  const unlocked = reduce({ ...active, turn: 5 }, { type: 'FireStarted', weaponId: 'air_strike', shotsRemaining: 0 }, deps);
+  const unlocked = reduce(pastDelays(active, 5), { type: 'FireStarted', weaponId: 'air_strike', shotsRemaining: 0 }, deps);
   expect(unlocked.phase).toBe('Firing');
   expect(unlocked.teams[0]?.worms[0]?.ammo.air_strike).toBe(0);
 });

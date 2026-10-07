@@ -69,8 +69,12 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
   team. The team plays on with its other worms, and as each of those turns ends the wheel strikes
   the sealed worm; the third strike kills it. Only when the sealed worm is the last one its team has
   does the team lose the turn.
-- **Everything from turn 2**: every super, the Anime row's techniques and the air strike now unlock
-  on the second turn (they waited until turns 3 to 6).
+- **Every worm waits its first turn**: the scheme delays now count each worm's own turns, not the
+  match's. A worm's supers, the Anime row's techniques, the Saibaman seed, the air strike and the
+  jetpack open on its second own turn, and with six worms a team that is the second time it comes
+  up, however late in the match that is. Before, they opened on match turn 2 for everyone at once.
+- **Sonic Blast hits for 70**: the pressure wave now does real damage, 70 when the whole cone lands
+  (five pellets of 14, the middle one on the aim), with the same push as before.
 - **The Anime row**: eight techniques from Saint Seiya, One Piece, Frieren and Dragon Ball, one of each per worm,
   recharged by power orbs and locked on the opening turn like every super. Each one shouts its
   name across the screen with whose technique it is.
