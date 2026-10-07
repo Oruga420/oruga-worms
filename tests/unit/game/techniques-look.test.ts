@@ -241,7 +241,7 @@ describe('technique looks: effects and names', () => {
 });
 
 describe('technique looks: every scene draws', () => {
-  const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak'] as const;
+  const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion'] as const;
 
   for (const id of ids) {
     it(`draws ${id} from start to end without a hitch`, () => {

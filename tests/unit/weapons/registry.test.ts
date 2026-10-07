@@ -5,7 +5,7 @@ import type { WeaponDef, WeaponId } from '@/weapons/types.ts';
 import { CPU_WEAPON_META } from '../../../sidecar/weapon-meta.ts';
 
 /**
- * The 38 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
+ * The 39 panel ids the sidecar uses, in panel order: the ultraplan rev 2 roster plus the tank
  * cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the
  * Freezer and Gear 5, the Saibaman seed, and the anime row's seven techniques.
  * Spelled out rather than derived so a lost or reordered id fails here instead of silently
@@ -44,6 +44,7 @@ const SIDECAR_IDS = [
   'meteor',
   'santoryu',
   'zoltraak',
+  'final_explosion',
   'air_strike',
   'parachute',
   'jetpack',
@@ -66,10 +67,10 @@ function isDeepFrozen(value: unknown, path = 'root'): string[] {
 }
 
 describe('weapon registry: ids', () => {
-  it('has exactly the 38 sidecar ids in panel order', () => {
+  it('has exactly the 39 sidecar ids in panel order', () => {
     expect(WEAPON_IDS).toEqual(SIDECAR_IDS);
-    expect(WEAPON_IDS).toHaveLength(38);
-    expect(PANEL_SLOTS).toBe(38);
+    expect(WEAPON_IDS).toHaveLength(39);
+    expect(PANEL_SLOTS).toBe(39);
     expect(WEAPON_IDS).toEqual(PANEL_WEAPON_IDS);
   });
 
@@ -82,15 +83,15 @@ describe('weapon registry: ids', () => {
     for (const id of WEAPON_IDS) expect(WEAPONS[id].id).toBe(id);
   });
 
-  it('splits into 33 combat weapons and 5 utilities', () => {
+  it('splits into 34 combat weapons and 5 utilities', () => {
     const utilities = WEAPON_IDS.filter((id) => WEAPONS[id].kind === 'UTILITY');
     expect(utilities).toEqual(UTILITY_IDS);
-    expect(WEAPON_IDS.length - utilities.length).toBe(33);
+    expect(WEAPON_IDS.length - utilities.length).toBe(34);
   });
 
-  it('keeps the technique blocks to the seven of the anime row, each aimed by the kind it needs', () => {
+  it('keeps the technique blocks to the eight of the anime row, each aimed by the kind it needs', () => {
     const techniques = WEAPON_IDS.filter((id) => WEAPONS[id].technique !== undefined);
-    expect(techniques).toEqual(['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak']);
+    expect(techniques).toEqual(['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion']);
     for (const id of techniques) expect(WEAPONS[id].category).toBe('anime');
     expect(WEAPON_IDS.filter((id) => WEAPONS[id].category === 'anime')).toEqual(techniques);
   });
@@ -177,7 +178,7 @@ describe('weapon registry: data rows', () => {
 
   it('draws no held sprite for the bare handed Kamehameha, Freezer, Gear 5, seed and techniques, the air strike and the utilities only', () => {
     const withoutHeld = WEAPON_IDS.filter((id) => WEAPONS[id].heldSprite === null);
-    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'air_strike', ...UTILITY_IDS]);
+    expect(withoutHeld).toEqual(['kamehameha', 'freezer', 'gear_five', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion', 'air_strike', ...UTILITY_IDS]);
   });
 
   it('gives every weapon a non empty display name and a fire cue', () => {

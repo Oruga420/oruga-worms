@@ -114,6 +114,7 @@ describe('superVoiceItems', () => {
       'voice_super_meteor',
       'voice_super_santoryu',
       'voice_super_zoltraak',
+      'voice_super_final_explosion',
     ]);
     for (const item of items.slice(0, 7)) expect(item.voiceId).toBe('CoAqFXxZEa3kpJmE7rDr');
     expect(items[0]?.text).toBe('¡Aguja Escarlata!');
@@ -125,16 +126,19 @@ describe('superVoiceItems', () => {
     expect(items[3]?.settings.style).toBeLessThan(items[0]?.settings.style ?? 0);
     expect(items[7]).toMatchObject({ voiceId: 'mrQhZWGbb2k9qWJb5qeA', text: 'Zoltraak.' });
     expect(items[7]?.settings).toEqual(items[3]?.settings);
+    expect(items[8]).toMatchObject({ voiceId: 'CoAqFXxZEa3kpJmE7rDr', text: 'Adiós... Trunks.' });
+    expect(items[8]?.settings).toEqual(items[3]?.settings);
   });
 
   it('is in the plan, before the music', () => {
     const plan = buildPlan(`${REPORT}\n| 3 | Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr |\n`, 'now');
     const ids = plan.items.map((i) => i.id);
-    expect(ids.indexOf('voice_super_zoltraak')).toBe(ids.length - 2);
-    expect(ids.indexOf('voice_super_scarlet_needle')).toBe(ids.length - 9);
-    expect(ids.indexOf('voice_super_saibaman_kekeke')).toBe(ids.length - 10);
-    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 11);
-    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 13);
+    expect(ids.indexOf('voice_super_final_explosion')).toBe(ids.length - 2);
+    expect(ids.indexOf('voice_super_zoltraak')).toBe(ids.length - 3);
+    expect(ids.indexOf('voice_super_scarlet_needle')).toBe(ids.length - 10);
+    expect(ids.indexOf('voice_super_saibaman_kekeke')).toBe(ids.length - 11);
+    expect(ids.indexOf('voice_super_freezer_laugh')).toBe(ids.length - 12);
+    expect(ids.indexOf('voice_super_kamehameha_ha')).toBe(ids.length - 14);
     expect(validatePlan(plan).ok).toBe(true);
   });
 

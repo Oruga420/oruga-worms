@@ -12,8 +12,9 @@ https://oruga-worms.vercel.app
 
 Pick your device on the title screen: **Computer** (keyboard and mouse) or **Phone / Tablet**
 (on-screen touch controls). The game suggests one from your screen and remembers your pick;
-`?device=touch` or `?device=desktop` in the URL forces either. Then choose human or CPU teams
-and start the match.
+`?device=touch` or `?device=desktop` in the URL forces either. Then pick the map (the Island,
+the Spaceship, the Castle or Kame House: click the Map row to cycle it), choose human or CPU
+teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the URL starts on one.
 
 ### Touch controls
 
@@ -34,11 +35,33 @@ and start the match.
 | Tesoro del Cielo | Pick it in Weapons (Anime), then press and release FIRE: it seals the nearest enemy in sight |
 | Meteorito | Pick it in Weapons (Anime), then tap where it should fall |
 | Santoryu | Pick it in Weapons (Anime), move the square with ▲ ▼, then press and release FIRE |
+| Explosión Final | Pick it in Weapons (Anime), then press and release FIRE: it goes off where the worm stands |
 | Look around | Drag the map |
 | Play again | Play again button on the end screen |
 
 ### What's new
 
+- **Three new maps**, picked on the team setup card (the Map row) or with `?map=` in the URL:
+  - **Spaceship**: a long hull adrift in deep space, a banded planet and the stars behind it. The
+    worms fight on the deck, between the bridge, the fins, two sunken hatches and the engines that
+    burn at the stern; a cargo pod hangs under the keel. Whatever falls off is lost in the void.
+  - **Castle**: a keep between two towers on a hill at dusk, the moon up and dark ridges behind,
+    battlements along every top (a worm stands between the merlons), a gatehouse sealed in the
+    keep's foot that a bazooka opens, flags flying from the towers.
+  - **Kame House**: Master Roshi's island, a flat sandy beach in a turquoise sea with the pink
+    house and its red dome in the middle (hollow, so a shot opens it), the KAME HOUSE sign on top,
+    palms swaying either side and two rocks off shore.
+  Every map is the sim's terrain like the island: it craters, it burns, it is cut into cubes, and
+  the same spawn rules place every team on it, up to four teams of six. The island stays the
+  default, random per game as before.
+- **One super at a time, per worm**: a worm that uses a super (Ryuko Ranbu, the Kamehameha, Gear 5,
+  the Freezer, the Saibaman seed or any technique of the Anime row) sits out supers for its own next
+  turn; its team mates are not held by it. With six worms a team, that is the turn after the whole
+  team has been round once. The panel greys the supers out with NEXT TURN across them while the worm
+  rests, a worm that comes up with a resting super in hand starts on the bazooka, and everything else
+  stays open. The CPU keeps to it too.
+- **Explosión Final** (Majin Vegeta) joins the Anime row: the worm goes off where it stands and takes
+  everyone within 70 px with it, itself first of all. See the row below.
 - **Six worms a team**: every team now fields six worms (three before), each with a name of its own,
   and a full map of four teams still fits: on an island too bumpy for the usual spacing the worms
   stand a little closer. A team may grow to ten living worms with Saibamen (eight before).
@@ -48,7 +71,7 @@ and start the match.
   does the team lose the turn.
 - **Everything from turn 2**: every super, the Anime row's techniques and the air strike now unlock
   on the second turn (they waited until turns 3 to 6).
-- **The Anime row**: seven techniques from Saint Seiya, One Piece and Frieren, one of each per worm,
+- **The Anime row**: eight techniques from Saint Seiya, One Piece, Frieren and Dragon Ball, one of each per worm,
   recharged by power orbs and locked on the opening turn like every super. Each one shouts its
   name across the screen with whose technique it is.
   - **Antares** (Milo of Scorpio, from turn 2). The worm points along the aim and its nail grows
@@ -87,6 +110,13 @@ and start the match.
     worm, and each fires a beam of white light that meets the others on one point along the aim:
     18 at most each, 90 if all five land. They hardly push, so the first does not throw the target
     out of the way of the rest.
+  - **Explosión Final** (Majin Vegeta, from turn 2). A ring round the worm shows its reach while it is
+    picked. The worm plants its feet and a golden aura climbs round it, lightning crackling through
+    it as it gathers everything it has (¡EXPLOSIÓN FINAL!, Adiós... Trunks); then it lets go: a
+    sphere of white gold, the screen whited out, and every worm within 70 px of where it stood is
+    gone, friends and enemies alike, the worm itself first of all (¡ADIÓS!), with a crater as wide
+    as the holy hand grenade's. It costs no health: it costs the worm. The CPU uses it when a worm
+    on its last legs stands among enough enemies to be worth it.
 
   The CPU uses all seven: it takes the price of the ones that cost health off what they are worth,
   keeps its friends and itself out of the blasts, and counts the turns a seal steals.
@@ -204,6 +234,7 @@ The CPU works without API credentials using its built-in heuristic.
 | Tesoro del Cielo | Select it in the inventory, then press and release Space: it seals the nearest enemy in sight |
 | Meteorito | Select it in the inventory, then click where it should fall |
 | Santoryu | Select it in the inventory, move the square with Up/Down, then press and release Space |
+| Explosión Final | Select it in the inventory, then press and release Space: it goes off where the worm stands |
 | Pause and options | Escape or P |
 | Restart after a match | R |
 
@@ -234,7 +265,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
 ## Project layout
 
 - `src/match`: turns, individual inventories, supply drops, scoring, and victory.
-- `src/sim`, `src/terrain`: physics and destructible terrain.
+- `src/sim`, `src/terrain`: physics and destructible terrain; `src/terrain/scenarios.ts` and
+  `src/terrain/scenarios/` build the Spaceship, the Castle and Kame House into the mask, and
+  `src/game/scenery.ts` draws each map's sky, water and props (engines, flags, palms, the sign).
 - `src/weapons`: weapon definitions and behavior dispatch.
 - `src/game`, `src/engine`: controller, rendering, animation cues (`fx.ts`), gore (`gore.ts`), the
   supers' camera work (`cinematic.ts`), input, sound, and HUD.
@@ -253,8 +286,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
 - `src/weapons/defs/anime.ts`, `src/sim/techniques/`, `src/sim/technique.ts`: the Anime row's seven
   techniques and their timelines; `src/match/seals.ts` holds the Tesoro del Cielo's seals and the
   turns they steal; `src/game/antares.ts`, `galaxian.ts`, `tenbu.ts`, `hiken.ts`, `meteor.ts`,
-  `santoryu.ts`, `zoltraak.ts` and `technique-fx.ts` draw them; `src/ai/technique-eval.ts` scores them
-  for the CPU.
+  `santoryu.ts`, `zoltraak.ts`, `final-explosion.ts` and `technique-fx.ts` draw them;
+  `src/ai/technique-eval.ts` scores them for the CPU; `src/match/super-rest.ts` holds the rest
+  between a worm's supers.
 - `src/ai`, `sidecar`: CPU planning and optional local model service.
 - `public/audio`, `public/sprites`: packaged game assets.
 - `tests`: unit, integration, and browser regression tests.

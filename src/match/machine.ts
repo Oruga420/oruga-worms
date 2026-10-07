@@ -13,7 +13,7 @@
  * MatchEnd ignores every event.
  */
 
-import { getWeapon } from '../weapons/registry.ts';
+import { getWeapon, isSuper } from '../weapons/registry.ts';
 import { healthCrateAmount, rollCrateWeapon, rollPower } from './crates.ts';
 import type { MatchDeps } from './deps.ts';
 import type {
@@ -57,6 +57,7 @@ import {
 import { isPreResolvePhase } from './phases.ts';
 import { retreatMsFor } from './retreat.ts';
 import { addSeal, takeSealedTurn } from './seals.ts';
+import { restAfterSuper, superResting } from './super-rest.ts';
 import { scoreDamage, scoreShotClosed, scoreShotFired } from './scoring.ts';
 import { saibamanAmmoTable } from './setup.ts';
 import { makeWindState, type DeathCause, type MatchState } from './state.ts';
@@ -139,6 +140,9 @@ function onFireStarted(state: MatchState, event: FireStartedEvent): MatchState {
   const ammo = worm.ammo[event.weaponId];
   if (ammo !== undefined && state.turn < (getWeapon(event.weaponId).delayTurns ?? 0)) return appendLog(state, 'fire.rejected', `${event.weaponId} is not unlocked yet`);
   if (ammo === undefined) return appendLog(state, 'fire.rejected', `Unknown weapon ${event.weaponId}`);
+  // One super a turn, and none on the worm's next: the worm rests its supers (match/super-rest.ts).
+  const superShot = isSuper(getWeapon(event.weaponId));
+  if (superShot && superResting(worm)) return appendLog(state, 'fire.rejected', `${worm.name} rests its supers this turn`);
   if (!Number.isInteger(event.shotsRemaining) || event.shotsRemaining < 0) {
     return appendLog(state, 'fire.rejected', 'shotsRemaining must be a non negative integer');
   }
@@ -150,15 +154,19 @@ function onFireStarted(state: MatchState, event: FireStartedEvent): MatchState {
   if (firstShot && ammo === 0) return appendLog(state, 'fire.rejected', `No ${event.weaponId} ammo left`);
   const scored = updateTeam(state, state.activeTeamIndex, (current) => ({
     ...current,
-    worms: current.worms.map((w) => w.id === worm.id && firstShot && ammo > 0
-      ? { ...w, ammo: { ...w.ammo, [event.weaponId]: ammo - 1 } } : w),
+    worms: current.worms.map((w) => {
+      if (w.id !== worm.id) return w;
+      const spent = firstShot && ammo > 0 ? { ...w, ammo: { ...w.ammo, [event.weaponId]: ammo - 1 } } : w;
+      return superShot ? restAfterSuper(spent) : spent;
+    }),
     score: scoreShotFired(previous === null ? current.score : scoreShotClosed(current.score, previous.damage)),
   }));
   const next: MatchState = {
     ...scored,
     shot: { weaponId: event.weaponId, shotsRemaining: event.shotsRemaining, damage: 0 },
   };
-  return appendLog(transition(next, 'Firing'), 'fire', `${team.name} fires ${event.weaponId}`);
+  const fired = appendLog(transition(next, 'Firing'), 'fire', `${team.name} fires ${event.weaponId}`);
+  return superShot ? appendLog(fired, 'super.rest', `${worm.name} rests its supers next turn`) : fired;
 }
 
 function onFireCompleted(state: MatchState, event: FireCompletedEvent, deps: MatchDeps): MatchState {
@@ -257,7 +265,7 @@ function onWormSpawned(state: MatchState, event: WormSpawnedEvent, deps: MatchDe
   let name = '';
   const next = updateTeam(state, teamIndex, (team) => {
     name = `Saiba ${team.worms.filter((w) => w.id.includes('-saiba-')).length + 1}`;
-    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable() };
+    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable(), superRest: 0 };
     return { ...team, worms: [...team.worms, worm] };
   });
   return appendLog(resetInactivity(next), 'worm.spawned', `${name} sprouts for ${state.teams[teamIndex]?.name ?? event.teamId}`);

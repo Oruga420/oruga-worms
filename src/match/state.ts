@@ -71,6 +71,8 @@ export interface WormState {
   readonly y: number;
   /** Personal inventory; -1 means infinite. */
   readonly ammo: Readonly<Record<WeaponId, number>>;
+  /** Own turn ends to pass before the worm may use a super again (match/super-rest.ts); 0 when it may. */
+  readonly superRest: number;
 }
 
 export interface TeamScore {

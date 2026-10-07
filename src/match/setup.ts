@@ -14,6 +14,7 @@ import { isValidWorldSize, type Size } from '../config/constants.ts';
 import { GAME_CONFIG } from '../config/game-config.ts';
 import { err, ok, type Result } from '../core/result.ts';
 import { createRng, mixSeed } from '../core/rng.ts';
+import { isScenarioId, type ScenarioId } from '../terrain/scenarios.ts';
 import { PANEL_WEAPON_IDS, type WeaponId } from '../weapons/types.ts';
 import type { MatchConfig } from './deps.ts';
 import { deepFreeze } from './immutable.ts';
@@ -88,6 +89,7 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   meteor: 1,
   santoryu: 1,
   zoltraak: 1,
+  final_explosion: 1,
   air_strike: 1,
   parachute: 2,
   jetpack: 1,
@@ -114,6 +116,8 @@ export interface MatchSetup {
   readonly waterY: number;
   /** Pins the first team instead of drawing it from the seed. */
   readonly startingTeamIndex?: number;
+  /** The map the match is played on (terrain/scenarios.ts); the island when absent. */
+  readonly scenario?: ScenarioId;
 }
 
 export type SetupErrorCode =
@@ -126,7 +130,8 @@ export type SetupErrorCode =
   | 'CONTROLLER'
   | 'WORLD'
   | 'WATER'
-  | 'STARTING_TEAM';
+  | 'STARTING_TEAM'
+  | 'SCENARIO';
 
 export interface SetupError {
   readonly code: SetupErrorCode;
@@ -191,6 +196,7 @@ export function validateSetup(setup: MatchSetup): SetupError | null {
   if (start !== undefined && (!Number.isInteger(start) || start < 0 || start >= setup.teams.length)) {
     return { code: 'STARTING_TEAM', message: 'startingTeamIndex must index a team' };
   }
+  if (setup.scenario !== undefined && !isScenarioId(setup.scenario)) return { code: 'SCENARIO', message: 'scenario must name a known map' };
   return null;
 }
 
@@ -216,7 +222,7 @@ export function saibamanAmmoTable(): Readonly<Record<WeaponId, number>> {
 }
 
 function buildWorm(teamId: string, name: string, index: number, config: MatchConfig, ammo: TeamSetup['ammo']): WormState {
-  return { id: `${teamId}-worm-${index + 1}`, name, hp: config.wormHp, maxHp: config.wormHp, alive: true, x: 0, y: 0, ammo: buildAmmoTable(ammo) };
+  return { id: `${teamId}-worm-${index + 1}`, name, hp: config.wormHp, maxHp: config.wormHp, alive: true, x: 0, y: 0, ammo: buildAmmoTable(ammo), superRest: 0 };
 }
 
 function buildTeam(team: TeamSetup, index: number, config: MatchConfig): TeamState {

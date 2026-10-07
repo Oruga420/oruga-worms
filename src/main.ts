@@ -47,6 +47,7 @@ import { createSoundDirector } from './game/sound.ts';
 import { INITIAL_DIRECTOR, updateCameraTarget, type CameraDirector } from './game/camera-target.ts';
 import { clampPan } from './engine/audio.ts';
 import { buildGame } from './game/setup.ts';
+import { parseScenarioParam } from './terrain/scenarios.ts';
 import {
   DEFAULT_TEAM_SETUP,
   drawTeamSetup,
@@ -70,6 +71,7 @@ import { WORM_HEIGHT } from './sim/constants.ts';
 import { muzzlePoint } from './weapons/behaviors/types.ts';
 import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
+import { superResting } from './match/super-rest.ts';
 import { fire } from './weapons/fire.ts';
 
 /** How hard each beat of Gear 5 shakes the camera: the drums and the awakening hardest. */
@@ -90,10 +92,12 @@ interface OrugasDebug {
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
-  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>> }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
+  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
+  /** The scenario in play ('island', 'spaceship', 'castle', 'kame_house'), so a test can prove ?map= and the card pick it. */
+  readonly scenario: () => string;
   /** The active worm's sim body, for diagnosing movement stalls (backlog 4.5). */
   readonly activeBody: () => { x: number; y: number; vx: number; vy: number; motion: string; onGround: boolean; fuelMs: number } | null;
   /** The settings in play (audio levels and key bindings), as loaded from storage at boot. */
@@ -217,8 +221,10 @@ function boot(): void {
 
   // A fresh island and fresh spawns every game; ?seed=N pins one map for a test or a bug report.
   const randomBits = (target: Uint32Array): Uint32Array => window.crypto.getRandomValues(target);
-  // The island under the title and the team setup: the default teams, as many worms as a match has.
-  const built = buildGame({ setup: toMatchSetup(DEFAULT_TEAM_SETUP, pickMatchSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory });
+  // The map under the title and the team setup: the default teams, as many worms as a match has, on
+  // the island unless ?map=castle (or spaceship, kame_house) in the URL picks a scenario to start on.
+  const initialTeamSetup: TeamSetupState = Object.freeze({ ...DEFAULT_TEAM_SETUP, scenario: parseScenarioParam(window.location.search) ?? DEFAULT_TEAM_SETUP.scenario });
+  const built = buildGame({ setup: toMatchSetup(initialTeamSetup, pickMatchSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory });
   if (!built.ok) throw new Error(`game setup failed: ${built.error.message}`);
 
   // Always build the client; it probes the sidecar once and the controller falls back to the
@@ -411,7 +417,7 @@ function boot(): void {
   // is drawn over; Start rebuilds it from the chosen teams.
   let appPhase: 'menu' | 'setup' | 'playing' = 'menu';
   let titleLayout: TitleLayout | null = null;
-  let teamSetup: TeamSetupState = DEFAULT_TEAM_SETUP;
+  let teamSetup: TeamSetupState = initialTeamSetup;
   let teamSetupLayout: TeamSetupLayout | null = null;
   // Pause: Escape or P while playing. While paused the controller is not ticked, so the turn
   // clock and the sim hold; the overlay's layout is the only source of its button rectangles.
@@ -672,7 +678,7 @@ function boot(): void {
           const clickTakenByPanel = panelOpen && intent.pointerClicked;
           if (panelOpen) {
             const worm = activeWormOf(panelState);
-            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn });
+            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn, supersResting: superResting(worm) });
             if (panelLayout !== null && intent.pointerClicked) {
               const picked = hitTestWeaponPanel(panelLayout, intent.pointerScreen);
               if (picked !== null) {
@@ -872,11 +878,12 @@ function boot(): void {
       inventory: () => ({
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),
-        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo }))),
+        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo, superRest: worm.superRest }))),
         drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed, x: crate.x, y: crate.y })),
       }),
       stepsRemaining: () => controller.stepsRemaining(),
       seed: () => controller.state().seed,
+      scenario: () => game.terrain.scenery?.id ?? 'island',
       settings: () => settings,
       paused: () => paused,
       scoreboard: () => buildScoreboard(controller.state()).map((row) => ({ name: row.name, winner: row.winner, points: row.points, aliveWorms: row.aliveWorms })),

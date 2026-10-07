@@ -13,6 +13,8 @@
  * - Fujitora's meteor: called on each enemy, where the rock would really come down, and its blast.
  * - The Santoryu: the square ahead at a fan of aims, and every worm in it.
  * - Zoltraak: the beams meeting on the first thing along the line to an enemy.
+ * - The Explosión Final: where the worm stands, everyone in the radius, itself first of all: only
+ *   worth it when the enemies in reach are worth more than the worm three times over.
  */
 
 import { degToRad } from '../core/math.ts';
@@ -226,6 +228,11 @@ export function evaluateTechnique(scene: TechniqueScene, def: WeaponDef, from: W
         best = better(best, { weapon: def.id, angleDeg: Math.round(angle), power: 1, score: worth.score, confidence: Math.min(1, worth.enemy / (spec.beamBlast.maxDamage * circles)) });
       }
       return best;
+    }
+    case 'final': {
+      const worth = killWorth(scene, from, from.x, wormMiddleY(from), spec.killRadiusPx);
+      if (worth.enemy <= 0 || worth.score <= 0) return null;
+      return { weapon: def.id, angleDeg: 0, power: 1, score: worth.score, confidence: 1 };
     }
   }
 }

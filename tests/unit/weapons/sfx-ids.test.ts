@@ -20,6 +20,7 @@ import { HIKEN_SOUNDS } from '@/sim/techniques/hiken.ts';
 import { METEOR_SOUNDS } from '@/sim/techniques/meteor.ts';
 import { DICE_SOUNDS } from '@/sim/techniques/dice.ts';
 import { ZOLTRAAK_SOUNDS } from '@/sim/techniques/zoltraak.ts';
+import { FINAL_SOUNDS } from '@/sim/techniques/final.ts';
 
 interface PlanItem {
   readonly id: string;
@@ -64,7 +65,7 @@ describe('weapon sfx ids', () => {
   });
 
   it('plays only one shot cues from the plan in the supers\' own sound tables', () => {
-    const tables = [COMBO_SOUNDS, BEAM_SOUNDS, DEVOUR_SOUNDS, HEX_SOUNDS, SPROUT_SOUNDS, NEEDLE_SOUNDS, GALAXY_SOUNDS, TREASURE_SOUNDS, HIKEN_SOUNDS, METEOR_SOUNDS, DICE_SOUNDS, ZOLTRAAK_SOUNDS];
+    const tables = [COMBO_SOUNDS, BEAM_SOUNDS, DEVOUR_SOUNDS, HEX_SOUNDS, SPROUT_SOUNDS, NEEDLE_SOUNDS, GALAXY_SOUNDS, TREASURE_SOUNDS, HIKEN_SOUNDS, METEOR_SOUNDS, DICE_SOUNDS, ZOLTRAAK_SOUNDS, FINAL_SOUNDS];
     const cues = tables.flatMap((table) => Object.values(table).flatMap((cue: string | readonly string[]) => (typeof cue === 'string' ? [cue] : [...cue])));
     expect(cues.length).toBeGreaterThan(10);
     for (const cue of cues) {

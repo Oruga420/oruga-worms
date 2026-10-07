@@ -1,7 +1,8 @@
 /**
- * Builds a ready to play game: a procedural island, a match ledger for the given teams, worms
- * spawned on the surface, and a sim world whose bodies mirror the match worms. Returns everything
- * the controller drives. Deterministic given the seed.
+ * Builds a ready to play game: the terrain of the chosen scenario (the procedural island unless
+ * the sheet names a built one), a match ledger for the given teams, worms spawned on the surface,
+ * and a sim world whose bodies mirror the match worms. Returns everything the controller drives.
+ * Deterministic given the seed.
  */
 
 import { createRng, mixSeed } from '../core/rng.ts';
@@ -10,7 +11,8 @@ import { DEFAULT_SPAWN_OPTIONS, applySpawnPoints, placeWorms, spawnOptions } fro
 import type { MatchState } from '../match/state.ts';
 import { createMatchDeps, type MatchDeps } from '../match/deps.ts';
 import { createWorld, addWorm, type SimWorld } from '../sim/world.ts';
-import { createProcedural, type TerrainData } from '../terrain/terrain.ts';
+import { createScenario, type TerrainData } from '../terrain/terrain.ts';
+import { DEFAULT_SCENARIO } from '../terrain/scenarios.ts';
 import type { ContextFactory } from '../terrain/context.ts';
 import { computeTops } from '../terrain/generate.ts';
 import { BORDER_BEDROCK_PX } from '../terrain/mask.ts';
@@ -47,8 +49,9 @@ const SPAWN_SEPARATIONS_PX: readonly number[] = Object.freeze([DEFAULT_SPAWN_OPT
 export function buildGame(options: GameSetupOptions): Result<Game, GameSetupError> {
   const { setup } = options;
   const size = setup.worldSize;
-  const terrainResult = createProcedural(
-    { generate: { width: size.w, height: size.h, seed: options.generateSeed ?? setup.seed }, maxAttempts: 12 },
+  const terrainResult = createScenario(
+    setup.scenario ?? DEFAULT_SCENARIO,
+    { width: size.w, height: size.h, seed: options.generateSeed ?? setup.seed, maxAttempts: 12 },
     options.createContext,
   );
   if (!terrainResult.ok) return err({ code: 'terrain', message: terrainResult.error.message });

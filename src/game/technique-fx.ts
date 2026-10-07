@@ -12,6 +12,7 @@ import { TWO_PI, clamp } from '../core/math.ts';
 import { shakeOffset, type Camera } from '../engine/camera.ts';
 import type { Ctx2D, Size } from '../engine/canvas-types.ts';
 import { WORM_HEIGHT } from '../sim/constants.ts';
+import { techniqueProgress } from '../sim/technique.ts';
 import { galaxyAt } from '../sim/techniques/galaxy.ts';
 import { hikenAt } from '../sim/techniques/hiken.ts';
 import type { DiceCell } from '../sim/types.ts';
@@ -28,6 +29,7 @@ import { GRAVITY_PURPLE } from './meteor.ts';
 import { CUT_BLUE, CUT_WHITE } from './santoryu.ts';
 import { TREASURE_GOLD, TREASURE_LIGHT } from './tenbu.ts';
 import { MAGIC_BLUE, MAGIC_WHITE } from './zoltraak.ts';
+import { MAJIN_GOLD, MAJIN_WHITE } from './final-explosion.ts';
 
 /** A name called over the screen: big letters, a smaller line under them, for a while. */
 export interface TechniqueCall {
@@ -77,6 +79,7 @@ const NAMES: Readonly<Record<string, { readonly text: string; readonly sub: stri
   meteor: { text: 'METEORITO', sub: 'FUJITORA', fill: '#d9c8ff', outline: '#1c0a3a' },
   dice: { text: 'SANTORYU', sub: 'RORONOA ZORO', fill: '#e9fff1', outline: '#0b3a1c' },
   zoltraak: { text: 'ZOLTRAAK', sub: 'FRIEREN', fill: MAGIC_WHITE, outline: '#0a2a4a' },
+  final: { text: '¡EXPLOSIÓN FINAL!', sub: 'MAJIN VEGETA', fill: MAJIN_GOLD, outline: '#3a2600' },
 });
 
 /** Calls a name over the screen; it takes the place of the one before, so two never sit on top of each other. */
@@ -193,6 +196,14 @@ export function onTechnique(fx: FxState, e: Extract<GameEvent, { type: 'techniqu
         for (let i = 0; i < 14; i += 1) deps.particles.spawn((p) => initPuff(p, x + deps.rng.nextFloat(-40, 40), y + deps.rng.nextFloat(-10, 10), deps.rng, 5, '#8a7a6a', 40));
         flash(fx, deps, x, y, 0.85, '#ffd9a0', 420);
         if (deps.onScreen(x, y)) fx.redPulse = { at: fx.now, strength: 0.6 };
+      } else if (e.kind === 'final') {
+        ring(fx, x, y, 120, MAJIN_GOLD);
+        ring(fx, x, y, 80, MAJIN_WHITE);
+        ring(fx, x, y, 44, '#ffffff');
+        sparks(deps, x, y, 90, 140, 600, [MAJIN_GOLD, MAJIN_WHITE, '#ffffff', '#ff9a3c'], 0.9);
+        flash(fx, deps, x, y, 1, '#fff6d0', 520);
+        call(fx, '¡ADIÓS!', null, MAJIN_WHITE, '#3a2600', 0.3, 1.3, 1400);
+        if (e.n > 1) pop(fx, `×${e.n}`, x, y - 40, 22, MAJIN_WHITE, '#3a2600', 0.1, 1400);
       }
       return;
     // The Tesoro del Cielo
@@ -303,6 +314,16 @@ export function emitTechniqueFx(world: SimWorld, deps: FxDeps): void {
         if (body.stage === 'fall') {
           for (let i = 0; i < 3; i += 1) deps.particles.spawn((p) => initSpark(p, body.x, body.y, -body.dx * 90 + deps.rng.nextFloat(-50, 50), -body.dy * 90 + deps.rng.nextFloat(-50, 50), deps.rng, [FIRE_RED, FIRE_ORANGE, FIRE_YELLOW][i] ?? FIRE_ORANGE, 0.5));
           if (deps.rng.next() < 0.5) deps.particles.spawn((p) => initPuff(p, body.x - body.dx * 10, body.y - body.dy * 10, deps.rng, 3.5, '#5a524c', 10));
+        }
+        break;
+      case 'final':
+        // Golden sparks climbing off the ground round the worm, thicker and faster as the charge goes on.
+        if (body.stage === 'charge') {
+          const fury = techniqueProgress(body);
+          if (deps.rng.next() < 0.4 + 0.6 * fury) {
+            const dx = deps.rng.nextFloat(-14, 14);
+            deps.particles.spawn((p) => initSpark(p, body.holdX + dx, body.holdY - deps.rng.nextFloat(0, 6), dx * 2, -deps.rng.nextFloat(40, 110) * (0.5 + fury), deps.rng, deps.rng.next() < 0.6 ? MAJIN_GOLD : MAJIN_WHITE, 0.5));
+          }
         }
         break;
       case 'zoltraak':

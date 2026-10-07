@@ -274,9 +274,9 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
 
   // Every panel weapon fires in a real browser without throwing: the Goal's 23 slots plus the tank
   // cannon, napalm gun, sonic blast gun, the four supers, Ryuko Ranbu, the Kamehameha, the Freezer
-  // and Gear 5, the Saibaman seed, and the Anime row's seven techniques.
+  // and Gear 5, the Saibaman seed, and the Anime row's eight techniques.
   const fired = await page.evaluate(() => window.__orugas?.fireAll() ?? []);
-  expect(fired).toHaveLength(38);
+  expect(fired).toHaveLength(39);
   expect(fired.filter((entry) => !entry.ok)).toEqual([]);
   await page.waitForTimeout(500);
 
@@ -505,7 +505,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
   );
   await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
   await waitForHook(page);
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(38);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(39);
   await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
   expect(requested.some((r) => r.startsWith('/sprites/weapons/sheet.png?v='))).toBe(true);
   expect(requested.filter((r) => !/\?v=[0-9a-f]{10}$/.test(r))).toEqual([]);
@@ -517,7 +517,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
-  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(38);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(39);
 
   // Title to the team setup card.
   await page.keyboard.press('Enter');
@@ -968,6 +968,24 @@ async function endTurns(page: Page, count: number): Promise<void> {
   }
 }
 
+/** Plays on until `team` is up and Active in a turn later than `after`; the turn it is. */
+async function untilTeamUp(page: Page, team: string, after: number): Promise<number> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ wanted, turn }) => {
+            const api = window.__orugas!;
+            return api.phase() === 'Active' && api.turn() > turn && api.inventory().activeId.split('-worm-')[0] === wanted;
+          },
+          { wanted: team, turn: after },
+        ),
+      { timeout: 30000 },
+    )
+    .toBe(true);
+  return page.evaluate(() => window.__orugas!.turn());
+}
+
 /** Opens the inventory, clicks the weapon's cell (which must be enabled) and checks it is picked. */
 async function pickWeapon(page: Page, stage: { readonly x: number; readonly y: number }, id: string): Promise<void> {
   await page.keyboard.press('Tab');
@@ -1021,6 +1039,112 @@ test('zoltraak from the anime row: aimed with the keys, five circles open and th
   await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 8000 }).toBe(0);
   const inventory = await page.evaluate(() => window.__orugas!.inventory());
   expect(inventory.worms.find((worm) => worm.id === mage)?.ammo['zoltraak']).toBe(0);
+
+  // The rest between supers is the mage's own: it carries two counts right after the technique,
+  // one once its turn has ended, and its team mates are not held by it. On the mage's team's next
+  // turn a different worm is up, and every super is open to it.
+  const restOf = (id: string): Promise<number | undefined> => page.evaluate((wormId: string) => window.__orugas!.inventory().worms.find((worm) => worm.id === wormId)?.superRest, id);
+  expect(await restOf(mage)).toBe(2);
+  const mageTeam = mage.split('-worm-')[0] ?? '';
+  const otherTeam = victim.split('-worm-')[0] ?? '';
+  const turn = await untilTeamUp(page, otherTeam, await page.evaluate(() => window.__orugas!.turn()));
+  expect(await restOf(mage)).toBe(1);
+  await page.evaluate(() => window.__orugas!.endTurn());
+  await untilTeamUp(page, mageTeam, turn);
+  const mate = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  expect(mate).not.toBe(mage);
+  expect(await restOf(mate)).toBe(0);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(true);
+  const open = await page.evaluate(() => window.__orugas!.panelCells());
+  expect(open.find((c) => c.id === 'kamehameha')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'gear_five')?.enabled).toBe(true);
+  expect(open.find((c) => c.id === 'bazooka')?.enabled).toBe(true);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/super-rest-mate.png') });
+  await page.keyboard.press('Tab');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.panelOpen())).toBe(false);
+  // The mage itself still carries its one count until its own next turn ends.
+  expect(await restOf(mage)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('maps: ?map= starts on a built scenario, the setup card cycles it, and a shot craters each one', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  // ?map=castle: the castle is under the title already, and the card shows it as the map.
+  await page.goto(`${baseUrl}/?seed=1&map=castle`, { waitUntil: 'load' });
+  await waitForHook(page);
+  expect(await page.evaluate(() => window.__orugas!.scenario())).toBe('castle');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.appPhase() ?? ''), { timeout: 4000 }).toBe('setup');
+  const stage = await page.locator('#stage').boundingBox();
+  if (stage === null) throw new Error('stage element has no bounding box');
+  const mapCell = (await page.evaluate(() => window.__orugas!.teamSetupCells())).find((cell) => cell.id === 'map');
+  if (mapCell === undefined) throw new Error('map cell missing from the team setup card');
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/setup-map.png') });
+  // One click on the map row: the castle gives way to Kame House; Start plays there.
+  await page.mouse.click(stage.x + mapCell.x + mapCell.w / 2, stage.y + mapCell.y + mapCell.h / 2);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+  expect(await page.evaluate(() => window.__orugas!.scenario())).toBe('kame_house');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/map-kame-house.png') });
+
+  // The built maps are the sim's terrain like the island: a bazooka craters the sand, the deck and the stone.
+  for (const map of ['kame_house', 'spaceship', 'castle'] as const) {
+    if (map !== 'kame_house') {
+      await page.goto(`${baseUrl}/?seed=1&map=${map}`, { waitUntil: 'load' });
+      await waitForHook(page);
+      await startGame(page);
+      await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+      expect(await page.evaluate(() => window.__orugas!.scenario())).toBe(map);
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: resolve(ROOT, `test-results/map-${map}.png`) });
+    }
+    await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround), { timeout: 8000 }).toBe(true);
+    const solidBefore = await page.evaluate(() => window.__orugas!.solidCount());
+    expect(solidBefore).toBeGreaterThan(0);
+    await page.evaluate(() => window.__orugas!.fireBazooka());
+    await expect.poll(() => page.evaluate(() => window.__orugas!.solidCount()), { timeout: 8000 }).toBeLessThan(solidBefore);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('explosión final from the anime row: the worm gathers itself and goes off where it stands, taking the enemy beside it and itself', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const stage = await startTwoHumans(page);
+  // The explosion unlocks on turn 2 (its scheme delay): end the first turn.
+  await endTurns(page, 1);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.activeBody()?.onGround)).toBe(true);
+  // Well inside the 70 px it reaches.
+  const victim = await page.evaluate(() => window.__orugas!.lineUpEnemy(40));
+  if (victim === null) throw new Error('No enemy to line up');
+  await page.waitForTimeout(600);
+  const hp = (id: string): Promise<number> => page.evaluate((worm: string) => window.__orugas!.wormHp(worm), id);
+  const user = await page.evaluate(() => window.__orugas!.inventory().activeId);
+  expect(await hp(victim)).toBeGreaterThan(0);
+  await pickWeapon(page, stage, 'final_explosion');
+  await page.screenshot({ path: resolve(ROOT, 'test-results/final-explosion-ring.png') });
+
+  // No aim: it goes off where the worm stands.
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('Space');
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 3000 }).toBe(1);
+  // The aura climbing round the worm, then the burst.
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/final-explosion-charge.png') });
+  await expect.poll(() => hp(victim), { timeout: 10000 }).toBe(0);
+  await page.screenshot({ path: resolve(ROOT, 'test-results/final-explosion-burst.png') });
+  expect(await hp(user)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__orugas!.techniques()), { timeout: 10000 }).toBe(0);
   expect(errors).toEqual([]);
 });
 
@@ -1113,7 +1237,7 @@ test('a power orb falls out of the sky onto the land and gives a super to the wo
       const inv = window.__orugas!.inventory();
       const ammo = inv.worms.find((worm) => worm.id === inv.activeId)?.ammo ?? {};
       // Every super the orb can bring back, the anime row's techniques included.
-      const ids = ['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak'];
+      const ids = ['ryuko_ranbu', 'kamehameha', 'gear_five', 'freezer', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion'];
       return ids.reduce((sum, id) => sum + (ammo[id] ?? 0), 0);
     });
   const before = await supers();
@@ -1273,7 +1397,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
     await page.locator('.tc-weapons').click();
     await expect.poll(() => page.evaluate(() => window.__orugas?.panelOpen())).toBe(true);
     const cells = await page.evaluate(() => window.__orugas?.panelCells() ?? []);
-    expect(cells.length).toBe(38);
+    expect(cells.length).toBe(39);
     for (const cell of cells) {
       expect(cell.x).toBeGreaterThanOrEqual(0);
       expect(cell.y).toBeGreaterThanOrEqual(0);

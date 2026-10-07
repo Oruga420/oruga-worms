@@ -40,6 +40,7 @@ export const PANEL_WEAPON_IDS = [
   'meteor',
   'santoryu',
   'zoltraak',
+  'final_explosion',
   'air_strike',
   'parachute',
   'jetpack',
@@ -580,7 +581,22 @@ export interface ZoltraakSpec {
   readonly recoverMs: number;
 }
 
-export type TechniqueSpec = NeedleSpec | GalaxySpec | TreasureSpec | HikenSpec | MeteorSpec | DiceSpec | ZoltraakSpec;
+/**
+ * The Explosión Final (Majin Vegeta's last stand): the worm gathers everything it has and lets it
+ * go at once, where it stands. Every worm within the kill radius dies, the worm itself first of
+ * all; the crater is as wide. No aim, no toll: the price is the worm.
+ */
+export interface FinalSpec {
+  readonly kind: 'final';
+  readonly chargeMs: number;
+  /** Everyone within this of the worm dies, the worm included; the crater is as wide. */
+  readonly killRadiusPx: number;
+  /** The blast at the burst: the crater, the shake and the push (its damage is the kill). */
+  readonly blast: BlastSpec;
+  readonly recoverMs: number;
+}
+
+export type TechniqueSpec = NeedleSpec | GalaxySpec | TreasureSpec | HikenSpec | MeteorSpec | DiceSpec | ZoltraakSpec | FinalSpec;
 export type TechniqueKind = TechniqueSpec['kind'];
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

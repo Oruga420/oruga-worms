@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_AIM } from '@/game/aim.ts';
-import { drawHud, hudKey, tollBadge, type HudModel } from '@/game/hud.ts';
-import { layoutWeaponPanel } from '@/game/weapon-panel.ts';
+import { SUPER_REST_NOTE, drawHud, hudKey, tollBadge, type HudModel } from '@/game/hud.ts';
+import { layoutWeaponPanel, panelCells as panelCellsOf } from '@/game/weapon-panel.ts';
 import { createLedger } from '@/weapons/ammo.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { POWER_GOLD } from '@/game/power-orb.ts';
@@ -73,5 +73,15 @@ describe('HUD: the price of the one hit kills', () => {
     // Antares, half of what its user has; the Tesoro del Cielo, 15 a strike, three strikes.
     expect(written.filter((t) => t === '-50%♥')).toHaveLength(1);
     expect(written.filter((t) => t === '-15♥×3')).toHaveLength(1);
+  });
+
+  it('writes when the resting supers are back across their cells, and nothing on an open panel', () => {
+    const stocked = createLedger(WEAPONS);
+    const resting = layoutWeaponPanel({ w: 1280, h: 720 }, { ammo: stocked, turnsElapsed: 10, supersResting: true });
+    const notes = texts({ ...model(state), panel: resting }).filter(([t]) => t === SUPER_REST_NOTE);
+    expect(notes.length).toBe(panelCellsOf(resting).filter((cell) => cell.resting).length);
+    expect(notes.length).toBeGreaterThan(5);
+    const open = layoutWeaponPanel({ w: 1280, h: 720 }, { ammo: stocked, turnsElapsed: 10 });
+    expect(texts({ ...model(state), panel: open }).some(([t]) => t === SUPER_REST_NOTE)).toBe(false);
   });
 });

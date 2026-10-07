@@ -59,6 +59,7 @@ const TECHNIQUE_KINDS: Readonly<Record<TechniqueKind, WeaponKind>> = Object.free
   meteor: 'TARGETED',
   dice: 'MELEE',
   zoltraak: 'HITSCAN',
+  final: 'MELEE',
 });
 
 function wholeAtLeast(value: number, min: number): boolean {
@@ -85,6 +86,7 @@ function checkTechnique(id: string, def: WeaponDef, out: string[]): void {
     meteor: () => spec.kind === 'meteor' && spec.fallSpeedPxPerS > 0 && spec.radiusPx > 0,
     dice: () => spec.kind === 'dice' && wholeAtLeast(spec.slashes, 0) && spec.cubePx >= 1 && spec.sizePx >= spec.cubePx,
     zoltraak: () => spec.kind === 'zoltraak' && wholeAtLeast(spec.circles, 1) && spec.rangePx > 0,
+    final: () => spec.kind === 'final' && spec.killRadiusPx > 0,
   };
   if (!counts[spec.kind]()) out.push(`${id}: ${spec.kind} needs whole counts and positive reaches and speeds`);
 }

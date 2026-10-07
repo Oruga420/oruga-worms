@@ -1,8 +1,8 @@
 /**
  * What a super costs the worm that uses it, as the HUD and the aim show it: the panel badge in the
  * cell's corner and the line under the weapon's name. A fixed toll (Gear 5, the Freezer, the
- * Galaxian Explosion), a share of what the worm has (Antares), or the Tesoro del Cielo's toll on
- * every strike. Null for everything free.
+ * Galaxian Explosion), a share of what the worm has (Antares), the Tesoro del Cielo's toll on
+ * every strike, or the Explosión Final's: the worm itself. Null for everything free.
  */
 
 import type { WeaponDef } from '../weapons/types.ts';
@@ -21,5 +21,6 @@ export function superPrice(def: Pick<WeaponDef, 'toll' | 'tollShare' | 'techniqu
     return { badge: `-${percent}%♥`, label: percent === 50 ? 'COSTS HALF YOUR HP' : `COSTS ${percent}% OF YOUR HP` };
   }
   if (def.technique?.kind === 'treasure') return { badge: `-${def.technique.hitToll}♥×${def.technique.hits}`, label: `COSTS ${def.technique.hitToll} HP A STRIKE` };
+  if (def.technique?.kind === 'final') return { badge: '-100%♥', label: 'COSTS YOUR LIFE' };
   return null;
 }

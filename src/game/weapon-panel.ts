@@ -15,7 +15,7 @@
 import type { Size } from '../engine/canvas-types.ts';
 import type { AmmoLedger } from '../weapons/ammo.ts';
 import { INFINITE_AMMO, hasAmmo } from '../weapons/ammo.ts';
-import { WEAPONS, WEAPON_IDS } from '../weapons/registry.ts';
+import { WEAPONS, WEAPON_IDS, isSuper } from '../weapons/registry.ts';
 import type { WeaponCategory, WeaponId } from '../weapons/types.ts';
 
 /** Row order, top to bottom. Every category in the registry must appear here. */
@@ -57,8 +57,10 @@ export interface PanelCell {
   readonly h: number;
   /** Ammo left; INFINITE_AMMO renders as an infinity glyph. */
   readonly count: number;
-  /** False when the weapon is out of ammo or still delayed; a click on it selects nothing. */
+  /** False when the weapon is out of ammo, still delayed or a resting super; a click on it selects nothing. */
   readonly enabled: boolean;
+  /** A super the team sits out this turn, open again on its next: drawn with a note saying so. */
+  readonly resting: boolean;
 }
 
 export interface PanelRow {
@@ -81,6 +83,8 @@ export interface PanelModel {
   readonly ammo: AmmoLedger;
   /** Turns played so far; a weapon with delayTurns above this is shown locked. */
   readonly turnsElapsed: number;
+  /** The worm used a super on its last turn, so the supers are shown resting (match/super-rest.ts). */
+  readonly supersResting?: boolean;
 }
 
 function isUnlocked(id: WeaponId, turnsElapsed: number): boolean {
@@ -147,6 +151,7 @@ export function layoutWeaponPanel(viewport: Size, model: PanelModel): PanelLayou
       const count = model.ammo[id];
       const column = index % columns;
       const line = Math.floor(index / columns);
+      const resting = model.supersResting === true && isSuper(id);
       return Object.freeze({
         id,
         name: WEAPONS[id].name,
@@ -156,7 +161,8 @@ export function layoutWeaponPanel(viewport: Size, model: PanelModel): PanelLayou
         w: metrics.cell,
         h: metrics.cell,
         count,
-        enabled: hasAmmo(model.ammo, id) && isUnlocked(id, model.turnsElapsed),
+        enabled: hasAmmo(model.ammo, id) && isUnlocked(id, model.turnsElapsed) && !resting,
+        resting,
       });
     });
     const lines = Math.ceil(group.ids.length / columns);

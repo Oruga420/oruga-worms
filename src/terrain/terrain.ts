@@ -9,12 +9,13 @@
  * hot paths (mask.ts, tiles.ts); the water surface is immutable and replaced through withWater.
  */
 
-import { ok, type Result } from '../core/result.ts';
+import { err, ok, type Result } from '../core/result.ts';
 import { carveCircle, carveRect, type CarveResult } from './carve.ts';
 import type { ContextFactory, PixelSize } from './context.ts';
 import { computeOutline, type GenerateOptions } from './generate.ts';
 import { AIR, BEDROCK, SOLID, countSolid, maskSpans, type ByteGrid, type TerrainMask } from './mask.ts';
 import { loadPngLevel, type PngLevelError, type ReadbackContextFactory } from './png-level.ts';
+import { SCENARIOS, bareScenery, type Scenery, type ScenarioId } from './scenarios.ts';
 import {
   DEFAULT_SCORCH,
   applyCarveSpans,
@@ -25,9 +26,13 @@ import {
   type TilesOptions,
 } from './tiles.ts';
 import {
+  DEFAULT_MAX_ATTEMPTS,
   DEFAULT_SPAWN_RULES,
   generateUntilValid,
+  noAttemptRejection,
+  validateLevel,
   type GenerationExhausted,
+  type LevelRejection,
   type LevelReport,
   type SpawnRules,
 } from './validate.ts';
@@ -61,7 +66,8 @@ export const DEFAULT_THEME: TerrainTheme = Object.freeze({
   scorch: DEFAULT_SCORCH,
 });
 
-export type TerrainSource = 'procedural' | 'png';
+/** Where a terrain came from: the island generator, a built scenario (terrain/scenarios.ts) or a PNG level. */
+export type TerrainSource = 'procedural' | 'built' | 'png';
 
 export interface TerrainData {
   /** World px. */
@@ -75,6 +81,8 @@ export interface TerrainData {
   readonly theme: TerrainTheme;
   readonly seed: number;
   readonly source: TerrainSource;
+  /** The scenario's sky and props for the renderer (game/scenery.ts); absent on a PNG level or a bare fixture. */
+  readonly scenery?: Scenery;
 }
 
 export interface TerrainOptions {
@@ -97,6 +105,16 @@ export interface ProceduralTerrain {
 export interface PngTerrainOptions extends TerrainOptions {
   readonly seed?: number;
   readonly waterY?: number;
+}
+
+export interface ScenarioTerrainOptions extends TerrainOptions {
+  readonly width: number;
+  readonly height: number;
+  readonly seed: number;
+  /** World y of the water surface; defaults to the water module's initial level. */
+  readonly waterY?: number;
+  readonly rules?: SpawnRules;
+  readonly maxAttempts?: number;
 }
 
 /** Runs of a byte layer as spans, for painting. */
@@ -155,8 +173,10 @@ function bundle(
   theme: TerrainTheme,
   seed: number,
   source: TerrainSource,
+  scenery?: Scenery,
 ): TerrainData {
-  return Object.freeze({ width: mask.width, height: mask.height, mask, tiles, water, theme, seed, source });
+  const base = { width: mask.width, height: mask.height, mask, tiles, water, theme, seed, source };
+  return Object.freeze(scenery === undefined ? base : { ...base, scenery });
 }
 
 /** Generates a validated island, paints it and bundles it; Err when no seed in range passes. */
@@ -172,6 +192,60 @@ export function createProcedural(
   paintMask(tiles, level.mask, theme, level.outline);
   const terrain = bundle(level.mask, tiles, createWater(level.waterY), theme, level.seed, 'procedural');
   return ok(Object.freeze({ terrain, report, attempts }));
+}
+
+/**
+ * Builds the terrain of a scenario (terrain/scenarios.ts): the island through createProcedural,
+ * a built one through its builder, painted by its theme and then by its own painter (portholes,
+ * stone, the pink house), and checked by the same spawn and sealed cave rules as the island. A
+ * seed that fails the check is followed by the next ones, as the island's are. The terrain
+ * carries the scenario's scenery for the renderer.
+ */
+export function createScenario(
+  id: ScenarioId,
+  options: ScenarioTerrainOptions,
+  createContext: ContextFactory,
+): Result<ProceduralTerrain, GenerationExhausted> {
+  const scenario = SCENARIOS[id];
+  const theme = options.theme ?? scenario.theme;
+  const waterY = options.waterY ?? initialWaterY(options.height);
+  const rules = options.rules ?? DEFAULT_SPAWN_RULES;
+  const attempts = Math.max(1, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS));
+  if (scenario.build === null) {
+    const built = createProcedural(
+      { generate: { width: options.width, height: options.height, seed: options.seed, waterY }, theme, tiles: options.tiles ?? {}, rules, maxAttempts: attempts },
+      createContext,
+    );
+    if (!built.ok) return built;
+    const { terrain, report } = built.value;
+    return ok(Object.freeze({ terrain: Object.freeze({ ...terrain, scenery: bareScenery(id) }), report, attempts: built.value.attempts }));
+  }
+  let lastRejection: LevelRejection | null = null;
+  let lastSeed = options.seed;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    lastSeed = options.seed + attempt;
+    const build = scenario.build({ width: options.width, height: options.height, seed: lastSeed, waterY });
+    const verdict = validateLevel(build.mask, waterY, rules);
+    if (!verdict.ok) {
+      lastRejection = verdict.error;
+      continue;
+    }
+    const tiles = createTiles(build.mask.width, build.mask.height, createContext, options.tiles ?? {});
+    paintMask(tiles, build.mask, theme, computeOutline(build.mask));
+    build.paint(tiles);
+    const scenery: Scenery = Object.freeze({ id, sky: scenario.sky, props: Object.freeze([...build.props]) });
+    const terrain = bundle(build.mask, tiles, createWater(waterY), theme, lastSeed, 'built', scenery);
+    return ok(Object.freeze({ terrain, report: verdict.value, attempts: attempt + 1 }));
+  }
+  return err(
+    Object.freeze({
+      code: 'exhausted' as const,
+      message: `no valid ${scenario.name} in ${attempts} attempts from seed ${options.seed}; last: ${lastRejection?.message ?? 'no attempt ran'}`,
+      attempts,
+      lastSeed,
+      lastRejection: lastRejection ?? noAttemptRejection(),
+    }),
+  );
 }
 
 /** Loads a PNG mask level (png-level.ts), paints it and bundles it. */

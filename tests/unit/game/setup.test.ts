@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { WORLD_SIZE_DEFAULT } from '@/config/constants.ts';
 import { buildGame, quickGame } from '@/game/setup.ts';
 import { solidCount } from '@/terrain/terrain.ts';
-import { toMatchSetup, type TeamSetupState } from '@/ui/screens/team-setup.ts';
+import { SCENARIO_IDS } from '@/terrain/scenarios.ts';
+import { DEFAULT_TEAM_SETUP, toMatchSetup, type TeamSetupState } from '@/ui/screens/team-setup.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
 
 describe('buildGame / quickGame', () => {
@@ -49,7 +50,7 @@ describe('buildGame / quickGame', () => {
   });
 
   it('fits four teams of six on the default island, standing them closer where the widest spacing has no room', () => {
-    const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })) };
+    const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })), scenario: 'island' };
     let closer = 0;
     for (let seed = 1; seed <= 12; seed += 1) {
       const result = buildGame({ setup: toMatchSetup(four, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
@@ -64,5 +65,24 @@ describe('buildGame / quickGame', () => {
     }
     // Some of these islands only fit everyone closer than the widest spacing.
     expect(closer).toBeGreaterThan(0);
+  });
+
+  it.each(SCENARIO_IDS)('%s: builds with two teams and with four teams of six, everyone on land above the water', (scenario) => {
+    const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })), scenario };
+    const two: TeamSetupState = { ...DEFAULT_TEAM_SETUP, scenario };
+    for (const state of [two, four]) {
+      for (let seed = 1; seed <= 4; seed += 1) {
+        const result = buildGame({ setup: toMatchSetup(state, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
+        expect(result.ok, result.ok ? '' : `${scenario} seed ${seed} with ${state.teams.length} teams: ${result.error.message}`).toBe(true);
+        if (!result.ok) continue;
+        expect(result.value.terrain.scenery?.id).toBe(scenario);
+        expect(result.value.world.worms).toHaveLength(state.teams.length * 6);
+        for (const body of result.value.world.worms) {
+          expect(body.y).toBeLessThan(result.value.terrain.water.y);
+          expect(body.x).toBeGreaterThan(0);
+          expect(body.x).toBeLessThan(WORLD_SIZE_DEFAULT.w);
+        }
+      }
+    }
   });
 });

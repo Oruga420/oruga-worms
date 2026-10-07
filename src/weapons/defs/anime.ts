@@ -1,6 +1,7 @@
 /**
  * The anime row: the techniques of Saint Seiya (Antares, the Galaxian Explosion, the Tesoro del
- * Cielo), One Piece (the Hiken, Fujitora's meteor, the Santoryu) and Frieren (Zoltraak). Each row
+ * Cielo), One Piece (the Hiken, Fujitora's meteor, the Santoryu), Frieren (Zoltraak) and Dragon Ball
+ * (Majin Vegeta's Explosión Final). Each row
  * is a technique block (TechniqueSpec) the sim plays out (sim/techniques/*.ts); the row's kind only
  * says how it is aimed: along the aim line (HITSCAN, with the guide), a square ahead (MELEE), or
  * called down where the player clicks (TARGETED).
@@ -8,7 +9,8 @@
  * Supers, like the rest of them: one of each per worm from the loadout, never out of a weapon crate,
  * recharged by the power orb, and locked on the opening turn only. The two that kill whatever they
  * reach pay for it: Antares costs half of the health its user has, the Galaxian Explosion the 50 the
- * one hit kills cost. The Tesoro del Cielo is paid strike by strike, 15 each. All v1 tuning.
+ * one hit kills cost. The Tesoro del Cielo is paid strike by strike, 15 each; the Explosión Final
+ * with the worm itself. All v1 tuning.
  */
 
 import type { WeaponDef, WeaponId } from '../types.ts';
@@ -194,6 +196,28 @@ const ZOLTRAAK: WeaponDef = defineWeapon({
   sfx: { fire: 'wpn_teleport_zap' },
 });
 
+/**
+ * The Explosión Final: everything within 70 px of the worm goes, the worm first of all, and the
+ * crater is as wide as the holy hand grenade's. No aim, no toll: the worm is the price.
+ */
+const FINAL_EXPLOSION: WeaponDef = defineWeapon({
+  ...TECHNIQUE_ROW,
+  id: 'final_explosion',
+  name: 'Explosión Final',
+  kind: 'MELEE',
+  icon: iconFrame('final_explosion'),
+  requiresTargetSelect: false,
+  technique: {
+    kind: 'final',
+    chargeMs: 2600,
+    killRadiusPx: 70,
+    /** The kill is the damage; the blast is the crater, the shake and the push. */
+    blast: { radiusPx: 70, maxDamage: 0, knockback: sourceSpeed(16), carve: true, shake: 18, particle: 'holy' },
+    recoverMs: 1600,
+  },
+  sfx: { fire: 'ui_power_charge', impact: 'wpn_holy_blast' },
+});
+
 export const ANIME = Object.freeze({
   antares: ANTARES,
   galaxian: GALAXIAN,
@@ -202,4 +226,5 @@ export const ANIME = Object.freeze({
   meteor: METEOR,
   santoryu: SANTORYU,
   zoltraak: ZOLTRAAK,
+  final_explosion: FINAL_EXPLOSION,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;

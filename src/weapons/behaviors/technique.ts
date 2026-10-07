@@ -9,11 +9,13 @@
  * - Fujitora's meteor: called down on the point the player clicked.
  * - The Santoryu: the square ahead along the aim.
  * - Zoltraak: the beams meet at the first land or worm along the aim.
+ * - The Explosión Final: no aim at all, it goes off where the worm stands.
  */
 
 import { WORM_HEIGHT } from '../../sim/constants.ts';
 import { firstWormOnLine, landOnLine } from '../../sim/techniques/common.ts';
 import { spawnDice } from '../../sim/techniques/dice.ts';
+import { spawnFinal } from '../../sim/techniques/final.ts';
 import { spawnGalaxy } from '../../sim/techniques/galaxy.ts';
 import { spawnHiken } from '../../sim/techniques/hiken.ts';
 import { spawnMeteor } from '../../sim/techniques/meteor.ts';
@@ -114,5 +116,16 @@ export function fireTechnique(ctx: FireContext): FireResult {
       return fireDice(ctx);
     case 'zoltraak':
       return fireZoltraak(ctx);
+    case 'final':
+      return fireFinal(ctx);
   }
+}
+
+/** The Explosión Final: nothing to aim, it goes off where the worm stands. */
+function fireFinal(ctx: FireContext): FireResult {
+  const { world, worm, def } = ctx;
+  const spec = def.technique;
+  if (spec?.kind !== 'final') return endsAfter(0);
+  spawnFinal(world, { weaponId: def.id, attacker: worm, spec });
+  return SEQUENCE;
 }
