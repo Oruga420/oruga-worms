@@ -123,11 +123,12 @@ test('boots, draws the canvases and logs Orugas boot', async ({ page }) => {
   // its assertions never depend on the roll. Islands are random per game; randomness and pinning
   // have their own test below. (The pin also caught a real sim bug: on 3 of 10 seeds the first
   // worm froze on a ridge crest, backlog 4.5, fixed in run #39.)
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   // The first client after the dev server rebuilds its module graph can get one full reload right
   // after load; wait for the dev hook to exist before reading anything from the page.
   await waitForHook(page);
   await expect(page.locator('canvas#world')).toHaveCount(1);
+  await expect(page.locator('canvas#glow')).toHaveCount(1);
   await expect(page.locator('canvas#hud')).toHaveCount(1);
   await expect.poll(() => logs.some((line) => line.includes('Orugas boot'))).toBe(true);
 
@@ -380,22 +381,22 @@ test('pins the island and the spawns with ?seed=N', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
   // Two loads of the same pinned seed must build the same island (same solid pixel count is the
   // cheap fingerprint) and report the seed back; this is how a bug report brings back one map.
-  await page.goto(`${baseUrl}/?seed=123`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=123&gl=0`, { waitUntil: 'load' });
   await expect.poll(() => page.evaluate(() => window.__orugas?.seed() ?? -1), { timeout: 8000 }).toBe(123);
   const firstSolid = await page.evaluate(() => window.__orugas?.solidCount() ?? 0);
   expect(firstSolid).toBeGreaterThan(0);
-  await page.goto(`${baseUrl}/?seed=123`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=123&gl=0`, { waitUntil: 'load' });
   await expect.poll(() => page.evaluate(() => window.__orugas?.seed() ?? -1), { timeout: 8000 }).toBe(123);
   expect(await page.evaluate(() => window.__orugas?.solidCount() ?? 0)).toBe(firstSolid);
   // A different pin is a different island.
-  await page.goto(`${baseUrl}/?seed=124`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=124&gl=0`, { waitUntil: 'load' });
   await expect.poll(() => page.evaluate(() => window.__orugas?.seed() ?? -1), { timeout: 8000 }).toBe(124);
   expect(await page.evaluate(() => window.__orugas?.solidCount() ?? 0)).not.toBe(firstSolid);
 });
 
 test('remembers the audio levels across a reload through localStorage', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   // A fresh browser context starts from the defaults.
   expect(await page.evaluate(() => window.__orugas?.settings().audio.music ?? -1)).toBe(1);
@@ -410,7 +411,7 @@ test('remembers the audio levels across a reload through localStorage', async ({
 
 test('pauses on Escape, holds the clock, resumes, and surrender ends the match', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await startGame(page);
   await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
@@ -454,7 +455,7 @@ test('pauses on Escape, holds the clock, resumes, and surrender ends the match',
 
 test('mouse: dragging pans the camera without firing, a click fires a targeted weapon where it points', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await startGame(page);
   await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 10000 }).toBe('Active');
@@ -503,7 +504,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
     (url) => url.pathname === '/sprites/weapons/atlas.json' && url.search === '',
     (route) => route.fulfill({ contentType: 'application/json', body: '{"frames":{}}' }),
   );
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await expect.poll(() => page.evaluate(() => window.__orugas?.weaponFrames() ?? 0), { timeout: 8000 }).toBe(39);
   await expect.poll(() => requested.filter((r) => r.startsWith('/audio/sfx/')).length, { timeout: 8000 }).toBeGreaterThan(0);
@@ -513,7 +514,7 @@ test('a returning player gets the new art: sprites and sounds load by versioned 
 
 test('team setup: the weapon art ships, and switching Blues to human starts a two human match', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
 
   // The generated weapon atlas is served and carries an icon for every panel weapon.
@@ -539,7 +540,7 @@ test('team setup: the weapon art ships, and switching Blues to human starts a tw
 
 test('options from the pause overlay: a volume step and a key rebind survive a reload', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await startGame(page);
   await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
@@ -599,7 +600,7 @@ test('options from the pause overlay: a volume step and a key rebind survive a r
 
 test('jetpack from inventory survives a pause after activation and flies with Enter and arrows', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -660,7 +661,7 @@ test('ryuko ranbu from the inventory: the screen whites out, the victim takes th
   test.skip(skipReason !== '', skipReason);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -706,7 +707,7 @@ test('kamehameha from the inventory: aimed with the keys, it charges, fires and 
   test.skip(skipReason !== '', skipReason);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -770,7 +771,7 @@ test('gear 5 from the inventory: it awakens, grabs the worm in reach and eats it
   test.skip(skipReason !== '', skipReason);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -824,7 +825,7 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -879,7 +880,7 @@ test('freezer from the inventory: the light goes into the worm in sight, and it 
 
 /** Title, team setup with both teams human, and into the first turn. */
 async function startTwoHumans(page: Page): Promise<{ readonly x: number; readonly y: number }> {
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -1098,7 +1099,7 @@ test('maps: ?map= starts on a built scenario, the setup card cycles it, and a sh
   page.on('pageerror', (error) => errors.push(error.message));
 
   // ?map=castle: the castle is under the title already, and the card shows it as the map.
-  await page.goto(`${baseUrl}/?seed=1&map=castle`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&map=castle&gl=1`, { waitUntil: 'load' });
   await waitForHook(page);
   expect(await page.evaluate(() => window.__orugas!.scenario())).toBe('castle');
   await page.keyboard.press('Enter');
@@ -1120,7 +1121,7 @@ test('maps: ?map= starts on a built scenario, the setup card cycles it, and a sh
   // The built maps are the sim's terrain like the island: a bazooka craters the sand, the deck and the stone.
   for (const map of ['kame_house', 'spaceship', 'castle'] as const) {
     if (map !== 'kame_house') {
-      await page.goto(`${baseUrl}/?seed=1&map=${map}`, { waitUntil: 'load' });
+      await page.goto(`${baseUrl}/?seed=1&map=${map}&gl=1`, { waitUntil: 'load' });
       await waitForHook(page);
       await startGame(page);
       await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
@@ -1133,7 +1134,30 @@ test('maps: ?map= starts on a built scenario, the setup card cycles it, and a sh
     expect(solidBefore).toBeGreaterThan(0);
     await page.evaluate(() => window.__orugas!.fireBazooka());
     await expect.poll(() => page.evaluate(() => window.__orugas!.solidCount()), { timeout: 8000 }).toBeLessThan(solidBefore);
+    // The glow pass (kept on with ?gl=1, since headless Chromium's software GL is slow enough for
+    // it to drop itself) ripples the blast: a shockwave is in flight right after the crater opens,
+    // and the stage carries the pass's class while it runs.
+    const glow = await page.evaluate(() => window.__orugas!.glow());
+    expect(glow.enabled).toBe(true);
+    expect(glow.waves).toBeGreaterThan(0);
+    expect(await page.evaluate(() => document.getElementById('stage')?.classList.contains('glow'))).toBe(true);
+    await page.waitForTimeout(120);
+    await page.screenshot({ path: resolve(ROOT, `test-results/glow-${map}.png`) });
   }
+  expect(errors).toEqual([]);
+});
+
+test('without WebGL (?gl=0) the plain world canvas shows and the glow canvas stays out of the way', async ({ page }) => {
+  test.skip(skipReason !== '', skipReason);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
+  await waitForHook(page);
+  await startGame(page);
+  await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');
+  expect((await page.evaluate(() => window.__orugas!.glow())).enabled).toBe(false);
+  expect(await page.evaluate(() => document.getElementById('stage')?.classList.contains('glow'))).toBe(false);
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('world')!).visibility)).toBe('visible');
   expect(errors).toEqual([]);
 });
 
@@ -1284,7 +1308,7 @@ test('a power orb falls out of the sky onto the land and gives a super to the wo
 
 test('individual inventories, fuse controls, and the third-turn parachute drop', async ({ page }) => {
   test.skip(skipReason !== '', skipReason);
-  await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
   await waitForHook(page);
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__orugas?.teamSetupCells().length ?? 0)).toBeGreaterThan(0);
@@ -1335,7 +1359,7 @@ test('device choice: picking Phone / Tablet shows touch controls that walk and f
   const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   try {
-    await page.goto(`${baseUrl}/?seed=1`, { waitUntil: 'load' });
+    await page.goto(`${baseUrl}/?seed=1&gl=0`, { waitUntil: 'load' });
     await waitForHook(page);
     const stage = await page.locator('#stage').boundingBox();
     if (stage === null) throw new Error('stage element has no bounding box');
@@ -1413,7 +1437,7 @@ test('touch mode in portrait: the weapon panel fits the phone and a tapped weapo
   const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   try {
-    await page.goto(`${baseUrl}/?seed=1&device=touch`, { waitUntil: 'load' });
+    await page.goto(`${baseUrl}/?seed=1&device=touch&gl=0`, { waitUntil: 'load' });
     await waitForHook(page);
     await startGame(page);
     await expect.poll(() => page.evaluate(() => window.__orugas?.phase() ?? ''), { timeout: 8000 }).toBe('Active');

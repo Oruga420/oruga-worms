@@ -88,6 +88,8 @@ export function isValidWorldSize(size: Size): boolean {
 /** The two stacked canvases declared in index.html. */
 export const CANVAS_IDS = Object.freeze({
   world: 'world',
+  /** The WebGL2 glow pass's output, between the world and the HUD (engine/glow.ts). */
+  glow: 'glow',
   hud: 'hud',
 } as const);
 
