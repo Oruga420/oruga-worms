@@ -202,10 +202,10 @@ const LONGBOW: WeaponDef = defineWeapon({
 });
 
 /**
- * Sonic blast gun: a pressure wave, so it is a displacement weapon rather than a damage one. It
- * carves nothing and barely hurts, but the per pellet recoil is the largest in the roster, which
- * makes it the tool for pushing a worm off a ledge or into the water. Three pellets in a wide
- * cone so the push lands even on a loose aim.
+ * Sonic blast gun: a pressure wave. It carves nothing, but it hits for 70 when the whole cone
+ * lands and its push is the largest in the roster, which makes it the tool for throwing a worm
+ * off a ledge or into the water. Five pellets in a wide cone, the middle one on the aim, so the
+ * push lands even on a loose aim and the damage scales with how much of the cone connects.
  */
 const SONIC_BLAST: WeaponDef = defineWeapon({
   id: 'sonic_blast',
@@ -224,17 +224,17 @@ const SONIC_BLAST: WeaponDef = defineWeapon({
   requiresTargetSelect: false,
   crateWeight: 3,
   hitscan: {
-    /** A cone, not a bullet: the wave hits with three overlapping pellets. */
-    pellets: 3,
+    /** A cone, not a bullet: the wave hits with five overlapping pellets, 70 damage in all. */
+    pellets: 5,
     spreadDeg: 18,
-    damagePerPellet: 4,
+    damagePerPellet: 14,
     rangePx: SONIC_RANGE_PX,
     /** A pressure wave moves the landscape's occupants, not the landscape. */
     carveRadiusPx: 0,
     burstCount: 1,
     burstIntervalMs: 0,
-    /** The whole point of the weapon: about four times the shotgun's push per pellet. */
-    recoil: sourceSpeed(24),
+    /** The same push the three pellet wave gave (72 source px of speed in all), spread over five. */
+    recoil: sourceSpeed(14.4),
     aimWhileFiring: false,
   },
   /** No sonic cue in the audio plan yet; the holy blast boom stands in for the wave. */

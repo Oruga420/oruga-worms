@@ -21,11 +21,11 @@ import type { Size } from './engine/canvas-types.ts';
 import { bindDomInput } from './engine/input-dom.ts';
 import { createInputController } from './engine/input.ts';
 import { createParticleSystem, drawParticles, spawnExplosion } from './engine/particles.ts';
-import { createRenderer } from './engine/renderer.ts';
+import { DEFAULT_DPR_POLICY, createRenderer } from './engine/renderer.ts';
 import { createBrowserMixerDeps, createMixer } from './engine/audio.ts';
 import { assetUrl } from './engine/asset-url.ts';
 import { createCpuClient } from './ai/client.ts';
-import { createController, type Controller, type ControllerOptions } from './game/controller.ts';
+import { createController, type Controller, type ControllerInput, type ControllerOptions } from './game/controller.ts';
 import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game/render.ts';
 import { createGore, drawGore, drawLens, goreEnabledFromSearch, resetGore, updateGore } from './game/gore.ts';
 import { advanceFx, applyFxEvents, createFx, drawFxScreen, drawFxWorld, noteWeapon, wormAnim, type FxDeps, type FxState } from './game/fx.ts';
@@ -43,6 +43,8 @@ import { drawEndScreen, drawTitleScreen, hitTestTitle, layoutTitleScreen, type T
 import { DEVICE_KEY, resolveDeviceMode, type DeviceMode } from './config/device.ts';
 import { createTouchControls, type TouchControlsView } from './ui/touch-controls.ts';
 import { createFrameOverlay, overlayEnabledFromSearch } from './engine/frame-overlay.ts';
+import { createGlowPass, type GlowPass } from './engine/glow.ts';
+import { advancePost, applyPostEvents, createPost, glowModeFromSearch, glowUniforms, resetPost } from './game/post.ts';
 import { createSoundDirector } from './game/sound.ts';
 import { INITIAL_DIRECTOR, updateCameraTarget, type CameraDirector } from './game/camera-target.ts';
 import { clampPan } from './engine/audio.ts';
@@ -87,12 +89,14 @@ interface OrugasDebug {
   readonly simHz: number;
   readonly solidCount: () => number;
   readonly phase: () => string;
+  /** The glow pass (engine/glow.ts): on when WebGL2 runs it, with the shockwaves and split in flight. */
+  readonly glow: () => { enabled: boolean; mode: string; waves: number; split: boolean };
   readonly fireBazooka: (angleDeg?: number, power?: number) => void;
   readonly forceWin: () => void;
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
-  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
+  readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number; turns: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
   readonly seed: () => number;
@@ -143,6 +147,13 @@ interface OrugasDebug {
   readonly activeController: () => string;
   readonly turn: () => number;
   readonly endTurn: () => void;
+  /**
+   * Passes `count` turns at once: each is skipped as the Skip Go would (none of the round clock
+   * spent, so sudden death stays where it is) and the controller ticked on, hot seat and banners
+   * included, until the next turn is Active. A test reaches a worm's second own turn (where its
+   * scheme delays end) without sitting through twelve real turns. The worm up after.
+   */
+  readonly skipTurns: (count: number) => string;
   /** Rolling average frame cost in ms, the same number the overlay draws. */
   readonly frameMs: () => number;
   readonly dpr: () => number;
@@ -207,14 +218,35 @@ function boot(): void {
   const stage = document.getElementById('stage');
   if (!(stage instanceof HTMLElement)) throw new Error('#stage is missing from index.html');
 
+  const worldCanvas = acquireCanvas(CANVAS_IDS.world);
   const rendererResult = createRenderer({
-    world: acquireCanvas(CANVAS_IDS.world),
+    world: worldCanvas,
     hud: acquireCanvas(CANVAS_IDS.hud),
     devicePixelRatio: () => window.devicePixelRatio || 1,
     cssSize: () => ({ w: stage.clientWidth, h: stage.clientHeight }),
   });
   if (!rendererResult.ok) throw new Error(rendererResult.error.message);
   const renderer = rendererResult.value;
+
+  // The glow pass (engine/glow.ts): WebGL2 bloom, shockwaves and colour splits drawn over the
+  // world canvas every frame, unless the browser has no WebGL2 or ?gl=0 asks for the plain canvas.
+  // While it runs the stage carries .glow and the world canvas underneath is not composited.
+  const glowMode = glowModeFromSearch(window.location.search);
+  let glow: GlowPass | null = glowMode === 'off' ? null : createGlowPass(acquireCanvas(CANVAS_IDS.glow));
+  stage.classList.toggle('glow', glow !== null);
+  const dropGlow = (): void => {
+    glow?.dispose();
+    glow = null;
+    stage.classList.remove('glow');
+  };
+  // On a device that cannot keep the frame budget with the pass, the pass goes before the
+  // resolution does: frames over the DPR policy's line for this long (a blast's spike is shorter)
+  // drop it, with the resolution held meanwhile and for a moment after, so a slow pass never
+  // costs both. ?gl=1 keeps it whatever the cost.
+  const GLOW_DROP_AFTER_MS = 2_000;
+  const GLOW_SETTLE_MS = 1_500;
+  let glowSlowSinceMs: number | null = null;
+  let glowDroppedAtMs = -Infinity;
 
   const contextFactory = createDomContextFactory(document);
   if (contextFactory === null) throw new Error('this browser has no 2D canvas context');
@@ -310,6 +342,8 @@ function boot(): void {
   const gore = createGore();
   gore.enabled = goreEnabledFromSearch(window.location.search);
   let fx: FxState = createFx();
+  // What the glow pass draws beyond the scene (game/post.ts): the waves and splits of the frame's events.
+  const post = createPost();
   const scratch = createScratch();
   const onScreen = (x: number, y: number): boolean => {
     const viewport = renderer.viewport();
@@ -329,6 +363,7 @@ function boot(): void {
     resetGore(gore);
     particles.clear();
     fx = createFx();
+    resetPost(post);
   };
   const scheduler = createRafScheduler();
 
@@ -678,7 +713,7 @@ function boot(): void {
           const clickTakenByPanel = panelOpen && intent.pointerClicked;
           if (panelOpen) {
             const worm = activeWormOf(panelState);
-            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: panelState.turn, supersResting: superResting(worm) });
+            panelLayout = worm === undefined ? null : layoutWeaponPanel(viewport, { ammo: worm.ammo, turnsElapsed: worm.turns, supersResting: superResting(worm) });
             if (panelLayout !== null && intent.pointerClicked) {
               const picked = hitTestWeaponPanel(panelLayout, intent.pointerScreen);
               if (picked !== null) {
@@ -707,6 +742,7 @@ function boot(): void {
           const gameEvents = controller.drainEvents();
           soundDirector.handleEvents(gameEvents);
           applyFxEvents(fx, gameEvents, fxDeps);
+          applyPostEvents(post, gameEvents, fx.now);
           for (const event of gameEvents) {
             // Every blow of a super shakes the screen; the finisher and a worm bursting shake it hard.
             if (event.type === 'comboHit') camera = shake(camera, event.finisher ? 9 : 2.4);
@@ -768,7 +804,14 @@ function boot(): void {
         touchControls.show(touchView);
         const now = scheduler.now();
         const stats = loop.stats();
-        renderer.updateDpr(stats.averageFrameMs, now);
+        const glowSlow = glow !== null && glowMode === 'auto' && stats.averageFrameMs > DEFAULT_DPR_POLICY.stepDownAtMs;
+        glowSlowSinceMs = glowSlow ? (glowSlowSinceMs ?? now) : null;
+        if (glowSlowSinceMs !== null && now - glowSlowSinceMs >= GLOW_DROP_AFTER_MS) {
+          dropGlow();
+          glowSlowSinceMs = null;
+          glowDroppedAtMs = now;
+        }
+        if (!glowSlow && now - glowDroppedAtMs >= GLOW_SETTLE_MS) renderer.updateDpr(stats.averageFrameMs, now);
         const state = controller.state();
         const selected = controller.selectedWeapon();
         const activeBody = controller.world().worms.find((body) => body.id === activeWormOf(state)?.id);
@@ -852,6 +895,14 @@ function boot(): void {
             overlay.draw(ctx, viewport);
           },
         );
+        // The glow pass over the world canvas just drawn: its waves, split and bloom for this frame.
+        if (glow !== null) {
+          if (glow.lost()) dropGlow();
+          else {
+            advancePost(post, fx.now);
+            glow.render(worldCanvas, glowUniforms(post, view, renderer.viewport(), renderer.dpr(), cine, fx.now));
+          }
+        }
       },
     },
     scheduler,
@@ -866,6 +917,8 @@ function boot(): void {
       simHz: SIM_HZ,
       solidCount: () => solidCount(game.terrain),
       phase: () => controller.state().phase,
+      // The glow pass: whether WebGL2 runs it, and the shockwaves in flight (game/post.ts).
+      glow: () => ({ enabled: glow !== null, mode: glowMode, waves: post.waves.length, split: post.split !== null }),
       fireBazooka: (angleDeg = -55, power = 0.5) => {
         const active = activeWormOf(controller.state());
         const body = active === undefined ? undefined : findBody(game.world, active.id);
@@ -878,7 +931,7 @@ function boot(): void {
       inventory: () => ({
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),
-        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo, superRest: worm.superRest }))),
+        worms: controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, ammo: worm.ammo, superRest: worm.superRest, turns: worm.turns }))),
         drops: controller.world().crates.filter((crate) => crate.alive).map((crate) => ({ kind: crate.kind, landed: crate.landed, x: crate.x, y: crate.y })),
       }),
       stepsRemaining: () => controller.stepsRemaining(),
@@ -963,6 +1016,21 @@ function boot(): void {
       turn: () => controller.state().turn,
       // Expire the current turn timer so play passes to the next team.
       endTurn: () => controller.advanceRoundClock(DEFAULT_MATCH_CONFIG.turnMs),
+      skipTurns: (count: number) => {
+        const idle: ControllerInput = { moveX: 0, jump: false, backflip: false, aimDelta: 0, fireHeld: false, fireReleased: false, thrust: false, selectedSlot: null, pointer: { x: 0, y: 0 }, pointerClicked: false };
+        const untilActive = (after: number): void => {
+          for (let i = 0; i < 6000 && !(controller.state().phase === 'Active' && controller.state().turn > after); i += 1) controller.tick(idle);
+        };
+        for (let n = 0; n < count; n += 1) {
+          untilActive(controller.state().turn - 1);
+          const turn = controller.state().turn;
+          controller.skipTurn();
+          untilActive(turn);
+        }
+        // The skipped turns' sounds and effects are not worth replaying in a burst.
+        controller.drainEvents();
+        return activeWormOf(controller.state())?.id ?? '';
+      },
       frameMs: () => loop.stats().averageFrameMs,
       dpr: () => renderer.dpr(),
       dropWorm: (exempt: boolean) => {

@@ -41,6 +41,13 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
 
 ### What's new
 
+- **WebGL glow**: the world is now drawn through a WebGL2 pass that makes everything bright
+  shine (beams, fire, the sun, the white of a super bloom out of the picture), sends a shockwave
+  rippling through the picture from every explosion, a finisher, a burst worm and a beam, splits
+  the colours apart for a moment after a heavy hit, and darkens the corners a little. The 2D
+  canvas underneath is unchanged, so a browser without WebGL2 plays as before; a device that
+  cannot keep the frame budget with the pass drops it on its own (before it would lower the
+  resolution), `?gl=0` in the URL turns it off and `?gl=1` keeps it whatever it costs.
 - **Three new maps**, picked on the team setup card (the Map row) or with `?map=` in the URL:
   - **Spaceship**: a long hull adrift in deep space, a banded planet and the stars behind it. The
     worms fight on the deck, between the bridge, the fins, two sunken hatches and the engines that
@@ -69,8 +76,12 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
   team. The team plays on with its other worms, and as each of those turns ends the wheel strikes
   the sealed worm; the third strike kills it. Only when the sealed worm is the last one its team has
   does the team lose the turn.
-- **Everything from turn 2**: every super, the Anime row's techniques and the air strike now unlock
-  on the second turn (they waited until turns 3 to 6).
+- **Every worm waits its first turn**: the scheme delays now count each worm's own turns, not the
+  match's. A worm's supers, the Anime row's techniques, the Saibaman seed, the air strike and the
+  jetpack open on its second own turn, and with six worms a team that is the second time it comes
+  up, however late in the match that is. Before, they opened on match turn 2 for everyone at once.
+- **Sonic Blast hits for 70**: the pressure wave now does real damage, 70 when the whole cone lands
+  (five pellets of 14, the middle one on the aim), with the same push as before.
 - **The Anime row**: eight techniques from Saint Seiya, One Piece, Frieren and Dragon Ball, one of each per worm,
   recharged by power orbs and locked on the opening turn like every super. Each one shouts its
   name across the screen with whose technique it is.
@@ -270,7 +281,9 @@ heuristic remains available. Never commit real `.env` files or API keys.
   `src/game/scenery.ts` draws each map's sky, water and props (engines, flags, palms, the sign).
 - `src/weapons`: weapon definitions and behavior dispatch.
 - `src/game`, `src/engine`: controller, rendering, animation cues (`fx.ts`), gore (`gore.ts`), the
-  supers' camera work (`cinematic.ts`), input, sound, and HUD.
+  supers' camera work (`cinematic.ts`), input, sound, and HUD; `src/engine/glow.ts` is the WebGL2
+  pass (bloom, shockwaves, colour split) and `src/game/post.ts` turns the game's events into what
+  it draws.
 - `src/sim/combo.ts`, `src/weapons/behaviors/combo.ts`: the Ryuko Ranbu's timeline and target lock.
 - `src/sim/beam.ts`, `src/weapons/behaviors/beam.ts`: the Kamehameha's charge, flight, tunnel and hits.
 - `src/sim/devour.ts`, `src/weapons/behaviors/devour.ts`, `src/game/gear-five.ts`: Gear 5's timeline,

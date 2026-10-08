@@ -6,6 +6,7 @@ import type { MatchState } from '@/match/state.ts';
 import { findWorm } from '@/sim/world.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
+import { pastDelays } from '../match/past-delays.ts';
 
 /**
  * The Saibaman seed through the whole match flow: the shot stays open while the seed grows, the
@@ -30,7 +31,7 @@ const IDLE: ControllerInput = Object.freeze({
 function makeController(): Controller {
   const game = quickGame(7, createFakeFactory().factory, { w: 1200, h: 500 });
   if (!game.ok) throw new Error(game.error.message);
-  const state: MatchState = { ...game.value.state, turn: 3 };
+  const state: MatchState = pastDelays({ ...game.value.state, turn: 3 }, 3);
   return createController({ ...game.value, state }, { cpu: { client: null, registry: WEAPONS } });
 }
 

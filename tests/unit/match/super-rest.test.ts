@@ -9,6 +9,7 @@ import type { MatchState } from '@/match/state.ts';
 import { SUPER_REST_TURNS, restAfterSuper, restTurnEnded, superResting } from '@/match/super-rest.ts';
 import { isSuper } from '@/weapons/registry.ts';
 import type { WeaponId } from '@/weapons/types.ts';
+import { pastDelays } from './past-delays.ts';
 
 /**
  * The rest between a worm's supers in the ledger: a worm that uses one sits out supers for its own
@@ -33,7 +34,7 @@ function start(): { state: MatchState; deps: MatchDeps } {
   const result = buildInitialState(setup(), GAME_CONFIG);
   if (!result.ok) throw new Error(result.error.message);
   // Past every super's scheme delay, and into the first turn.
-  return { state: reduce({ ...result.value, turn: 10 }, { type: 'BannerDone' }, deps), deps };
+  return { state: reduce(pastDelays(result.value), { type: 'BannerDone' }, deps), deps };
 }
 
 function run(state: MatchState, deps: MatchDeps, events: readonly MatchEvent[]): MatchState {

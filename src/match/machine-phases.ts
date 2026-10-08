@@ -138,7 +138,12 @@ export function enterTurnStart(state: MatchState, deps: MatchDeps): MatchState {
   const selection = selectNextTurn(state.teams, state.activeTeamIndex, sealedWorms(state));
   if (selection === null) return enterMatchEnd(state);
   const wrapped = state.turn > 0 && selection.teamIndex <= state.activeTeamIndex;
-  const withSelection = updateTeam(state, selection.teamIndex, (team) => ({ ...team, activeWormIndex: selection.wormIndex }));
+  // The worm up counts this turn as its own (WormState.turns), which its scheme delays run on.
+  const withSelection = updateTeam(state, selection.teamIndex, (team) => ({
+    ...team,
+    activeWormIndex: selection.wormIndex,
+    worms: team.worms.map((worm, index) => (index === selection.wormIndex ? { ...worm, turns: worm.turns + 1 } : worm)),
+  }));
   const next: MatchState = {
     ...withSelection,
     phase: 'TurnStart',

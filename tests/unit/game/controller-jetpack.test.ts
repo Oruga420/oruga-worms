@@ -6,6 +6,7 @@ import { addWorm, findWorm } from '@/sim/world.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import { flatWorld } from '../sim/fixture.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
+import { pastDelays } from '../match/past-delays.ts';
 
 const IDLE: ControllerInput = {
   moveX: 0, jump: false, backflip: false, aimDelta: 0,
@@ -26,7 +27,7 @@ describe('controller: grounded jetpack activation', () => {
       }
     }
     const controller = createController({ ...game.value, world, terrain: world.terrain,
-      state: { ...game.value.state, turn: 2 } }, { cpu: { client: null, registry: WEAPONS } });
+      state: pastDelays({ ...game.value.state, turn: 2 }, 2) }, { cpu: { client: null, registry: WEAPONS } });
     for (let i = 0; i < 1000 && controller.state().phase !== 'Active'; i += 1) controller.tick(IDLE);
     expect(controller.state().phase).toBe('Active');
     const active = activeWormOf(controller.state());

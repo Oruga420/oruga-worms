@@ -81,7 +81,7 @@ export interface PanelLayout {
 
 export interface PanelModel {
   readonly ammo: AmmoLedger;
-  /** Turns played so far; a weapon with delayTurns above this is shown locked. */
+  /** The worm's own turns so far (WormState.turns); a weapon with delayTurns above this is shown locked. */
   readonly turnsElapsed: number;
   /** The worm used a super on its last turn, so the supers are shown resting (match/super-rest.ts). */
   readonly supersResting?: boolean;

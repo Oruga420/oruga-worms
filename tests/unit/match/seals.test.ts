@@ -8,6 +8,7 @@ import { activeWormSealed, sealedWorms } from '@/match/seals.ts';
 import { buildInitialState, type MatchSetup } from '@/match/setup.ts';
 import type { MatchState } from '@/match/state.ts';
 import { nextWormIndex } from '@/match/turn.ts';
+import { pastDelays } from './past-delays.ts';
 
 /**
  * The Tesoro del Cielo in the ledger: the sealed worm sits its turns out while its team plays on
@@ -57,7 +58,7 @@ function kill(state: MatchState, wormId: string): MatchState {
 /** Reds' R1 casts the treasure on Blues' B1, and the turn plays out to Blues' TurnStart (after `then`, if given). */
 function sealB1(then: (state: MatchState) => MatchState = (state) => state): { state: MatchState; deps: MatchDeps } {
   const { state, deps } = start();
-  const active = reduce({ ...state, turn: 10 }, banner, deps);
+  const active = reduce(pastDelays(state), banner, deps);
   expect(active.phase).toBe('Active');
   const cast = run(active, deps, [
     { type: 'FireStarted', weaponId: 'tenbu_horin', shotsRemaining: 0 },
@@ -80,7 +81,7 @@ describe('seals: the cast', () => {
 
   it('ignores a seal on a team mate, on a dead worm, or with no strikes', () => {
     const { state, deps } = start();
-    const active = reduce({ ...state, turn: 10 }, banner, deps);
+    const active = reduce(pastDelays(state), banner, deps);
     const same = reduce(active, { type: 'WormSealed', weaponId: 'tenbu_horin', casterId: 'team-1-worm-1', targetId: 'team-1-worm-2', hits: 3, hitToll: 15 }, deps);
     expect(same.seals).toEqual([]);
     const none = reduce(active, { type: 'WormSealed', weaponId: 'tenbu_horin', casterId: 'team-1-worm-1', targetId: 'team-2-worm-1', hits: 0, hitToll: 15 }, deps);
@@ -168,7 +169,7 @@ describe('seals: the sealed worm sits its turns out', () => {
 describe('a toll by share', () => {
   it('costs half of what the worm has, rounded up, and never more', () => {
     const { state, deps } = start();
-    const active = reduce({ ...state, turn: 10 }, banner, deps);
+    const active = reduce(pastDelays(state), banner, deps);
     const shooter = 'team-1-worm-1';
     const withHp = (hp: number): MatchState => ({ ...active, teams: active.teams.map((t) => (t.id === 'team-1' ? { ...t, worms: t.worms.map((w) => (w.id === shooter ? { ...w, hp } : w)) } : t)) });
     const pay = (hp: number): number => {

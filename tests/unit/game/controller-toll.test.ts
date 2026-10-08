@@ -7,6 +7,7 @@ import { findWorm } from '@/sim/world.ts';
 import { WEAPONS } from '@/weapons/registry.ts';
 import type { WeaponId } from '@/weapons/types.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
+import { pastDelays } from '../match/past-delays.ts';
 
 /**
  * The price of the two supers that kill whatever they touch: Gear 5 and the Freezer cost the worm
@@ -34,7 +35,7 @@ function makeController(ownHp = 100): Controller {
   const base = game.value.state;
   const first = activeWormOf(base)?.id;
   const teams = base.teams.map((team) => ({ ...team, worms: team.worms.map((worm) => (worm.id === first ? { ...worm, hp: ownHp } : worm)) }));
-  const state: MatchState = { ...base, turn: 5, teams };
+  const state: MatchState = pastDelays({ ...base, turn: 5, teams }, 5);
   const controller = createController({ ...game.value, state }, { cpu: { client: null, registry: WEAPONS } });
   for (let i = 0; i < 3000 && controller.state().phase !== 'Active'; i += 1) controller.tick(IDLE);
   return controller;

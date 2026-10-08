@@ -7,6 +7,7 @@ import type { MatchState } from '@/match/state.ts';
 import { findWorm } from '@/sim/world.ts';
 import { WEAPONS, WEAPON_IDS } from '@/weapons/registry.ts';
 import { createFakeFactory } from '../terrain/fakes.ts';
+import { pastDelays } from '../match/past-delays.ts';
 
 /**
  * The super move through the whole match flow: the shot stays open in Firing while the sim plays
@@ -38,7 +39,7 @@ function makeController(options: { readonly enemyHp?: number; readonly turn?: nu
   const teams = base.teams.map((team, index) =>
     index === 0 || options.enemyHp === undefined ? team : { ...team, worms: team.worms.map((worm) => ({ ...worm, hp: options.enemyHp ?? worm.hp })) },
   );
-  const state: MatchState = { ...base, turn: options.turn ?? 3, teams };
+  const state: MatchState = pastDelays({ ...base, turn: options.turn ?? 3, teams }, options.turn ?? 3);
   return createController({ ...game.value, state }, { cpu: { client: null, registry: WEAPONS } });
 }
 

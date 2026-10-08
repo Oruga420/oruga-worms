@@ -29,6 +29,17 @@ body {
   image-rendering: pixelated;
 }
 
+/* The glow pass (engine/glow.ts) draws the processed world here, over the world canvas; the
+   stage carries .glow while it runs, and the world canvas underneath need not be composited. */
+#glow {
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.glow #world {
+  visibility: hidden;
+}
+
 #hud {
   pointer-events: none;
 }

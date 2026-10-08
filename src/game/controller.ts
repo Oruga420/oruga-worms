@@ -141,6 +141,8 @@ export interface Controller {
   banner(): string | null;
   /** Kills a whole team at once; the reducer ends the match when only one is left. */
   surrender(teamId: string): void;
+  /** Passes the active turn now, as the Skip Go does, spending none of the round clock: the harness skips turns with it. */
+  skipTurn(): void;
   /**
    * Advances the round clock by ms. A large value also expires the current turn timer, which is
    * the normal path into TurnEnd and the SuddenDeathCheck, so the verification harness uses this
@@ -248,11 +250,12 @@ export function createController(game: Game, options: ControllerOptions): Contro
     return worm !== undefined && superResting(worm);
   };
 
-  /** The weapon can be picked and fired now: stocked, unlocked, and not a super the worm is resting. */
+  /** The weapon can be picked and fired now: stocked, past its delay on this worm's own turns, and not a super the worm is resting. */
   const usable = (id: WeaponId): boolean => {
-    const count = activeWormOf(state)?.ammo[id] ?? 0;
+    const worm = activeWormOf(state);
+    const count = worm?.ammo[id] ?? 0;
     if (count === 0) return false;
-    if (state.turn < (getWeapon(id).delayTurns ?? 0)) return false;
+    if ((worm?.turns ?? 0) < (getWeapon(id).delayTurns ?? 0)) return false;
     return !(isSuper(id) && supersRest());
   };
 
@@ -855,6 +858,10 @@ export function createController(game: Game, options: ControllerOptions): Contro
     stepsRemaining,
     stepsPerTurn: () => MOVE.stepsPerTurn,
     drainEvents: () => events.splice(0, events.length),
+    skipTurn() {
+      if (state.phase !== 'Active') return;
+      apply({ type: 'SkipTurn', reason: 'skip' });
+    },
     surrender(teamId) {
       apply({ type: 'Surrender', teamId });
       endFightsAtMatchEnd();

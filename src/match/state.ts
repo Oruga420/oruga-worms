@@ -73,6 +73,12 @@ export interface WormState {
   readonly ammo: Readonly<Record<WeaponId, number>>;
   /** Own turn ends to pass before the worm may use a super again (match/super-rest.ts); 0 when it may. */
   readonly superRest: number;
+  /**
+   * Own turns started, the current one included. The scheme delays (WeaponDef.delayTurns) count
+   * these, so every worm waits its own opening turn before its supers, techniques, seed, air
+   * strike and jetpack open, however far into the match it first comes up.
+   */
+  readonly turns: number;
 }
 
 export interface TeamScore {
