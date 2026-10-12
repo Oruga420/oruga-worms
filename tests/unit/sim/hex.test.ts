@@ -121,7 +121,11 @@ describe('freezer: the float, the swell and the burst', () => {
     while (world.hexes.length > 0 && ticksUsed < 2000) {
       events.push(...stepWorld(world));
       ticksUsed += 1;
-      if (enemy.alive) top = Math.min(top, enemy.y);
+      const hexBody = world.hexes[0];
+      // Only up to the burst: past it, the victim is thrown by the burst's own knockback like any
+      // other execute technique's victim (Antares, the Galaxian Explosion), so its height no longer
+      // measures the swell's lift alone.
+      if (enemy.alive && hexBody?.burst !== true) top = Math.min(top, enemy.y);
     }
     expect(beats(events)).toEqual(['shot', 'enter', 'pulse', 'pulse', 'pulse', 'pulse', 'pulse', 'burst']);
     expect(events.flatMap((e) => (e.type === 'hexBeat' && e.beat === 'pulse' ? [e.n] : []))).toEqual([1, 2, 3, 4, 5]);
@@ -129,11 +133,15 @@ describe('freezer: the float, the swell and the burst', () => {
     expect(damageTo(events, 'enemy')).toEqual([BURST_DAMAGE]);
     const blow = events.find((e) => e.type === 'damage' && e.wormId === 'enemy');
     expect(blow).toMatchObject({ sourceTeamId: 'a', sourceWormId: 'hero', cause: 'blast' });
-    // Burst: the body is out of the world, where it floated, and the blast went off at its middle.
-    expect(enemy.alive).toBe(false);
-    expect(enemy.motion).toBe('dead');
-    expect(enemy.y).toBeCloseTo(349 - SPEC.liftPx);
-    expect(events.find((e) => e.type === 'explosion')).toMatchObject({ x: 520, y: enemy.y - WORM_HEIGHT / 2, radius: SPEC.burst.radiusPx });
+    // Burst: the damage event fires and the blast goes off where it floated, but the sim itself
+    // never kills the body (a force field or an immortality charge may yet veto it in the reducer,
+    // match/machine.ts onDamageApplied); nothing holds it any more, so its own blast throws it.
+    expect(enemy.alive).toBe(true);
+    // The burst beat itself says exactly where it went off (the victim's middle), whatever phase of
+    // the pulse it caught: the same (x, y) hex.ts's burst() hands to the explosion.
+    const burstBeat = events.find((e) => e.type === 'hexBeat' && e.beat === 'burst');
+    const burstY = burstBeat?.type === 'hexBeat' ? burstBeat.y : undefined;
+    expect(events.find((e) => e.type === 'explosion')).toMatchObject({ x: 520, y: burstY, radius: SPEC.burst.radiusPx });
     expect(events.find((e) => e.type === 'hexEnd')).toMatchObject({ burst: true, victimId: 'enemy' });
     expect(ticksUsed).toBe(hexTicks(SPEC, flight));
     expect(hero.alive).toBe(true);
@@ -211,7 +219,10 @@ describe('freezer: the float, the swell and the burst', () => {
     expect(hex.liftPx).toBeLessThan(SPEC.liftPx);
     expect(hex.liftPx).toBeGreaterThan(0);
     let top = 349;
-    while (world.hexes.length > 0 && enemy.alive) {
+    // Only up to the burst: the sim no longer kills the victim itself (a force field or an
+    // immortality charge may yet veto it in the reducer), so the loop can no longer stop on
+    // enemy.alive turning false, and past the burst its own knockback throws it regardless.
+    while (world.hexes.length > 0 && !hex.burst) {
       stepWorld(world);
       if (enemy.alive) top = Math.min(top, enemy.y);
     }

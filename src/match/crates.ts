@@ -150,13 +150,26 @@ export function rollUtility(rng: Rng, items: readonly UtilityCrateItem[] = UTILI
   return rollWeighted(rng, items)?.id ?? 'fast_walk';
 }
 
+/**
+ * The unique immortality pickup's share of the scheduled roll, as a fraction of however much
+ * chance of dropping something at all a scheme configures: an implementation default (the PRD
+ * leaves the exact odds to this pass), kept local rather than threaded through GAME_CONFIG so this
+ * stays a self contained change. Scaling off the other percentages, instead of a fixed weight,
+ * keeps it at exactly 0 whenever a test or a scheme zeroes every other odd (the roll's documented
+ * "always deliver, odds choose the kind" fallback to 'weapon' then still holds).
+ */
+export const IMMORTALITY_SHARE = 0.03;
+
 /** Scheduled drops always deliver: configured odds choose the kind, never whether it exists. */
-export function rollScheduledCrate(rng: Rng, config: MatchConfig, suddenDeath = false): CrateType {
+export function rollScheduledCrate(rng: Rng, config: MatchConfig, suddenDeath = false, immortalityAvailable = false): CrateType {
+  const { weaponPct, utilityPct, powerPct, healthPct } = config.crates;
+  const immortalityWeight = (weaponPct + utilityPct + powerPct + (suddenDeath ? 0 : healthPct)) * IMMORTALITY_SHARE;
   const items: { kind: CrateType; weight: number }[] = [
-    { kind: 'weapon', weight: config.crates.weaponPct },
-    { kind: 'utility', weight: config.crates.utilityPct },
-    { kind: 'power', weight: config.crates.powerPct },
-    ...(suddenDeath ? [] : [{ kind: 'health' as const, weight: config.crates.healthPct }]),
+    { kind: 'weapon', weight: weaponPct },
+    { kind: 'utility', weight: utilityPct },
+    { kind: 'power', weight: powerPct },
+    ...(suddenDeath ? [] : [{ kind: 'health' as const, weight: healthPct }]),
+    ...(immortalityAvailable ? [{ kind: 'immortality' as const, weight: immortalityWeight }] : []),
   ];
   return rollWeighted(rng, items)?.kind ?? 'weapon';
 }

@@ -60,6 +60,11 @@ const TECHNIQUE_KINDS: Readonly<Record<TechniqueKind, WeaponKind>> = Object.free
   dice: 'MELEE',
   zoltraak: 'HITSCAN',
   final: 'MELEE',
+  // The five power upgrade: none of the four aims at anything beyond itself or its own reach.
+  time_stop: 'MELEE',
+  force_field: 'MELEE',
+  claws: 'MELEE',
+  room: 'MELEE',
 });
 
 function wholeAtLeast(value: number, min: number): boolean {
@@ -87,6 +92,17 @@ function checkTechnique(id: string, def: WeaponDef, out: string[]): void {
     dice: () => spec.kind === 'dice' && wholeAtLeast(spec.slashes, 0) && spec.cubePx >= 1 && spec.sizePx >= spec.cubePx,
     zoltraak: () => spec.kind === 'zoltraak' && wholeAtLeast(spec.circles, 1) && spec.rangePx > 0,
     final: () => spec.kind === 'final' && spec.killRadiusPx > 0,
+    time_stop: () => spec.kind === 'time_stop' && wholeAtLeast(spec.freezeTurns, 1) && spec.chargeMs >= 0,
+    force_field: () => spec.kind === 'force_field' && spec.durability > 0 && wholeAtLeast(spec.ownTurns, 1),
+    claws: () => spec.kind === 'claws' && spec.rangePx > 0,
+    room: () =>
+      spec.kind === 'room' &&
+      spec.minPct >= 1 &&
+      spec.maxPct <= 99 &&
+      spec.minPct <= spec.maxPct &&
+      spec.defaultPct >= spec.minPct &&
+      spec.defaultPct <= spec.maxPct &&
+      spec.chargeMs >= 0,
   };
   if (!counts[spec.kind]()) out.push(`${id}: ${spec.kind} needs whole counts and positive reaches and speeds`);
 }

@@ -13,13 +13,17 @@
  */
 
 import { WORM_HEIGHT } from '../../sim/constants.ts';
+import { spawnClaws } from '../../sim/techniques/claws.ts';
 import { firstWormOnLine, landOnLine } from '../../sim/techniques/common.ts';
 import { spawnDice } from '../../sim/techniques/dice.ts';
 import { spawnFinal } from '../../sim/techniques/final.ts';
+import { spawnForceField } from '../../sim/techniques/force-field.ts';
 import { spawnGalaxy } from '../../sim/techniques/galaxy.ts';
 import { spawnHiken } from '../../sim/techniques/hiken.ts';
 import { spawnMeteor } from '../../sim/techniques/meteor.ts';
 import { needleTip, spawnNeedle } from '../../sim/techniques/needle.ts';
+import { spawnRoom } from '../../sim/techniques/room.ts';
+import { spawnTimeStop } from '../../sim/techniques/time-stop.ts';
 import { spawnTreasureCast } from '../../sim/techniques/treasure.ts';
 import { meetingPoint, spawnZoltraak } from '../../sim/techniques/zoltraak.ts';
 import { wormMiddleY } from '../../sim/worm-size.ts';
@@ -86,6 +90,56 @@ function fireDice(ctx: FireContext): FireResult {
   return SEQUENCE;
 }
 
+/** time_stop: no aim, it holds the caster for the charge then freezes the rest of the field. */
+function fireTimeStop(ctx: FireContext): FireResult {
+  const { world, worm, def } = ctx;
+  const spec = def.technique;
+  if (spec?.kind !== 'time_stop') return endsAfter(0);
+  spawnTimeStop(world, { weaponId: def.id, attacker: worm, spec });
+  return SEQUENCE;
+}
+
+/** force_field: no aim, it holds the caster for the charge then raises the barrier. */
+function fireForceField(ctx: FireContext): FireResult {
+  const { world, worm, def } = ctx;
+  const spec = def.technique;
+  if (spec?.kind !== 'force_field') return endsAfter(0);
+  spawnForceField(world, { weaponId: def.id, attacker: worm, spec });
+  return SEQUENCE;
+}
+
+/** adamantium_claws: the first worm along the aim from the fingertip, before the claws meet a wall. */
+function fireClaws(ctx: FireContext): FireResult {
+  const { world, worm, def } = ctx;
+  const spec = def.technique;
+  if (spec?.kind !== 'claws') return endsAfter(0);
+  const tip = muzzlePoint(worm);
+  const dir = aimDirection(worm, ctx.aim.angleDeg);
+  const land = landOnLine(world, tip.x, tip.y, dir.x, dir.y, spec.rangePx);
+  const reach = land === null ? spec.rangePx : land.t;
+  const hit = firstWormOnLine(world, tip.x, tip.y, dir.x, dir.y, reach, worm.id);
+  if (hit !== null) {
+    spawnClaws(world, { weaponId: def.id, attacker: worm, victim: hit.worm, spec, facing: worm.facing, targetX: hit.worm.x, targetY: wormMiddleY(hit.worm) });
+  } else {
+    spawnClaws(world, { weaponId: def.id, attacker: worm, victim: null, spec, facing: worm.facing, targetX: tip.x + dir.x * reach, targetY: tip.y + dir.y * reach });
+  }
+  return SEQUENCE;
+}
+
+/**
+ * ROOM: a held charge, same shape as time_stop and force_field, so the presentation has a region
+ * to animate opening; the raw aim angle at the moment of firing (the same Up/Down and touch arrows
+ * the player already steers with) is captured once and held through it. match/room.ts alone turns
+ * it into a coverage percent and resolves the whole exchange once the charge ends.
+ */
+function fireRoom(ctx: FireContext): FireResult {
+  const { world, worm, def } = ctx;
+  const spec = def.technique;
+  if (spec?.kind !== 'room') return endsAfter(0);
+  spawnRoom(world, { weaponId: def.id, attacker: worm, spec, angleDeg: ctx.aim.angleDeg });
+  return SEQUENCE;
+}
+
 function fireZoltraak(ctx: FireContext): FireResult {
   const { world, worm, def } = ctx;
   const spec = def.technique;
@@ -118,6 +172,14 @@ export function fireTechnique(ctx: FireContext): FireResult {
       return fireZoltraak(ctx);
     case 'final':
       return fireFinal(ctx);
+    case 'time_stop':
+      return fireTimeStop(ctx);
+    case 'force_field':
+      return fireForceField(ctx);
+    case 'claws':
+      return fireClaws(ctx);
+    case 'room':
+      return fireRoom(ctx);
   }
 }
 

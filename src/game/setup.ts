@@ -13,6 +13,7 @@ import { createMatchDeps, type MatchDeps } from '../match/deps.ts';
 import { createWorld, addWorm, type SimWorld } from '../sim/world.ts';
 import { createScenario, type TerrainData } from '../terrain/terrain.ts';
 import { DEFAULT_SCENARIO } from '../terrain/scenarios.ts';
+import type { SceneryAssets } from '../terrain/raster.ts';
 import type { ContextFactory } from '../terrain/context.ts';
 import { computeTops } from '../terrain/generate.ts';
 import { BORDER_BEDROCK_PX } from '../terrain/mask.ts';
@@ -24,6 +25,7 @@ export interface GameSetupOptions {
   readonly setup: MatchSetup;
   readonly createContext: ContextFactory;
   readonly generateSeed?: number;
+  readonly sceneryAssets?: SceneryAssets;
 }
 
 export interface Game {
@@ -51,7 +53,7 @@ export function buildGame(options: GameSetupOptions): Result<Game, GameSetupErro
   const size = setup.worldSize;
   const terrainResult = createScenario(
     setup.scenario ?? DEFAULT_SCENARIO,
-    { width: size.w, height: size.h, seed: options.generateSeed ?? setup.seed, maxAttempts: 12 },
+    { width: size.w, height: size.h, seed: options.generateSeed ?? setup.seed, maxAttempts: 12, ...(options.sceneryAssets === undefined ? {} : { sceneryAssets: options.sceneryAssets }) },
     options.createContext,
   );
   if (!terrainResult.ok) return err({ code: 'terrain', message: terrainResult.error.message });

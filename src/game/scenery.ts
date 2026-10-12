@@ -12,6 +12,7 @@
  */
 
 import { hash01 } from '../core/rng.ts';
+import { drawSceneryDepth } from './scenery-detail.ts';
 import { visibleRect, worldToScreen, type Camera } from '../engine/camera.ts';
 import type { Ctx2D, Size } from '../engine/canvas-types.ts';
 import { bareScenery, type Scenery, type SceneryProp, type SkyLight, type SkyPlanet, type SkyTheme, type WaterLook } from '../terrain/scenarios.ts';
@@ -181,6 +182,7 @@ export function drawSkyTheme(ctx: Ctx2D, viewport: Size, camera: Camera, sky: Sk
     const layer = RIDGE_LAYERS[index];
     if (layer !== undefined) drawRidge(ctx, viewport, camera, horizonY + layer.lift, layer.parallax, layer.amp, layer.wavelength, ridge.color, ridge.alpha);
   });
+  drawSceneryDepth(ctx, viewport, camera, sky, horizonY, timeMs);
 }
 
 /** The water from its surface down, in the scenario's colours, with a foam line on the crest. */
@@ -265,6 +267,15 @@ function drawPalm(ctx: Ctx2D, prop: SceneryProp, timeMs: number): void {
     ctx.lineTo(mid.x - px, mid.y - py);
     ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = PALM_LEAF_DARK;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(mid.x, mid.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.strokeStyle = '#80b34d';
+    ctx.stroke();
   }
   ctx.fillStyle = COCONUT;
   for (let i = 0; i < 3; i += 1) {
@@ -300,6 +311,9 @@ function drawFlag(ctx: Ctx2D, prop: SceneryProp, timeMs: number): void {
     ctx.lineTo(x0, y0 + cloth);
     ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = '#532d42';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
   }
 }
 

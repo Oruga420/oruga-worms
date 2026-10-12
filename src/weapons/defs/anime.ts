@@ -218,6 +218,95 @@ const FINAL_EXPLOSION: WeaponDef = defineWeapon({
   sfx: { fire: 'ui_power_charge', impact: 'wpn_holy_blast' },
 });
 
+/**
+ * time_stop: the world holds its breath. No aim, no victim: every other living worm, friend or foe,
+ * owes the ledger one skipped own turn (match/turn.ts, match/machine.ts onFreezeApplied). Physics is
+ * untouched, so a frozen worm still falls, still drowns.
+ */
+const TIME_STOP: WeaponDef = defineWeapon({
+  ...TECHNIQUE_ROW,
+  id: 'time_stop',
+  name: 'Detención del Tiempo',
+  kind: 'MELEE',
+  icon: iconFrame('time_stop'),
+  requiresTargetSelect: false,
+  technique: {
+    kind: 'time_stop',
+    chargeMs: 1400,
+    freezeTurns: 1,
+    recoverMs: 900,
+  },
+  sfx: { fire: 'wpn_time_stop', impact: 'exp_small_1' },
+});
+
+/**
+ * force_field: a damage buffer round the caster, visible to both sides, that also blocks one
+ * execute outright (Antares, Gear 5, the Freezer, the Galaxian Explosion, the Explosión Final,
+ * adamantium_claws), never drowning or a toll (match/machine.ts onDamageApplied). It clears after
+ * the caster's own next turn (match/machine-phases.ts expireShield).
+ */
+const FORCE_FIELD: WeaponDef = defineWeapon({
+  ...TECHNIQUE_ROW,
+  id: 'force_field',
+  name: 'Campo de Fuerza',
+  kind: 'MELEE',
+  icon: iconFrame('force_field'),
+  requiresTargetSelect: false,
+  technique: {
+    kind: 'force_field',
+    chargeMs: 1000,
+    durability: 100,
+    ownTurns: 1,
+    recoverMs: 700,
+  },
+  sfx: { fire: 'wpn_force_field', impact: 'wpn_holy_choir' },
+});
+
+/**
+ * adamantium_claws (Wolverine): a short ranged melee execute along the aim, in plain sight; the
+ * first worm it finds is gone, whatever its health, the same shield and immortality checks applying
+ * as Antares or Gear 5 (sim/techniques/claws.ts kill()).
+ */
+const ADAMANTIUM_CLAWS: WeaponDef = defineWeapon({
+  ...TECHNIQUE_ROW,
+  id: 'adamantium_claws',
+  name: 'Garras de Adamantium',
+  kind: 'MELEE',
+  icon: iconFrame('adamantium_claws'),
+  requiresTargetSelect: false,
+  technique: {
+    kind: 'claws',
+    rangePx: 70,
+    windupMs: 350,
+    recoverMs: 450,
+  },
+  sfx: { fire: 'wpn_adamantium_claws', impact: 'wpn_firepunch_thud' },
+});
+
+/**
+ * ROOM (Trafalgar Law): no victim of its own, a region instead, 1 to 99 percent of the map's static
+ * area, centred on the caster (match/room.ts). Up/Down and the touch arrows pick the coverage before
+ * firing, the same way they aim every other weapon; a held charge lets the field visibly open before
+ * the reducer resolves the whole cyclic hp exchange and the caster's cost.
+ */
+const ROOM: WeaponDef = defineWeapon({
+  ...TECHNIQUE_ROW,
+  id: 'room',
+  name: 'ROOM',
+  kind: 'MELEE',
+  icon: iconFrame('room'),
+  requiresTargetSelect: false,
+  technique: {
+    kind: 'room',
+    minPct: 1,
+    maxPct: 99,
+    defaultPct: 25,
+    chargeMs: 1100,
+    recoverMs: 700,
+  },
+  sfx: { fire: 'wpn_room' },
+});
+
 export const ANIME = Object.freeze({
   antares: ANTARES,
   galaxian: GALAXIAN,
@@ -227,4 +316,8 @@ export const ANIME = Object.freeze({
   santoryu: SANTORYU,
   zoltraak: ZOLTRAAK,
   final_explosion: FINAL_EXPLOSION,
+  time_stop: TIME_STOP,
+  force_field: FORCE_FIELD,
+  adamantium_claws: ADAMANTIUM_CLAWS,
+  room: ROOM,
 }) satisfies Readonly<Partial<Record<WeaponId, WeaponDef>>>;

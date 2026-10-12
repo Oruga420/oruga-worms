@@ -76,11 +76,34 @@ const COLUMNS: readonly { readonly label: string; readonly x: number }[] = Objec
   { label: 'Points', x: 640 },
 ]);
 
+function drawCompactScoreboard(ctx: Ctx2D, viewport: Size, rows: readonly ScoreRow[], top: number, colorOf: (index: number) => string): number {
+  const width = Math.max(0, viewport.w - 32);
+  const left = (viewport.w - width) / 2;
+  const height = SCOREBOARD_ROW_H_PX * (rows.length + 1);
+  ctx.fillStyle = '#142638';
+  ctx.fillRect(left, top - 17, width, height + 8);
+  const columns = [12, width * 0.56, width * 0.73, width - 10];
+  const line = (values: readonly string[], y: number, color: string): void => {
+    values.forEach((text, index) => {
+      ctx.font = '700 12px system-ui, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = index === 0 ? 'left' : 'right';
+      ctx.fillStyle = index === 0 ? color : '#f4f4f4';
+      ctx.fillText(text, left + (columns[index] ?? 0), y, index === 0 ? width * 0.38 : width * 0.2);
+    });
+  };
+  line(['Team', 'HP', 'Kills', 'Points'], top, '#f4f4f4');
+  rows.forEach((row, index) => line([row.name, String(row.hpLeft), String(row.kills), String(row.points)], top + (index + 1) * SCOREBOARD_ROW_H_PX, colorOf(row.colorIndex)));
+  ctx.textAlign = 'center';
+  return top + height;
+}
+
 /**
  * Draws the header and one line per row starting at top (screen px), centred horizontally.
  * Returns the y just below the table so the caller can place what follows.
  */
 export function drawScoreboard(ctx: Ctx2D, viewport: Size, rows: readonly ScoreRow[], top: number, colorOf: (colorIndex: number) => string): number {
+  if (viewport.w < SCOREBOARD_W_PX + 56) return drawCompactScoreboard(ctx, viewport, rows, top, colorOf);
   const left = Math.round((viewport.w - SCOREBOARD_W_PX) / 2);
   const cell = (x: number, y: number, text: string, weight = '500'): void => {
     // Numeric columns are right aligned on their x; the team name is left aligned on its x.
@@ -90,7 +113,7 @@ export function drawScoreboard(ctx: Ctx2D, viewport: Size, rows: readonly ScoreR
     ctx.fillText(text, left + x, y);
   };
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.fillStyle = '#142638';
   ctx.fillRect(left - 12, top - SCOREBOARD_ROW_H_PX / 2 - 4, SCOREBOARD_W_PX + 24, SCOREBOARD_ROW_H_PX * (rows.length + 1) + 8);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';

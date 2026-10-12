@@ -1,0 +1,4 @@
+# Offline authoring dependency only. Never include .venv-animation in game bundles.
+# Requires Python >=3.13. The Windows wheel includes GPL/LGPL native components.
+# Install with: .venv-animation/Scripts/python.exe -m pip install -r tools/anim/requirements.txt
+manimgx==0.1.1

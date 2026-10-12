@@ -42,7 +42,11 @@ export type MatchLogKind =
   | 'surrender'
   | 'suddenDeath.start'
   | 'suddenDeath.water'
-  | 'match.end';
+  | 'match.end'
+  | 'freeze.applied'
+  | 'shield.applied'
+  | 'room.cast'
+  | 'immortality.claimed';
 
 export const ZERO_TIMERS: MatchTimers = Object.freeze({
   turnRemainingMs: 0,

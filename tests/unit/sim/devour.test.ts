@@ -94,13 +94,26 @@ describe('gear 5: the meal', () => {
     expect(beats(events)).toEqual(['drum', 'drum', 'drum', 'drum', 'awake', 'stretch', 'grab', 'chomp', 'chomp', 'chomp', 'chomp', 'gulp', 'burp']);
     expect(damageTo(events, 'enemy')).toEqual([...Array.from({ length: SPEC.chomps }, () => SPEC.chompDamage), SWALLOW_DAMAGE]);
     expect(inMouth).toBe(true);
-    // Swallowed: the body is out of the world, the eater let go where it stood.
-    expect(enemy.alive).toBe(false);
-    expect(enemy.motion).toBe('dead');
+    // Swallowed: the damage event fires, but the sim itself never kills a body (a force field or an
+    // immortality charge may yet veto it in the reducer, match/machine.ts onDamageApplied); nothing
+    // holds the victim any more, so physics takes it right back, same as any other alive worm.
+    expect(enemy.alive).toBe(true);
     expect(hero.x).toBe(300);
     expect(hero.motion).toBe('falling');
     expect(events.find((e) => e.type === 'devourEnd')).toMatchObject({ eaten: true, victimId: 'enemy' });
     expect(ticksUsed).toBe(devourTicks(SPEC));
+  });
+
+  it('never sets the swallowed victim dead itself: only the amount it emits says what the swallow would take', () => {
+    const { world, hero } = arena();
+    const enemy = addWorm(world, { id: 'enemy', teamId: 'b', x: 450, y: 349 });
+    fire(world, hero, GEAR, { angleDeg: 0, power: 1 });
+    const events = playOut(world);
+    const swallow = events.find((e) => e.type === 'damage' && e.wormId === 'enemy' && e.amount === SWALLOW_DAMAGE);
+    expect(swallow).toBeDefined();
+    // The sim only ever asks for the damage; it is the match reducer's hp, never the sim, that
+    // decides whether the body actually leaves the world (game/bridge.ts syncMatchToSim).
+    expect(enemy.alive).toBe(true);
   });
 
   it('credits every bite and the swallow to the eater, with the blood going out of the mouth', () => {

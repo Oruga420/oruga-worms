@@ -15,7 +15,7 @@ import { startRetreat } from './retreat.ts';
 import { finalizeScores, scoreKill, scoreShotClosed } from './scoring.ts';
 import { sealedWorms, strikeAtTurnEnd } from './seals.ts';
 import { restTurnEnded } from './super-rest.ts';
-import { makeWindState, WIND_STEP_MAX, WIND_STEP_MIN, type MatchPhase, type MatchState, type PendingDeath, type SettleReason } from './state.ts';
+import { makeWindState, WIND_STEP_MAX, WIND_STEP_MIN, type MatchPhase, type MatchState, type PendingDeath, type SettleReason, type WormState } from './state.ts';
 import { applySuddenDeathCheck } from './sudden-death.ts';
 import { selectNextTurn } from './turn.ts';
 import { outcome } from './win.ts';
@@ -83,17 +83,28 @@ export function applyDeath(state: MatchState, death: PendingDeath): MatchState {
   return appendLog(next, kind, `${ref.worm.name} ${verb}`);
 }
 
+/** force_field clears once the shielded worm's own turn count has reached what the cast promised (ownTurns past the cast). */
+function expireShield(worm: WormState): WormState {
+  return worm.shieldDurability > 0 && worm.turns >= worm.shieldExpiresAtOwnTurn ? { ...worm, shieldDurability: 0 } : worm;
+}
+
 function enterTurnEnd(state: MatchState, deps: MatchDeps): MatchState {
-  // The worm's turn is over: a turn nearer to its next super (match/super-rest.ts).
-  let next = updateTeam(closeShotWindow(state), state.activeTeamIndex, (team) => ({ ...team, worms: team.worms.map((worm, index) => (index === team.activeWormIndex ? restTurnEnded(worm) : worm)) }));
+  // The worm's turn is over: a turn nearer to its next super (match/super-rest.ts), and its force
+  // field gone if this was the own turn the cast promised it would last through.
+  let next = updateTeam(closeShotWindow(state), state.activeTeamIndex, (team) => ({
+    ...team,
+    worms: team.worms.map((worm, index) => (index === team.activeWormIndex ? expireShield(restTurnEnded(worm)) : worm)),
+  }));
   for (const death of next.pendingDeaths) next = applyDeath(next, death);
   next = { ...next, pendingDeaths: [] };
   const pendingDrop = next.crateDrop !== null;
   const every = deps.config.crates.dropEveryTurns;
   next = { ...next, turnsSinceCrateDrop: next.turnsSinceCrateDrop + 1 };
   if (every > 0 && next.turnsSinceCrateDrop >= every && !pendingDrop && canDropCrate(next.cratesOnMap, deps.config)) {
-    const drop = rollScheduledCrate(deps.rng, deps.config, next.suddenDeath);
-    next = appendLog({ ...next, crateDrop: drop, turnsSinceCrateDrop: 0 }, 'crate.drop', `A ${drop} supply crate is parachuting in`);
+    const drop = rollScheduledCrate(deps.rng, deps.config, next.suddenDeath, !next.immortalityEverDropped);
+    // Unique for the whole match the instant it rolls, landed, uncollected or destroyed later: never a second one.
+    const everDropped = next.immortalityEverDropped || drop === 'immortality';
+    next = appendLog({ ...next, crateDrop: drop, turnsSinceCrateDrop: 0, immortalityEverDropped: everDropped }, 'crate.drop', `A ${drop} supply crate is parachuting in`);
   }
   return transition(next, 'TurnEnd');
 }
@@ -134,7 +145,8 @@ export function enterMatchEnd(state: MatchState): MatchState {
  * SuddenDeathCheck. No living worm anywhere ends the match instead.
  */
 export function enterTurnStart(state: MatchState, deps: MatchDeps): MatchState {
-  // A worm the Tesoro del Cielo sealed sits its turns out while its team has another to play.
+  // Seals bypass a worm, but freeze consumes its own scheduled slot in takeFrozenTurn.
+  // Bypassing a frozen worm here would prevent its duration from ever being decremented.
   const selection = selectNextTurn(state.teams, state.activeTeamIndex, sealedWorms(state));
   if (selection === null) return enterMatchEnd(state);
   const wrapped = state.turn > 0 && selection.teamIndex <= state.activeTeamIndex;

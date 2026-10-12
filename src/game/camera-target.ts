@@ -141,6 +141,13 @@ export function techniqueFocus(body: TechniqueBody, worms: readonly { readonly i
       if (body.stage === 'fire') return { x: (home.x + body.targetX) / 2, y: (home.y + body.targetY) / 2 };
       return { x: body.targetX, y: body.targetY };
     case 'final':
+    case 'time_stop':
+    case 'force_field':
+      return home;
+    case 'claws':
+      return body.stage === 'windup' ? home : { x: body.targetX, y: body.targetY };
+    // Placeholder, five power upgrade: ROOM has no camera treatment of its own yet.
+    case 'room':
       return home;
   }
 }

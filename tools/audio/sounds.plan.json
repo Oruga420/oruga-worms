@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedAt": "2026-09-03T23:21:12.230Z",
-  "source": "docs/research/sound-pipeline.md sections 3 to 6",
+  "source": "docs/research/sound-pipeline.md sections 3 to 6; tools/audio/build-plan.ts powerSfxItems",
   "items": [
     {
       "kind": "sfx",
@@ -630,6 +630,56 @@
       "bus": "ui",
       "description": "defeat stinger: sad descending trombone slide, comedic wah-wah, final low thud",
       "seconds": 3,
+      "gainDb": -2,
+      "loop": false
+    },
+    {
+      "kind": "sfx",
+      "id": "wpn_time_stop",
+      "group": "weapons",
+      "bus": "sfx",
+      "description": "Original abstract game effect: a clock tick stretches downward into a tight vacuum snap, followed by a short muted glass resonance; one-shot, dry, no music, no voices.",
+      "seconds": 2,
+      "gainDb": -2,
+      "loop": false
+    },
+    {
+      "kind": "sfx",
+      "id": "wpn_force_field",
+      "group": "weapons",
+      "bus": "sfx",
+      "description": "Original abstract game effect: a soft bass pulse opens into a smooth electric dome hum with a bright protective ping and clean decay; one-shot, dry, no music, no voices.",
+      "seconds": 2,
+      "gainDb": -2,
+      "loop": false
+    },
+    {
+      "kind": "sfx",
+      "id": "wpn_adamantium_claws",
+      "group": "weapons",
+      "bus": "sfx",
+      "description": "Original abstract game effect: three short metallic blade extensions followed by a fast triple air slash and a dry steel ring; one-shot, dry, no music, no voices.",
+      "seconds": 2,
+      "gainDb": -2,
+      "loop": false
+    },
+    {
+      "kind": "sfx",
+      "id": "wpn_room",
+      "group": "weapons",
+      "bus": "sfx",
+      "description": "Original abstract game effect: an expanding airy pressure ring, a clean hollow chime and a brief spatial shimmer that fades completely; one-shot, dry, no music, no voices.",
+      "seconds": 2,
+      "gainDb": -2,
+      "loop": false
+    },
+    {
+      "kind": "sfx",
+      "id": "wpn_immortality",
+      "group": "weapons",
+      "bus": "sfx",
+      "description": "Original abstract game effect: a low heartbeat thump rises into a warm sparkling recovery pulse with a crisp final bell; one-shot, dry, no music, no voices.",
+      "seconds": 2,
       "gainDb": -2,
       "loop": false
     },

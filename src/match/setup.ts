@@ -90,6 +90,11 @@ export const DEFAULT_STARTING_AMMO: Readonly<Partial<Record<WeaponId, number>>> 
   santoryu: 1,
   zoltraak: 1,
   final_explosion: 1,
+  // The five power upgrade's own techniques, same rule: one apiece.
+  time_stop: 1,
+  force_field: 1,
+  adamantium_claws: 1,
+  room: 1,
   air_strike: 1,
   parachute: 2,
   jetpack: 1,
@@ -222,7 +227,23 @@ export function saibamanAmmoTable(): Readonly<Record<WeaponId, number>> {
 }
 
 function buildWorm(teamId: string, name: string, index: number, config: MatchConfig, ammo: TeamSetup['ammo']): WormState {
-  return { id: `${teamId}-worm-${index + 1}`, name, hp: config.wormHp, maxHp: config.wormHp, alive: true, x: 0, y: 0, ammo: buildAmmoTable(ammo), superRest: 0, turns: 0 };
+  return {
+    id: `${teamId}-worm-${index + 1}`,
+    name,
+    hp: config.wormHp,
+    maxHp: config.wormHp,
+    alive: true,
+    x: 0,
+    y: 0,
+    ammo: buildAmmoTable(ammo),
+    superRest: 0,
+    turns: 0,
+    frozenTurns: 0,
+    shieldDurability: 0,
+    shieldExpiresAtOwnTurn: 0,
+    immortalityCharges: 0,
+    lastProtectedAttack: null,
+  };
 }
 
 function buildTeam(team: TeamSetup, index: number, config: MatchConfig): TeamState {
@@ -267,9 +288,11 @@ export function buildInitialState(setup: MatchSetup, config: MatchConfig = GAME_
     pendingDeaths: [],
     lastHitBy: {},
     shot: null,
+    attackSeq: 0,
     settle: null,
     seals: [],
     strikes: [],
+    immortalityEverDropped: false,
   };
   return ok(deepFreeze(enterTurnStart(beforeStart, { config, rng })));
 }

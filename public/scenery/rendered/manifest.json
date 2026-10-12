@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "assets": {
+    "spaceship": {
+      "color": "/scenery/rendered/spaceship/color.png",
+      "occupancy": "/scenery/rendered/spaceship/occupancy.json"
+    },
+    "castle": {
+      "color": "/scenery/rendered/castle/color.png",
+      "occupancy": "/scenery/rendered/castle/occupancy.json"
+    },
+    "kame_house": {
+      "color": "/scenery/rendered/kame-house/color.png",
+      "occupancy": "/scenery/rendered/kame-house/occupancy.json"
+    }
+  }
+}

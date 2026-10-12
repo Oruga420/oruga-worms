@@ -72,18 +72,39 @@ describe('buildInitialState', () => {
     expect(table.mortar).toBe(1);
     expect(table.bazooka).toBe(-1);
     expect(table.minigun).toBe(0);
-    expect(Object.keys(table)).toHaveLength(39);
+    expect(Object.keys(table)).toHaveLength(43);
     // One of each technique of the anime row, like the supers.
-    for (const id of ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion'] as const) expect(table[id]).toBe(1);
+    for (const id of ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion', 'time_stop', 'force_field', 'adamantium_claws', 'room'] as const) expect(table[id]).toBe(1);
   });
 
   it("gives a Saibaman the unlimited weapons and nothing else: no supers, no seed", () => {
     const table = saibamanAmmoTable();
-    expect(Object.keys(table)).toHaveLength(39);
+    expect(Object.keys(table)).toHaveLength(43);
     expect(table.bazooka).toBe(-1);
     expect(table.grenade).toBe(-1);
     expect(table.skip_go).toBe(-1);
-    for (const id of ['kamehameha', 'freezer', 'ryuko_ranbu', 'gear_five', 'saibaman', 'antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion', 'holy_hand_grenade', 'mine'] as const) expect(table[id]).toBe(0);
+    for (const id of [
+      'kamehameha',
+      'freezer',
+      'ryuko_ranbu',
+      'gear_five',
+      'saibaman',
+      'antares',
+      'galaxian',
+      'tenbu_horin',
+      'hiken',
+      'meteor',
+      'santoryu',
+      'zoltraak',
+      'final_explosion',
+      'time_stop',
+      'force_field',
+      'adamantium_claws',
+      'room',
+      'holy_hand_grenade',
+      'mine',
+    ] as const)
+      expect(table[id]).toBe(0);
   });
 });
 

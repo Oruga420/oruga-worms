@@ -8,7 +8,8 @@
 
 import { BORDER_BEDROCK_PX, createMask, markBorderBedrock } from '../mask.ts';
 import type { ScenarioBuild, ScenarioBuildOptions, SceneryProp } from '../scenarios.ts';
-import { fillSpans } from '../tiles.ts';
+import { fillSpans, paintRaster } from '../tiles.ts';
+import { fitRaster, stampRaster } from '../raster.ts';
 import { discSpans, fillPolygon, fillRect, fillSuperellipse, rectSpans } from './shapes.ts';
 
 export const PORTHOLE = '#2f4e7a';
@@ -18,6 +19,14 @@ export const HULL_STRIPE = '#c8463f';
 export function buildSpaceship(options: ScenarioBuildOptions): ScenarioBuild {
   const { width, height } = options;
   const mask = createMask(width, height);
+  if (options.raster !== undefined) {
+    const raster = options.raster;
+    const rect = fitRaster(raster, { x: width * 0.08, y: height * 0.04, w: width * 0.84, h: height * 0.76 });
+    stampRaster(mask, raster, rect);
+    markBorderBedrock(mask, BORDER_BEDROCK_PX);
+    // Antennas, nozzles and flags in a mesh view are already part of its silhouette.
+    return { mask, props: [], rasterized: true, paint: (tiles) => { paintRaster(tiles, raster, rect); } };
+  }
   const cx = width * 0.5;
   const cy = Math.round(height * 0.52);
   const rx = Math.round(width * 0.365);

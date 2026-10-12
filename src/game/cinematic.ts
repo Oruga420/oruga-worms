@@ -164,6 +164,11 @@ const TECHNIQUE_LOOKS: Readonly<Record<TechniqueBody['kind'], TechniqueLook>> = 
   zoltraak: { gatherDim: 0.45, gatherZoom: 1.15, deliverDim: 0.5, deliverZoom: 1 },
   // The world darkens round the worm as it gathers itself; the burst whites the screen out.
   final: { gatherDim: 0.6, gatherZoom: 1.3, deliverDim: 0.2, deliverZoom: 0.95 },
+  time_stop: { gatherDim: 0.62, gatherZoom: 1.15, deliverDim: 0.32, deliverZoom: 0.9 },
+  force_field: { gatherDim: 0.3, gatherZoom: 1.2, deliverDim: 0.18, deliverZoom: 1 },
+  claws: { gatherDim: 0.6, gatherZoom: 1.4, deliverDim: 0.2, deliverZoom: 1.2 },
+  // Placeholder, five power upgrade: ROOM has no treatment of its own yet.
+  room: { gatherDim: 0.35, gatherZoom: 1.1, deliverDim: 0.2, deliverZoom: 1 },
 });
 
 /** How long the Explosión Final's flash takes to fade, as a share of its recovery. */
@@ -187,7 +192,12 @@ function gathering(body: TechniqueBody): boolean {
     case 'zoltraak':
       return body.stage === 'form';
     case 'final':
+    case 'time_stop':
+    case 'force_field':
+    case 'room':
       return body.stage === 'charge';
+    case 'claws':
+      return body.stage === 'windup';
   }
 }
 

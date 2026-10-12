@@ -79,6 +79,16 @@ export interface WormState {
    * strike and jetpack open, however far into the match it first comes up.
    */
   readonly turns: number;
+  /** Own upcoming turns time_stop still owes this worm (match/turn.ts): each one is auto skipped and decremented. */
+  readonly frozenTurns: number;
+  /** force_field's damage buffer; 0 means no shield up. Absorbs ordinary damage up to this, and blocks one execute outright. */
+  readonly shieldDurability: number;
+  /** The shield clears once this worm's own `turns` passes this value (set to turns + ownTurns at cast). */
+  readonly shieldExpiresAtOwnTurn: number;
+  /** >0 only on the one worm holding the match's unique immortality pickup; each charge survives one lethal attack at 1 hp. */
+  readonly immortalityCharges: number;
+  /** Dedup key of the last attack a shield or immortality charge intercepted, so one multi pellet shot cannot burn more than one. */
+  readonly lastProtectedAttack: string | null;
 }
 
 export interface TeamScore {
@@ -130,7 +140,8 @@ export interface MatchLogEntry {
 
 export const MATCH_LOG_CAP = 200;
 
-export const CRATE_TYPES = ['weapon', 'health', 'utility', 'power'] as const;
+/** 'immortality' is the unique once a match pickup (room.ts and machine.ts onCratePicked): never rolled again once claimed. */
+export const CRATE_TYPES = ['weapon', 'health', 'utility', 'power', 'immortality'] as const;
 export type CrateType = (typeof CRATE_TYPES)[number];
 
 /**
@@ -225,9 +236,15 @@ export interface MatchState {
   /** wormId to the team that damaged it last this turn, for kill credit; cleared at TurnStart. */
   readonly lastHitBy: Readonly<Record<string, string>>;
   readonly shot: ShotState | null;
+  /** Bumped by every accepted FireStarted: a stable identity for one shot, so a multi pellet burst never spends more than one shield break or immortality charge (match/machine.ts attackKey). */
+  readonly attackSeq: number;
   readonly settle: SettleOutcome | null;
   /** Worms the Tesoro del Cielo has sealed, still taking their teams' turns. */
   readonly seals: readonly Seal[];
   /** The strikes the ledger took this turn for (a sealed team's lost turn); cleared at the next TurnStart. */
   readonly strikes: readonly SealStrike[];
+  /** True the instant the immortality crate is ever rolled (not only once picked up): it is unique, so none rolls again, landed, uncollected or destroyed. */
+  readonly immortalityEverDropped: boolean;
+  /** Claim guard independent of the spawn gate; older fixtures without it mean not yet claimed. */
+  readonly immortalityClaimed?: boolean;
 }

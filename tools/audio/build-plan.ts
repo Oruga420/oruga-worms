@@ -3,8 +3,8 @@
  * the 56 SFX rows with their duration, gain and description (variants expanded), the 60 voice
  * lines in three banks with their voice ids and pitch treatment, the supers' own voice lines
  * (the Kamehameha's chant and shout, the Freezer's scream and laugh), and the one music loop.
- * The report is the creative source; this file only parses it, so a change to a description is
- * made in the report and the plan is rebuilt with `node tools/audio/build-plan.ts`.
+ * The report remains the base source; powerSfxItems adds the five original abstract power cues.
+ * Rebuild the base and additions with `node tools/audio/build-plan.ts`.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -203,9 +203,26 @@ export function parseVoiceBanks(markdown: string): VoiceItem[] {
   return items;
 }
 
+// Original abstract one-shots for the five new powers; no dialogue or borrowed recordings.
+const POWER_SFX = Object.freeze([
+  ['time_stop', 'a clock tick stretches downward into a tight vacuum snap, followed by a short muted glass resonance'],
+  ['force_field', 'a soft bass pulse opens into a smooth electric dome hum with a bright protective ping and clean decay'],
+  ['adamantium_claws', 'three short metallic blade extensions followed by a fast triple air slash and a dry steel ring'],
+  ['room', 'an expanding airy pressure ring, a clean hollow chime and a brief spatial shimmer that fades completely'],
+  ['immortality', 'a low heartbeat thump rises into a warm sparkling recovery pulse with a crisp final bell'],
+] as const);
+
+export function powerSfxItems(): SfxItem[] {
+  return POWER_SFX.map(([id, sound]) => ({
+    kind: 'sfx', id: `wpn_${id}`, group: 'weapons', bus: 'sfx',
+    description: `Original abstract game effect: ${sound}; one-shot, dry, no music, no voices.`,
+    seconds: 2, gainDb: -2, loop: false,
+  }));
+}
+
 export function buildPlan(markdown: string, generatedAt: string): SoundPlan {
-  const items: PlanItem[] = [...parseSfxTable(markdown), ...parseVoiceBanks(markdown), ...superVoiceItems(markdown), MUSIC_ITEM];
-  return { version: 1, generatedAt, source: 'docs/research/sound-pipeline.md sections 3 to 6', items };
+  const items: PlanItem[] = [...parseSfxTable(markdown), ...powerSfxItems(), ...parseVoiceBanks(markdown), ...superVoiceItems(markdown), MUSIC_ITEM];
+  return { version: 1, generatedAt, source: 'docs/research/sound-pipeline.md sections 3 to 6; tools/audio/build-plan.ts powerSfxItems', items };
 }
 
 function main(): void {

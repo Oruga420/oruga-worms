@@ -49,40 +49,33 @@ describe('buildGame / quickGame', () => {
     if (result.ok) for (const body of result.value.world.worms) expect(body.y).toBeLessThan(result.value.terrain.water.y);
   });
 
-  it('fits four teams of six on the default island, standing them closer where the widest spacing has no room', () => {
+  it.each(Array.from({ length: 12 }, (_, index) => index + 1))('fits four teams of six on island seed %i with safe spacing', (seed) => {
     const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })), scenario: 'island' };
-    let closer = 0;
-    for (let seed = 1; seed <= 12; seed += 1) {
-      const result = buildGame({ setup: toMatchSetup(four, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
-      expect(result.ok, result.ok ? '' : `seed ${seed}: ${result.error.message}`).toBe(true);
-      if (!result.ok) continue;
-      const xs = result.value.state.teams.flatMap((team) => team.worms.map((worm) => worm.x)).sort((a, b) => a - b);
-      expect(xs).toHaveLength(24);
-      const gap = Math.min(...xs.slice(1).map((x, i) => x - (xs[i] ?? 0)));
-      // Never closer than the tightest spacing: still well clear of each other.
-      expect(gap).toBeGreaterThanOrEqual(24);
-      if (gap < 48) closer += 1;
-    }
-    // Some of these islands only fit everyone closer than the widest spacing.
-    expect(closer).toBeGreaterThan(0);
+    const result = buildGame({ setup: toMatchSetup(four, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
+    expect(result.ok, result.ok ? '' : `seed ${seed}: ${result.error.message}`).toBe(true);
+    if (!result.ok) return;
+    const xs = result.value.state.teams.flatMap((team) => team.worms.map((worm) => worm.x)).sort((a, b) => a - b);
+    expect(xs).toHaveLength(24);
+    const gap = Math.min(...xs.slice(1).map((x, i) => x - (xs[i] ?? 0)));
+    expect(gap).toBeGreaterThanOrEqual(24);
+    // Measured seed1 exercises the narrower-spacing fallback (43px), retaining the old aggregate check.
+    if (seed === 1) expect(gap).toBeLessThan(48);
   });
 
-  it.each(SCENARIO_IDS)('%s: builds with two teams and with four teams of six, everyone on land above the water', (scenario) => {
+  const scenarios = SCENARIO_IDS.flatMap((scenario) => [2, 4].flatMap((teamCount) =>
+    [1, 2, 3, 4].map((seed) => ({ scenario, teamCount, seed }))));
+  it.each(scenarios)('$scenario seed$seed: builds $teamCount teams on land above water', ({ scenario, teamCount, seed }) => {
     const four: TeamSetupState = { teams: [0, 1, 2, 3].map((nameIndex) => ({ nameIndex, controller: 'cpu' as const, difficulty: 'normal' as const })), scenario };
-    const two: TeamSetupState = { ...DEFAULT_TEAM_SETUP, scenario };
-    for (const state of [two, four]) {
-      for (let seed = 1; seed <= 4; seed += 1) {
-        const result = buildGame({ setup: toMatchSetup(state, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
-        expect(result.ok, result.ok ? '' : `${scenario} seed ${seed} with ${state.teams.length} teams: ${result.error.message}`).toBe(true);
-        if (!result.ok) continue;
-        expect(result.value.terrain.scenery?.id).toBe(scenario);
-        expect(result.value.world.worms).toHaveLength(state.teams.length * 6);
-        for (const body of result.value.world.worms) {
-          expect(body.y).toBeLessThan(result.value.terrain.water.y);
-          expect(body.x).toBeGreaterThan(0);
-          expect(body.x).toBeLessThan(WORLD_SIZE_DEFAULT.w);
-        }
-      }
+    const state: TeamSetupState = teamCount === 4 ? four : { ...DEFAULT_TEAM_SETUP, scenario };
+    const result = buildGame({ setup: toMatchSetup(state, seed, WORLD_SIZE_DEFAULT), createContext: createFakeFactory().factory });
+    expect(result.ok, result.ok ? '' : `${scenario} seed ${seed} with ${state.teams.length} teams: ${result.error.message}`).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.terrain.scenery?.id).toBe(scenario);
+    expect(result.value.world.worms).toHaveLength(state.teams.length * 6);
+    for (const body of result.value.world.worms) {
+      expect(body.y).toBeLessThan(result.value.terrain.water.y);
+      expect(body.x).toBeGreaterThan(0);
+      expect(body.x).toBeLessThan(WORLD_SIZE_DEFAULT.w);
     }
   });
 });

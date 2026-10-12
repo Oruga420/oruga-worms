@@ -2,7 +2,8 @@
  * Thin ElevenLabs client for the sound loop (sound-pipeline.md sections 2 to 4). Three
  * generation endpoints and the subscription read used as the budget gate. The key is passed in
  * and only ever placed in the xi-api-key header. Every failure is a Result with the HTTP status
- * and the API's error text (safe to log, it never echoes the key). One retry on 429 or 5xx.
+ * and the API's error text. Each generation method sends exactly one POST: only the caller can
+ * retry, after reserving the next attempt in its budget.
  */
 
 import { err, ok, type Result } from '../../src/core/result.ts';
@@ -58,25 +59,17 @@ async function readError(response: Response): Promise<string> {
   return `http ${response.status}: ${text.slice(0, 300).replace(/\s+/g, ' ')}`;
 }
 
-export function createElevenClient(apiKey: string, fetchImpl: FetchLike = fetch, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): ElevenClient {
+export function createElevenClient(apiKey: string, fetchImpl: FetchLike = fetch): ElevenClient {
   const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
 
   async function postAudio(path: string, body: Record<string, unknown>): Promise<Result<Buffer, string>> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      let response: Response;
-      try {
-        response = await fetchImpl(`${ELEVEN_BASE}${path}?output_format=${OUTPUT_FORMAT}`, { method: 'POST', headers, body: JSON.stringify(body) });
-      } catch (error: unknown) {
-        return err(`network: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      if (response.ok) return ok(Buffer.from(await response.arrayBuffer()));
-      const retryable = response.status === 429 || response.status >= 500;
-      const message = await readError(response);
-      if (!retryable || attempt === 1) return err(message);
-      const retryAfter = Number.parseInt(response.headers.get('retry-after') ?? '3', 10);
-      await sleep(Math.max(1, Number.isFinite(retryAfter) ? retryAfter : 3) * 1000);
+    try {
+      const response = await fetchImpl(`${ELEVEN_BASE}${path}?output_format=${OUTPUT_FORMAT}`, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!response.ok) return err(await readError(response));
+      return ok(Buffer.from(await response.arrayBuffer()));
+    } catch (error: unknown) {
+      return err(`network: ${error instanceof Error ? error.message : String(error)}`);
     }
-    return err('unreachable');
   }
 
   return {

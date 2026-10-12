@@ -15,6 +15,7 @@
 
 import { getWeapon, isSuper } from '../weapons/registry.ts';
 import { healthCrateAmount, rollCrateWeapon, rollPower } from './crates.ts';
+import { takeFrozenTurn } from './freeze.ts';
 import type { MatchDeps } from './deps.ts';
 import type {
   CratePickedEvent,
@@ -56,6 +57,7 @@ import {
 } from './machine-phases.ts';
 import { isPreResolvePhase } from './phases.ts';
 import { retreatMsFor } from './retreat.ts';
+import { applyRoomExchange, coveragePctFromAngle } from './room.ts';
 import { addSeal, takeSealedTurn } from './seals.ts';
 import { restAfterSuper, superResting } from './super-rest.ts';
 import { scoreDamage, scoreShotClosed, scoreShotFired } from './scoring.ts';
@@ -110,7 +112,39 @@ function dispatch(state: MatchState, event: MatchEvent, deps: MatchDeps): MatchS
       return onSurrender(state, event);
     case 'WindRolled':
       return { ...state, wind: makeWindState(event.step) };
+    case 'FreezeApplied':
+      return onFreezeApplied(state, event.casterId, event.turns);
+    case 'ShieldApplied':
+      return onShieldApplied(state, event.casterId, event.durability, event.ownTurns);
+    case 'RoomCast':
+      return Number.isFinite(event.angleDeg) ? applyRoomExchange(state, event.casterId, coveragePctFromAngle(event.angleDeg)) : state;
   }
+}
+
+/** time_stop: every living worm but the caster owes the ledger one skipped own turn (match/turn.ts). */
+function onFreezeApplied(state: MatchState, casterId: string, turns: number): MatchState {
+  if (!Number.isInteger(turns) || turns <= 0) return state;
+  const source = findWorm(state, casterId);
+  if (source === null || !source.worm.alive || source.worm.hp <= 0) return state;
+  let next = state;
+  for (const team of state.teams) {
+    for (const worm of team.worms) {
+      if (!worm.alive || worm.id === casterId) continue;
+      const ref = findWorm(next, worm.id);
+      if (ref === null) continue;
+      next = replaceWorm(next, ref.teamIndex, ref.wormIndex, { ...ref.worm, frozenTurns: ref.worm.frozenTurns + turns });
+    }
+  }
+  const caster = findWorm(next, casterId);
+  return appendLog(resetInactivity(next), 'freeze.applied', `${caster?.worm.name ?? casterId} stops the world`);
+}
+
+/** force_field: the caster gets a damage buffer that clears after its own next turn. */
+function onShieldApplied(state: MatchState, casterId: string, durability: number, ownTurns: number): MatchState {
+  const ref = findWorm(state, casterId);
+  if (ref === null || !ref.worm.alive || !Number.isFinite(durability) || durability <= 0 || !Number.isInteger(ownTurns) || ownTurns < 0) return state;
+  const next = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, shieldDurability: durability, shieldExpiresAtOwnTurn: ref.worm.turns + Math.max(0, ownTurns) });
+  return appendLog(resetInactivity(next), 'shield.applied', `${ref.worm.name} raises a force field`);
 }
 
 function onBannerDone(state: MatchState, deps: MatchDeps): MatchState {
@@ -119,6 +153,9 @@ function onBannerDone(state: MatchState, deps: MatchDeps): MatchState {
       // A team with a worm sealed by the Tesoro del Cielo loses the turn to the treasure's strike.
       const { pruned, taken } = takeSealedTurn(state);
       if (taken !== null) return leaveTurn(taken, 'turn.sealed', `${activeTeamOf(taken)?.name ?? '?'} loses the turn to the Tesoro del Cielo`);
+      // A worm time_stop still holds loses its turn outright: no banner, straight to Resolving.
+      const frozen = takeFrozenTurn(pruned);
+      if (frozen.taken !== null) return enterResolving(frozen.taken);
       const ms = hotSeatMsFor(pruned.teams, pruned.activeTeamIndex, deps.config);
       return ms > 0 ? enterHotSeat(pruned, ms) : enterActive(pruned, deps.config, true);
     }
@@ -164,6 +201,9 @@ function onFireStarted(state: MatchState, event: FireStartedEvent): MatchState {
   }));
   const next: MatchState = {
     ...scored,
+    // A fresh identity for this one shot: every barrel of a multi shot weapon gets its own, so only
+    // the pellets or hits inside ONE of them share a shield break or an immortality charge.
+    attackSeq: scored.attackSeq + 1,
     shot: { weaponId: event.weaponId, shotsRemaining: event.shotsRemaining, damage: 0 },
   };
   const fired = appendLog(transition(next, 'Firing'), 'fire', `${team.name} fires ${event.weaponId}`);
@@ -184,6 +224,38 @@ function onFireCompleted(state: MatchState, event: FireCompletedEvent, deps: Mat
   return appendLog(enterRetreat(state, ms), 'retreat', `Retreat ${ms} ms`);
 }
 
+/**
+ * The sim's own one hit kill magic number (sim/techniques/common.ts KILL_DAMAGE, sim/devour.ts
+ * SWALLOW_DAMAGE, sim/hex.ts BURST_DAMAGE): a request of this size or more is an execute
+ * (Antares, Gear 5, the Freezer, the Galaxian Explosion, the Explosión Final, adamantium_claws),
+ * which a force field blocks outright instead of merely absorbing by the numbers.
+ */
+const EXECUTE_DAMAGE = 1_000_000;
+
+/** Lethal attacks the unique immortality pickup survives, each at 1 hp, before the next one kills outright. */
+const IMMORTALITY_CHARGES = 3;
+
+/**
+ * Which attack a worm's shield or immortality last answered, so a multi pellet shotgun blast or a
+ * hitscan burst only ever costs one shield break or one immortality charge: stable for as long as
+ * the same shot stays open (match/state.ts ShotState), then changes with the next one.
+ */
+function attackKey(state: MatchState): string | null {
+  // Outside an open shot each environmental impact is a separate attack, not the last fired shot.
+  return state.shot === null ? null : String(state.attackSeq);
+}
+
+/**
+ * force_field: an execute is blocked outright and the shield breaks with it; ordinary damage is a
+ * numeric buffer, absorbed up to whatever durability is left. No shield, no change.
+ */
+function shieldMitigate(worm: WormState, requested: number): { readonly damage: number; readonly shieldDurability: number } {
+  if (worm.shieldDurability <= 0) return { damage: requested, shieldDurability: 0 };
+  if (requested >= EXECUTE_DAMAGE) return { damage: 0, shieldDurability: 0 };
+  const absorbed = Math.min(requested, worm.shieldDurability);
+  return { damage: requested - absorbed, shieldDurability: worm.shieldDurability - absorbed };
+}
+
 function onDamageApplied(state: MatchState, event: DamageAppliedEvent): MatchState {
   if (!Number.isFinite(event.amount) || event.amount <= 0) return state;
   const ref = findWorm(state, event.wormId);
@@ -191,13 +263,31 @@ function onDamageApplied(state: MatchState, event: DamageAppliedEvent): MatchSta
   // A toll by share (Antares) is that share of what the worm has, rounded up.
   const share = event.tollShare;
   const requested = share !== undefined && Number.isFinite(share) && share > 0 ? Math.min(event.amount, Math.ceil(ref.worm.hp * Math.min(1, share))) : event.amount;
-  const effective = Math.min(requested, ref.worm.hp);
-  if (effective <= 0) return resetInactivity(state);
-  const hp = ref.worm.hp - effective;
-  let next = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp });
-  if (event.sourceTeamId !== null) next = bookDamage(next, event.sourceTeamId, ref.team.id, event.wormId, effective);
-  next = appendLog(resetInactivity(next), 'damage', event.toll === true ? `${ref.worm.name} pays ${effective} for its super` : `${ref.worm.name} takes ${effective}`);
-  if (hp > 0) return next;
+  // A worm's own toll, and drowning (its own event entirely), never look at its shield or its
+  // immortality: the price of a super, like the water, is paid in full.
+  const protect = event.toll !== true;
+  const mitigated = protect ? shieldMitigate(ref.worm, requested) : { damage: requested, shieldDurability: ref.worm.shieldDurability };
+  const effective = Math.min(mitigated.damage, ref.worm.hp);
+  const shieldChanged = mitigated.shieldDurability !== ref.worm.shieldDurability;
+  if (effective <= 0) {
+    if (!shieldChanged) return resetInactivity(state);
+    const absorbed = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, shieldDurability: mitigated.shieldDurability });
+    return appendLog(resetInactivity(absorbed), 'damage', `${ref.worm.name}'s force field takes the blow`);
+  }
+  const wouldDie = effective >= ref.worm.hp;
+  const key = attackKey(state);
+  // Already spared once this very attack (a second pellet of the same burst), or a fresh charge to spend.
+  const alreadyProtected = key !== null && ref.worm.lastProtectedAttack === key;
+  const saving = protect && wouldDie && (alreadyProtected || ref.worm.immortalityCharges > 0);
+  const hp = saving ? 1 : ref.worm.hp - effective;
+  const dealt = ref.worm.hp - hp;
+  const immortalityCharges = saving && !alreadyProtected ? ref.worm.immortalityCharges - 1 : ref.worm.immortalityCharges;
+  const lastProtectedAttack = saving ? key : ref.worm.lastProtectedAttack;
+  let next = replaceWorm(state, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp, shieldDurability: mitigated.shieldDurability, immortalityCharges, lastProtectedAttack });
+  if (event.sourceTeamId !== null) next = bookDamage(next, event.sourceTeamId, ref.team.id, event.wormId, dealt);
+  const text = event.toll === true ? `${ref.worm.name} pays ${dealt} for its super` : saving ? `${ref.worm.name} cheats death at 1 hp` : `${ref.worm.name} takes ${dealt}`;
+  next = appendLog(resetInactivity(next), 'damage', text);
+  if (saving || hp > 0) return next;
   const queued = queueDeath(next, event.wormId, 'killed');
   // Its last health went on the price of the super it is firing: it finishes the move, and the turn
   // ends when the shot closes (onFireCompleted), not under the move.
@@ -266,7 +356,23 @@ function onWormSpawned(state: MatchState, event: WormSpawnedEvent, deps: MatchDe
   let name = '';
   const next = updateTeam(state, teamIndex, (team) => {
     name = `Saiba ${team.worms.filter((w) => w.id.includes('-saiba-')).length + 1}`;
-    const worm: WormState = { id: event.wormId, name, hp, maxHp: hp, alive: true, x: event.x, y: event.y, ammo: saibamanAmmoTable(), superRest: 0, turns: 0 };
+    const worm: WormState = {
+      id: event.wormId,
+      name,
+      hp,
+      maxHp: hp,
+      alive: true,
+      x: event.x,
+      y: event.y,
+      ammo: saibamanAmmoTable(),
+      superRest: 0,
+      turns: 0,
+      frozenTurns: 0,
+      shieldDurability: 0,
+      shieldExpiresAtOwnTurn: 0,
+      immortalityCharges: 0,
+      lastProtectedAttack: null,
+    };
     return { ...team, worms: [...team.worms, worm] };
   });
   return appendLog(resetInactivity(next), 'worm.spawned', `${name} sprouts for ${state.teams[teamIndex]?.name ?? event.teamId}`);
@@ -294,6 +400,13 @@ function onCratePicked(state: MatchState, event: CratePickedEvent, deps: MatchDe
           ? event.amount
           : healthCrateAmount(deps.config);
       next = replaceWorm(next, ref.teamIndex, ref.wormIndex, { ...ref.worm, hp: ref.worm.hp + amount });
+    } else if (event.crate === 'immortality') {
+      // Globally unique: immortalityEverDropped already went true the instant this was rolled
+      // (match/machine-phases.ts enterTurnEnd), so no second one can ever follow.
+      if (state.immortalityClaimed !== true) {
+        next = replaceWorm(next, ref.teamIndex, ref.wormIndex, { ...ref.worm, immortalityCharges: IMMORTALITY_CHARGES });
+        next = appendLog({ ...next, immortalityClaimed: true, immortalityEverDropped: true }, 'immortality.claimed', `${ref.worm.name} cannot be killed outright 3 times over`);
+      }
     } else {
       // The sim does not know the roster, so a crate arrives without a weapon: roll one here,
       // weighted by crateWeight, from the kind the crate promises. Before this the weapon crate

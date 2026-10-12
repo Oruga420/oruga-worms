@@ -41,6 +41,11 @@ export const PANEL_WEAPON_IDS = [
   'santoryu',
   'zoltraak',
   'final_explosion',
+  // The five power upgrade: a global freeze, a damage shield, a melee execute and an area hp exchange.
+  'time_stop',
+  'force_field',
+  'adamantium_claws',
+  'room',
   'air_strike',
   'parachute',
   'jetpack',
@@ -596,7 +601,63 @@ export interface FinalSpec {
   readonly recoverMs: number;
 }
 
-export type TechniqueSpec = NeedleSpec | GalaxySpec | TreasureSpec | HikenSpec | MeteorSpec | DiceSpec | ZoltraakSpec | FinalSpec;
+/**
+ * time_stop: the worm plants its feet and the world itself seems to hold its breath; everything
+ * living but the caster, friend or foe, loses one of its own upcoming turns outright (match/turn.ts
+ * auto skips it). Gravity and physics are untouched: a frozen worm still falls, still drowns.
+ */
+export interface TimeStopSpec {
+  readonly kind: 'time_stop';
+  readonly chargeMs: number;
+  /** Own turns every other living worm loses, usually 1. */
+  readonly freezeTurns: number;
+  readonly recoverMs: number;
+}
+
+/**
+ * force_field: the worm raises a barrier around itself, a damage buffer that also blocks one
+ * execute outright (Gear 5, the Freezer, Antares, the Galaxian Explosion, the Explosión Final,
+ * adamantium_claws), never drowning or a toll. It clears after the caster's own next turn.
+ */
+export interface ForceFieldSpec {
+  readonly kind: 'force_field';
+  readonly chargeMs: number;
+  /** The buffer: ordinary damage is absorbed up to this; an execute breaks it outright. */
+  readonly durability: number;
+  /** Own turns of the caster's the shield survives past the cast, usually 1. */
+  readonly ownTurns: number;
+  readonly recoverMs: number;
+}
+
+/**
+ * adamantium_claws: a short ranged melee execute (Wolverine's claws) along the aim, in plain sight;
+ * the first worm it finds is gone, whatever its health, same as Antares or Gear 5, and the same
+ * shield and immortality checks apply.
+ */
+export interface ClawsSpec {
+  readonly kind: 'claws';
+  readonly rangePx: number;
+  readonly windupMs: number;
+  readonly recoverMs: number;
+}
+
+/**
+ * ROOM (Trafalgar Law): the worm declares a region of the map, 1 to 99 percent of its static area,
+ * centred on itself, and cyclically exchanges the hp of every living worm inside it (itself
+ * included), then pays a share of what it had before the cast. A held charge, same shape as
+ * time_stop and force_field, then the exchange: the pure match layer resolves the whole thing
+ * (match/room.ts) from the angle the aim held at the cast.
+ */
+export interface RoomSpec {
+  readonly kind: 'room';
+  readonly minPct: number;
+  readonly maxPct: number;
+  readonly defaultPct: number;
+  readonly chargeMs: number;
+  readonly recoverMs: number;
+}
+
+export type TechniqueSpec = NeedleSpec | GalaxySpec | TreasureSpec | HikenSpec | MeteorSpec | DiceSpec | ZoltraakSpec | FinalSpec | TimeStopSpec | ForceFieldSpec | ClawsSpec | RoomSpec;
 export type TechniqueKind = TechniqueSpec['kind'];
 
 /** Air strike: the plane releases count bombs, nested here for the same reason as ClusterSpec. */

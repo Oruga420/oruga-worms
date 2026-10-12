@@ -21,6 +21,12 @@ export interface BlastInput {
   readonly sourceWormId: string | null;
   /** Explosion sound cue, when the weapon has one. */
   readonly soundId?: string;
+  /**
+   * One worm the area damage and knockback never touch: a technique that already executed its own
+   * victim directly (sim/hex.ts burst()) and then sets off a blast at that same spot, so the victim
+   * does not also take a second, redundant hit from its own burst's area falloff.
+   */
+  readonly skipWormId?: string;
 }
 
 const CHAIN_MARGIN_PX = 4;
@@ -33,7 +39,7 @@ export function explode(world: SimWorld, input: BlastInput): void {
     if (result.spans.length > 0) world.events.push({ type: 'activity', kind: 'carve' });
   }
   for (const worm of world.worms) {
-    if (!worm.alive || worm.motion === 'drowning') continue;
+    if (!worm.alive || worm.motion === 'drowning' || worm.id === input.skipWormId) continue;
     const center = vec2(worm.x, wormMiddleY(worm));
     const distance = Math.hypot(center.x - x, center.y - y);
     if (distance > r) continue;

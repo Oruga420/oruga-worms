@@ -15,6 +15,7 @@ import type { ContextFactory, PixelSize } from './context.ts';
 import { computeOutline, type GenerateOptions } from './generate.ts';
 import { AIR, BEDROCK, SOLID, countSolid, maskSpans, type ByteGrid, type TerrainMask } from './mask.ts';
 import { loadPngLevel, type PngLevelError, type ReadbackContextFactory } from './png-level.ts';
+import type { SceneryAssets } from './raster.ts';
 import { SCENARIOS, bareScenery, type Scenery, type ScenarioId } from './scenarios.ts';
 import {
   DEFAULT_SCORCH,
@@ -108,6 +109,7 @@ export interface PngTerrainOptions extends TerrainOptions {
 }
 
 export interface ScenarioTerrainOptions extends TerrainOptions {
+  readonly sceneryAssets?: SceneryAssets;
   readonly width: number;
   readonly height: number;
   readonly seed: number;
@@ -224,7 +226,8 @@ export function createScenario(
   let lastSeed = options.seed;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     lastSeed = options.seed + attempt;
-    const build = scenario.build({ width: options.width, height: options.height, seed: lastSeed, waterY });
+    const raster = options.sceneryAssets?.[id];
+    const build = scenario.build({ width: options.width, height: options.height, seed: lastSeed, waterY, ...(raster === undefined ? {} : { raster }) });
     const verdict = validateLevel(build.mask, waterY, rules);
     if (!verdict.ok) {
       lastRejection = verdict.error;
@@ -233,7 +236,7 @@ export function createScenario(
     const tiles = createTiles(build.mask.width, build.mask.height, createContext, options.tiles ?? {});
     paintMask(tiles, build.mask, theme, computeOutline(build.mask));
     build.paint(tiles);
-    const scenery: Scenery = Object.freeze({ id, sky: scenario.sky, props: Object.freeze([...build.props]) });
+    const scenery: Scenery = Object.freeze({ id, sky: scenario.sky, props: Object.freeze([...build.props]), rasterized: build.rasterized ?? false });
     const terrain = bundle(build.mask, tiles, createWater(waterY), theme, lastSeed, 'built', scenery);
     return ok(Object.freeze({ terrain, report: verdict.value, attempts: attempt + 1 }));
   }

@@ -43,6 +43,12 @@ import { isSimPhase, snapshotPositions, syncMatchToSim, translateSimEvents } fro
 import type { Game } from './setup.ts';
 import type { TechniqueKind, WeaponId } from '../weapons/types.ts';
 
+interface DamageFeedback {
+  readonly before: number;
+  readonly lost: number;
+  readonly force: number;
+}
+
 export interface ControllerInput {
   readonly moveX: -1 | 0 | 1;
   readonly jump: boolean;
@@ -303,15 +309,22 @@ export function createController(game: Game, options: ControllerOptions): Contro
    * was spliced away and never reached the ledger, and guns took no health off anyone.
    */
   const applySimEvents = (simEvents: readonly SimEvent[]): void => {
-    // The hp each worm had before the batch: the ledger takes min(blow, hp left), and so do the numbers.
-    const hpLeft = new Map<string, number>();
-    for (const e of simEvents) if (e.type === 'damage' && !hpLeft.has(e.wormId)) hpLeft.set(e.wormId, hpOf(e.wormId));
-    // The ledger first, so a blow's event already knows whether it was the knockout.
-    for (const matchEvent of translateSimEvents(simEvents)) {
-      if (matchEvent.type === 'CratePicked') openCrate(matchEvent);
-      else apply(matchEvent);
-    }
-    for (const e of simEvents) presentSimEvent(e, hpLeft);
+    // Keep each event's actual ledger delta, not the requested damage. A batch can exhaust a
+    // shield midway or trigger immortality; re-deriving damage from the pre-batch HP lies about both.
+    const feedback = simEvents.map((event): DamageFeedback | undefined => {
+      const beforeWorm = event.type === 'damage' ? findWormState(state, event.wormId)?.worm : undefined;
+      const before = beforeWorm?.hp ?? 0;
+      for (const matchEvent of translateSimEvents([event])) {
+        if (matchEvent.type === 'CratePicked') openCrate(matchEvent);
+        else apply(matchEvent);
+      }
+      if (event.type !== 'damage') return undefined;
+      const after = findWormState(state, event.wormId)?.worm;
+      const lost = Math.max(0, before - (after?.hp ?? 0));
+      const mitigated = event.cause !== 'toll' && ((beforeWorm?.shieldDurability ?? 0) > (after?.shieldDurability ?? 0) || lost < Math.min(event.amount, before));
+      return { before, lost, force: mitigated ? lost : event.amount };
+    });
+    simEvents.forEach((event, index) => presentSimEvent(event, feedback[index]));
     syncMatchToSim(state, world);
     observeCasualties();
   };
@@ -339,7 +352,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   /** The sim event, as the presentation needs it: positions filled in from the bodies. */
-  const presentSimEvent = (e: SimEvent, hpLeft: Map<string, number>): void => {
+  const presentSimEvent = (e: SimEvent, feedback?: DamageFeedback): void => {
     // A worm that already burst or sank shows nothing more: no blood, number, landing or second death.
     if ((e.type === 'damage' || e.type === 'landed' || e.type === 'drown') && goneWorms.has(e.wormId)) return;
     switch (e.type) {
@@ -352,12 +365,13 @@ export function createController(game: Game, options: ControllerOptions): Contro
       case 'damage': {
         const body = findBody(world, e.wormId);
         const at = e.at ?? (body === undefined ? null : { x: body.x, y: wormMiddleY(body), dx: 0, dy: -1 });
-        const left = hpLeft.get(e.wormId) ?? 0;
-        // A toll by share (Antares) is that share of what the worm has, rounded up, as the ledger books it.
-        const asked = e.share !== undefined && e.share > 0 ? Math.min(e.amount, Math.ceil(left * Math.min(1, e.share))) : e.amount;
-        const lost = Number.isFinite(asked) && asked > 0 ? Math.min(asked, left) : 0;
-        hpLeft.set(e.wormId, left - lost);
-        if (at !== null) events.push({ type: 'damage', wormId: e.wormId, amount: e.amount, lost, cause: e.cause, x: at.x, y: at.y, dx: at.dx, dy: at.dy });
+        if (!Number.isFinite(e.amount) || e.amount <= 0) return;
+        const left = feedback?.before ?? 0;
+        const lost = feedback?.lost ?? 0;
+        // A held combo victim at zero still flinches; a living protected worm losing no HP does not bleed.
+        if (at !== null && (lost > 0 || left <= 0 && e.cause !== 'toll')) {
+          events.push({ type: 'damage', wormId: e.wormId, amount: feedback?.force ?? e.amount, lost, cause: e.cause, x: at.x, y: at.y, dx: at.dx, dy: at.dy });
+        }
         if (e.cause === 'toll' && at !== null) {
           const fatal = left > 0 && left - lost <= 0;
           if (fatal) lastBreath.add(e.wormId);
@@ -406,8 +420,19 @@ export function createController(game: Game, options: ControllerOptions): Contro
         events.push({ type: 'devourStart', devourId: e.devourId, weapon: e.weaponId, attackerId: e.attackerId, victimId: e.victimId, x: e.x, y: e.y });
         return;
       case 'devourBeat':
-        // Swallowed: the worm is gone for good, with no burst of its own; its remains come back up in the burp.
-        if (e.beat === 'gulp' && e.victimId !== null) goneWorms.add(e.victimId);
+        // Swallowed: the worm is gone for good, with no burst of its own, UNLESS a force field or an
+        // immortality charge vetoed the kill in the ledger (match/machine.ts onDamageApplied), in
+        // which case it is very much still here and must keep its damage, landing and drown events.
+        // observeCasualties() never gets a turn at it (goneWorms already marks it handled, so its
+        // own generic gib would double up on the swallow's own gulp/burp), so the kill happens here.
+        if (e.beat === 'gulp' && e.victimId !== null && hpOf(e.victimId) <= 0) {
+          goneWorms.add(e.victimId);
+          const victimBody = findBody(world, e.victimId);
+          if (victimBody !== undefined) {
+            victimBody.alive = false;
+            victimBody.motion = 'dead';
+          }
+        }
         events.push({ type: 'devourBeat', devourId: e.devourId, attackerId: e.attackerId, victimId: e.victimId, beat: e.beat, n: e.n, x: e.x, y: e.y, facing: e.facing, colorIndex: e.victimId === null ? 0 : colorIndexOf(e.victimId) });
         return;
       case 'devourEnd':

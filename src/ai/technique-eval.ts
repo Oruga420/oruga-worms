@@ -18,6 +18,7 @@
  */
 
 import { degToRad } from '../core/math.ts';
+import { coveragePctFromAngle, cyclicExchange, roomCost, roomRadiusPx } from '../match/room.ts';
 import { discBlocked, sweep } from '../sim/collision.ts';
 import { THROWN_CORE_PX } from '../sim/techniques/common.ts';
 import { diceSquare } from '../sim/techniques/dice.ts';
@@ -57,6 +58,8 @@ export const SAT_OUT_TURN_VALUE = 5;
 const AROUND_DEG: readonly number[] = Object.freeze([0, -4, 4]);
 /** The Santoryu's fan of aims. */
 const DICE_AIMS: readonly number[] = Object.freeze([-90, -60, -30, -15, 0, 15, 30, 60, 90]);
+/** A handful of representative aim angles ROOM tries, each coveragePctFromAngle turns into a different coverage. */
+const ROOM_ANGLE_PICKS: readonly number[] = Object.freeze([-90, -60, -30, 0, 30, 60, 90]);
 
 function enemiesOf(scene: TechniqueScene): WormPoint[] {
   return scene.worms.filter((w) => w.alive && w.teamId !== scene.team && w.y < scene.waterY);
@@ -233,6 +236,67 @@ export function evaluateTechnique(scene: TechniqueScene, def: WeaponDef, from: W
       const worth = killWorth(scene, from, from.x, wormMiddleY(from), spec.killRadiusPx);
       if (worth.enemy <= 0 || worth.score <= 0) return null;
       return { weapon: def.id, angleDeg: 0, power: 1, score: worth.score, confidence: 1 };
+    }
+    case 'claws': {
+      // Same shape as Antares (needle): the first worm along the aim, before a wall, within reach.
+      const tip = hands(from, facing);
+      for (const enemy of enemies) {
+        const angle = aimTo(tip.x, tip.y, enemy.x, wormMiddleY(enemy), facing);
+        if (angle === null) continue;
+        const dir = direction(angle, facing);
+        const wall = sweep(scene.mask, tip.x, tip.y, tip.x + dir.x * spec.rangePx, tip.y + dir.y * spec.rangePx, 0);
+        const reach = wall.hit === null ? spec.rangePx : Math.hypot(wall.x - tip.x, wall.y - tip.y);
+        const first = firstOnLine(scene.worms, tip.x, tip.y, dir.x, dir.y, reach, from.id, 2);
+        if (first === null || first.worm.teamId === scene.team) continue;
+        best = better(best, { weapon: def.id, angleDeg: Math.round(angle), power: 1, score: first.worm.hp, confidence: 1 });
+      }
+      return best;
+    }
+    case 'time_stop': {
+      // Freezes everyone but the caster, friend and foe alike: worth it when more enemy hp than
+      // friendly hp (the caster's own worth) is about to sit a turn out.
+      let enemyHp = 0;
+      let friendlyHp = 0;
+      for (const worm of scene.worms) {
+        if (!worm.alive || worm.id === from.id) continue;
+        if (worm.teamId === scene.team) friendlyHp += worm.hp;
+        else enemyHp += worm.hp;
+      }
+      if (enemyHp <= friendlyHp) return null;
+      return { weapon: def.id, angleDeg: 0, power: 1, score: enemyHp - friendlyHp, confidence: 1 };
+    }
+    case 'force_field': {
+      // A flat defensive value scaled by the buffer it raises: an implementation default, not tuned
+      // against real play, since the AI's worm list carries no missing health to weigh it against.
+      return { weapon: def.id, angleDeg: 0, power: 1, score: spec.durability * 0.5, confidence: 0.5 };
+    }
+    case 'room': {
+      // Tries a handful of coverages (each a different aim angle) and scores the exact cyclic
+      // exchange and cost match/room.ts would really apply: enemy hp lost is good, an ally's or the
+      // caster's own hp lost is bad (twice for an ally, three times for the caster, as elsewhere
+      // here), an ally or the caster healed by the swap is good by the same weights.
+      for (const angleDeg of ROOM_ANGLE_PICKS) {
+        const coveragePct = coveragePctFromAngle(angleDeg);
+        const radiusPx = roomRadiusPx(coveragePct, { w: scene.mask.width, h: scene.mask.height }, from);
+        const participants = scene.worms
+          .filter((w) => w.alive && w.hp > 0 && Math.hypot(w.x - from.x, w.y - from.y) <= radiusPx)
+          .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        if (participants.length <= 1) continue;
+        const exchanged = cyclicExchange(participants.map((w) => ({ id: w.id, hp: w.hp })));
+        const postSwapHp = exchanged.get(from.id) ?? from.hp;
+        const cost = roomCost(from.hp, coveragePct, postSwapHp);
+        let score = 0;
+        for (const worm of participants) {
+          if (worm.id === from.id) continue;
+          const after = exchanged.get(worm.id) ?? worm.hp;
+          const delta = after - worm.hp;
+          score += worm.teamId === scene.team ? delta * 2 : -delta;
+        }
+        score += ((postSwapHp - cost) - from.hp) * 3;
+        if (score <= 0) continue;
+        best = better(best, { weapon: def.id, angleDeg, power: 1, score, confidence: 0.4 });
+      }
+      return best;
     }
   }
 }

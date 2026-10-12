@@ -1,0 +1,7 @@
+{
+  "render": "kame-house-views/front.png",
+  "alpha_threshold": 128,
+  "exposure": 1.35,
+  "additional_apertures": [],
+  "note": "Transparent mesh openings retained; no invisible gameplay holes added."
+}

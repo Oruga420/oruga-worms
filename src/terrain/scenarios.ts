@@ -12,6 +12,7 @@
  */
 
 import type { TerrainMask } from './mask.ts';
+import type { RasterAsset } from './raster.ts';
 import { buildCastle } from './scenarios/castle.ts';
 import { buildKameHouse } from './scenarios/kame-house.ts';
 import { buildSpaceship } from './scenarios/spaceship.ts';
@@ -82,6 +83,8 @@ export interface Scenery {
   readonly id: ScenarioId;
   readonly sky: SkyTheme;
   readonly props: readonly SceneryProp[];
+  /** True only when decoded image occupancy and tile art built this map. */
+  readonly rasterized?: boolean;
 }
 
 /** What a built scenario hands back: the mask, its props, and the painter of its details. */
@@ -89,6 +92,7 @@ export interface ScenarioBuild {
   readonly mask: TerrainMask;
   readonly props: readonly SceneryProp[];
   readonly paint: (tiles: TerrainTiles) => void;
+  readonly rasterized?: boolean;
 }
 
 export interface ScenarioBuildOptions {
@@ -96,6 +100,7 @@ export interface ScenarioBuildOptions {
   readonly height: number;
   readonly seed: number;
   readonly waterY: number;
+  readonly raster?: RasterAsset;
 }
 
 export interface Scenario {

@@ -283,8 +283,12 @@ function toRecover(hex: HexBody, attacker: WormBody): void {
 }
 
 /**
- * The body gives: all its health goes, its body leaves the world, and the blast goes off where its
- * middle was. The attacker is let go first, so a blast that reaches it throws it like anyone else.
+ * All its health goes, as an event, never applied here, and the blast goes off where its middle
+ * was. A force field or an immortality charge may yet veto the kill in the reducer
+ * (match/machine.ts onDamageApplied), so the body is left alive where it floated; only the ledger,
+ * through the existing hp driven sync (game/bridge.ts syncMatchToSim, game/controller.ts
+ * observeCasualties), ever takes it out of the world. The attacker is let go first, so a blast that
+ * reaches it throws it like anyone else.
  */
 function burst(world: SimWorld, hex: HexBody, victim: WormBody, attacker: WormBody): void {
   const x = victim.x;
@@ -294,10 +298,9 @@ function burst(world: SimWorld, hex: HexBody, victim: WormBody, attacker: WormBo
   beat(world, hex, 'burst', 0, x, y);
   victim.vx = 0;
   victim.vy = 0;
-  victim.motion = 'dead';
-  victim.alive = false;
   toRecover(hex, attacker);
-  explode(world, { x, y, blast: hex.spec.burst, sourceTeamId: hex.ownerTeamId, sourceWormId: hex.attackerId });
+  // The direct hit above already asked for everything the victim has; its own burst only owes its neighbours.
+  explode(world, { x, y, blast: hex.spec.burst, sourceTeamId: hex.ownerTeamId, sourceWormId: hex.attackerId, skipWormId: victim.id });
   sound(world, HEX_SOUNDS.krilin, x, y);
 }
 

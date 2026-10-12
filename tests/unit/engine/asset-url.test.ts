@@ -30,7 +30,8 @@ describe('assetVersions: the build stamp', () => {
     expect(versions['/sprites/weapons/sheet.png']).toBe(sheet);
     expect(versions['/sprites/weapons/atlas.json']).toMatch(/^[0-9a-f]{10}$/);
     expect(versions['/audio/manifest.json']).toMatch(/^[0-9a-f]{10}$/);
-    for (const path of Object.keys(versions)) expect(path).toMatch(/^\/(sprites|audio)\/[^\\]+$/);
+    expect(versions['/scenery/rendered/manifest.json']).toMatch(/^[0-9a-f]{10}$/);
+    for (const path of Object.keys(versions)) expect(path).toMatch(/^\/(sprites|audio|scenery)\/[^\\]+$/);
   });
 
   it('a changed file gets a new URL, an unchanged one keeps its own', () => {

@@ -41,6 +41,15 @@ export function translateSimEvents(events: readonly SimEvent[]): MatchEvent[] {
       case 'sealed':
         if (isWeaponId(event.weaponId)) out.push({ type: 'WormSealed', weaponId: event.weaponId, casterId: event.casterId, targetId: event.targetId, hits: event.hits, hitToll: event.hitToll });
         break;
+      case 'freeze':
+        out.push({ type: 'FreezeApplied', casterId: event.casterId, turns: event.turns });
+        break;
+      case 'shield':
+        out.push({ type: 'ShieldApplied', casterId: event.casterId, durability: event.durability, ownTurns: event.ownTurns });
+        break;
+      case 'roomCast':
+        out.push({ type: 'RoomCast', casterId: event.casterId, angleDeg: event.angleDeg });
+        break;
       default:
         break;
     }

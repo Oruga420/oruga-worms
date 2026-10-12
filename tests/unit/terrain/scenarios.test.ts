@@ -3,7 +3,7 @@ import { WORLD_SIZE_DEFAULT } from '@/config/constants.ts';
 import { AIR, BEDROCK, BORDER_BEDROCK_PX, SOLID, get } from '@/terrain/mask.ts';
 import { DEFAULT_SCENARIO, SCENARIOS, SCENARIO_IDS, bareScenery, isScenarioId, parseScenarioParam, type ScenarioId } from '@/terrain/scenarios.ts';
 import { buildCastle } from '@/terrain/scenarios/castle.ts';
-import { HOUSE_PINK, SIGN_TEXT, buildKameHouse } from '@/terrain/scenarios/kame-house.ts';
+import { HOUSE_PINK, buildKameHouse } from '@/terrain/scenarios/kame-house.ts';
 import { PORTHOLE, buildSpaceship } from '@/terrain/scenarios/spaceship.ts';
 import { discSpans, fillEllipse, fillMerlons, fillPolygon, fillRect, fillSuperellipse, rectSpans, solidSpansIn, topEdgeSpansIn } from '@/terrain/scenarios/shapes.ts';
 import { createMask, countSolid } from '@/terrain/mask.ts';
@@ -144,20 +144,19 @@ describe('built scenarios', () => {
     expect(props.filter((p) => p.kind === 'flag')).toHaveLength(3);
   });
 
-  it('Kame House is hollow, stands on a flat beach with palms either side, and carries its sign', () => {
+  it('Kame House is hollow with palms and no indestructible billboard', () => {
     const { mask, props } = buildKameHouse({ width: W, height: H, seed: 3, waterY: WATER });
     const beach = Math.round(H * 0.805);
     const houseX = Math.round(W / 2 + 80 + 80);
     // Sand under the beach line, air above it.
     expect(get(mask, W / 2 - 200, beach + 6)).toBe(SOLID);
     expect(get(mask, W / 2 - 200, beach - 14)).toBe(AIR);
-    // The house: wall above the beach, the room inside it air, the dome over it.
+    // The house: wall above the beach, room air inside, pitched gable above it.
     expect(get(mask, houseX - 70, beach - 40)).toBe(SOLID);
     expect(get(mask, houseX, beach - 40)).toBe(AIR);
     expect(get(mask, houseX, beach - 100)).toBe(SOLID);
     expect(props.filter((p) => p.kind === 'palm')).toHaveLength(3);
-    const sign = props.find((p) => p.kind === 'sign');
-    expect(sign?.text).toBe(SIGN_TEXT);
+    expect(props.some((p) => p.kind === 'sign')).toBe(false);
     expect(countSolid(mask)).toBeGreaterThan(0);
   });
 });

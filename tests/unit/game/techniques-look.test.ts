@@ -230,6 +230,17 @@ describe('technique looks: effects and names', () => {
     expect(fx.cubes).toEqual([]);
   });
 
+  it.each([
+    ['time_stop', 'TIME STOP'], ['force_field', 'DEFENSIVE MAGIC'], ['claws', 'ADAMANTIUM'], ['room', 'ROOM'],
+  ] as const)('announces %s with its own comic card', (kind, text) => {
+    const fx = createFx();
+    applyFxEvents(fx, [{ type: 'techniqueStart', techniqueId: 1, kind, weapon: kind, attackerId: 'a', victimId: null, x: 100, y: 100, facing: 1, colorIndex: 0 }], deps());
+    expect(fx.calls[0]?.text).toBe(text);
+    const ctx = createRecordingContext();
+    drawFxScreen(ctx, fx, { w: 800, h: 600 });
+    expect(ctx.calls.some((call) => call.name === 'fillText' && call.args[0] === text)).toBe(true);
+  });
+
   it('draws the names over the screen', () => {
     const fx = createFx();
     applyFxEvents(fx, [start('dice')], deps());
@@ -241,7 +252,7 @@ describe('technique looks: effects and names', () => {
 });
 
 describe('technique looks: every scene draws', () => {
-  const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion'] as const;
+  const ids = ['antares', 'galaxian', 'tenbu_horin', 'hiken', 'meteor', 'santoryu', 'zoltraak', 'final_explosion', 'time_stop', 'force_field', 'adamantium_claws', 'room'] as const;
 
   for (const id of ids) {
     it(`draws ${id} from start to end without a hitch`, () => {

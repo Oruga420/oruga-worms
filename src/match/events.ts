@@ -152,6 +152,31 @@ export interface WindRolledEvent {
   readonly step: number;
 }
 
+/** time_stop landed (sim/techniques/time-stop.ts): every other living worm owes one skipped own turn. */
+export interface FreezeAppliedEvent {
+  readonly type: 'FreezeApplied';
+  readonly casterId: string;
+  readonly turns: number;
+}
+
+/** force_field landed (sim/techniques/force-field.ts): the caster gets a damage buffer with an expiry. */
+export interface ShieldAppliedEvent {
+  readonly type: 'ShieldApplied';
+  readonly casterId: string;
+  readonly durability: number;
+  readonly ownTurns: number;
+}
+
+/**
+ * ROOM fired (weapons/behaviors/technique.ts): angleDeg is the raw aim elevation at the moment of
+ * firing. match/room.ts alone turns it into a coverage percent and resolves the whole exchange.
+ */
+export interface RoomCastEvent {
+  readonly type: 'RoomCast';
+  readonly casterId: string;
+  readonly angleDeg: number;
+}
+
 export type MatchEvent =
   | TimerTickEvent
   | BannerDoneEvent
@@ -170,7 +195,10 @@ export type MatchEvent =
   | CrateDestroyedEvent
   | SkipTurnEvent
   | SurrenderEvent
-  | WindRolledEvent;
+  | WindRolledEvent
+  | FreezeAppliedEvent
+  | ShieldAppliedEvent
+  | RoomCastEvent;
 
 export type MatchEventType = MatchEvent['type'];
 
@@ -193,6 +221,9 @@ export const MATCH_EVENT_TYPES: readonly MatchEventType[] = Object.freeze([
   'SkipTurn',
   'Surrender',
   'WindRolled',
+  'FreezeApplied',
+  'ShieldApplied',
+  'RoomCast',
 ]);
 
 export function isMatchEventType(value: unknown): value is MatchEventType {

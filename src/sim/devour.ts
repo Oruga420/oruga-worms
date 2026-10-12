@@ -260,19 +260,23 @@ function bite(world: SimWorld, devour: DevourBody, victim: WormBody): void {
   }
 }
 
-/** Down the throat: whatever health is left goes with it, and the body leaves the world. */
-function swallow(world: SimWorld, devour: DevourBody, victim: WormBody, eater: WormBody): void {
+/**
+ * Down the throat: whatever health is left goes with it, as an event, never applied here. A force
+ * field or an immortality charge may yet veto the kill in the reducer (match/machine.ts
+ * onDamageApplied), so the body is left alive and in place at the mouth; only the ledger, through
+ * the existing hp driven sync (game/bridge.ts syncMatchToSim, game/controller.ts
+ * observeCasualties), ever takes it out of the world.
+ */
+function swallow(world: SimWorld, devour: DevourBody, victim: WormBody): void {
   const at = bitePoint(devour);
   devour.swallowed = true;
   world.events.push({ type: 'damage', wormId: victim.id, amount: SWALLOW_DAMAGE, sourceTeamId: devour.ownerTeamId, sourceWormId: devour.attackerId, cause: 'melee', at });
   beat(world, devour, 'gulp', 0, at.x, at.y);
   sound(world, DEVOUR_SOUNDS.gulp, at.x, at.y);
-  victim.x = eater.x;
-  victim.y = eater.y;
+  victim.x = devour.mouthX;
+  victim.y = devour.mouthY;
   victim.vx = 0;
   victim.vy = 0;
-  victim.motion = 'dead';
-  victim.alive = false;
 }
 
 /** One tick of Gear 5. Runs after the worm controller, so the placements here are final for the tick. */
@@ -331,7 +335,7 @@ export function stepDevour(world: SimWorld, devour: DevourBody): void {
       const interval = ticksFor(spec.chompIntervalMs);
       if ((devour.stageTicks - 1) % interval === 0 && devour.chomps < spec.chomps) bite(world, devour, victim);
       if (devour.stageTicks >= spec.chomps * interval) {
-        swallow(world, devour, victim, eater);
+        swallow(world, devour, victim);
         enter(devour, 'recover');
       }
       return;

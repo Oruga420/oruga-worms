@@ -1,24 +1,87 @@
 /**
- * Kame House: a small flat island of sand in a tropical sea, Master Roshi's pink house on it with
- * its red domed roof and the sign on top, palm trees either side (props), and two rocks off shore
- * for whoever is knocked off. The house is hollow inside, so a bazooka opens it. The island's sand
- * is shaped by the seed a little, the house never moves.
+ * Kame House, with a pitched red roof and pink gable rather than a dome.
+ * Proportions adapt the viewed anime/product references to a side-on game, not
+ * measured architecture. All facade details are solid-clipped terrain spans;
+ * lettering and windows disappear with the terrain, never floating over a crater.
  */
-
 import { mixSeed } from '../../core/rng.ts';
-import { BORDER_BEDROCK_PX, createMask, markBorderBedrock, AIR } from '../mask.ts';
+import { BORDER_BEDROCK_PX, createMask, markBorderBedrock, AIR, type TerrainMask } from '../mask.ts';
 import { fbm1D } from '../noise.ts';
 import type { ScenarioBuild, ScenarioBuildOptions, SceneryProp } from '../scenarios.ts';
-import { fillSpans } from '../tiles.ts';
-import { fillEllipse, fillRect, rectSpans, solidSpansIn } from './shapes.ts';
+import { fillSpans, paintRaster, type TerrainTiles } from '../tiles.ts';
+import { fitRaster, stampRaster } from '../raster.ts';
+import { fillEllipse, fillPolygon, fillRect, solidSpansIn, topEdgeSpansIn } from './shapes.ts';
 
 export const HOUSE_PINK = '#f2a7c8';
 export const HOUSE_PINK_DARK = '#d9879f';
 export const ROOF_RED = '#c8352e';
 export const ROOF_RED_DARK = '#9e2a24';
-export const DOOR = '#4a2a1a';
+export const DOOR = '#376d70';
 export const WINDOW = '#8fd7ff';
 export const SIGN_TEXT = 'KAME HOUSE';
+const HOUSE_INK = '#593642';
+const TRIM = '#fff0dc';
+const ROOF_HEIGHT = 60;
+
+/** Tiny facade letters are paint only: glyph counters never cut holes in the mask. */
+const LETTERS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  K: ['101', '110', '100', '110', '101'],
+  A: ['010', '101', '111', '101', '101'],
+  M: ['101', '111', '111', '101', '101'],
+  E: ['111', '100', '110', '100', '111'],
+  H: ['101', '101', '111', '101', '101'],
+  O: ['111', '101', '101', '101', '111'],
+  U: ['101', '101', '101', '101', '111'],
+  S: ['111', '100', '111', '001', '111'],
+});
+type PaintRect = (x0: number, y0: number, x1: number, y1: number, color: string) => void;
+
+function lettering(paint: PaintRect, text: string, center: number, top: number): void {
+  const start = center - (text.length * 8 - 2) / 2;
+  [...text].forEach((letter, index) => {
+    LETTERS[letter]?.forEach((row, y) => {
+      [...row].forEach((pixel, x) => {
+        if (pixel === '1') paint(start + index * 8 + x * 2, top + y * 2, start + index * 8 + x * 2 + 1, top + y * 2 + 1, ROOF_RED_DARK);
+      });
+    });
+  });
+}
+
+function paintHouse(tiles: TerrainTiles, mask: TerrainMask, x0: number, x1: number, top: number, floor: number): void {
+  const apex = top - ROOF_HEIGHT;
+  const paint: PaintRect = (left, y0, right, y1, color) => {
+    fillSpans(tiles, solidSpansIn(mask, left, y0, right, y1), color);
+  };
+  paint(x0 - 8, apex, x1 + 10, floor + 10, HOUSE_PINK);
+  paint(x0, floor - 10, x1 + 10, floor + 10, HOUSE_PINK_DARK);
+  for (let y = apex + 6; y < floor; y += 7) paint(x0 - 8, y, x1 + 10, y, HOUSE_PINK_DARK);
+  paint(x0, top, x0 + 2, floor, HOUSE_INK);
+  paint(x1 - 2, top, x1, floor, HOUSE_INK);
+  fillSpans(tiles, topEdgeSpansIn(mask, x0 - 8, apex, x1 + 8, top, 5), ROOF_RED);
+  fillSpans(tiles, topEdgeSpansIn(mask, x0 - 8, apex, x1 + 8, top, 1), TRIM);
+  paint(x0 - 8, top - 2, x1 + 8, top, ROOF_RED_DARK);
+  // A left window and right door fit within solid jambs, never over room air.
+  paint(x0 + 5, top + 25, x0 + 25, top + 51, TRIM);
+  paint(x0 + 8, top + 28, x0 + 22, top + 48, WINDOW);
+  paint(x0 + 14, top + 28, x0 + 15, top + 48, TRIM);
+  paint(x0 + 8, top + 37, x0 + 22, top + 38, TRIM);
+  paint(x1 - 26, floor - 52, x1 - 4, floor - 11, TRIM);
+  paint(x1 - 23, floor - 49, x1 - 7, floor - 11, DOOR);
+  paint(x1 - 11, floor - 29, x1 - 10, floor - 27, '#f7d586');
+  paint(x1 - 40, top + 14, x1 + 10, top + 17, ROOF_RED);
+  paint(x1 - 40, top + 18, x1 + 10, top + 19, HOUSE_INK);
+  paint(x1 + 6, top + 20, x1 + 9, floor, TRIM);
+  lettering(paint, 'KAME', (x0 + x1) / 2, apex + 22);
+  lettering(paint, 'HOUSE', (x0 + x1) / 2, apex + 36);
+}
+
+function palmProps(cx: number, half: number, beach: number): readonly SceneryProp[] {
+  return [
+    { kind: 'palm', x: Math.round(cx - half + 70), y: beach - 1, h: 86, seed: 1 },
+    { kind: 'palm', x: Math.round(cx - 40), y: beach - 1, h: 74, seed: 2 },
+    { kind: 'palm', x: Math.round(cx + half - 60), y: beach - 1, h: 92, seed: 3 },
+  ];
+}
 
 export function buildKameHouse(options: ScenarioBuildOptions): ScenarioBuild {
   const { width, height, seed, waterY } = options;
@@ -27,45 +90,29 @@ export function buildKameHouse(options: ScenarioBuildOptions): ScenarioBuild {
   const beach = Math.round(height * 0.805);
   const half = Math.round(width * 0.19);
   const bumps = mixSeed(seed, 7);
-
-  // The island: a flat sandy top with rounded ends, dipping toward the water; a little bumpy by the seed.
   fillEllipse(mask, cx, waterY, half + 80, waterY - beach + 30, undefined, beach);
   for (let x = Math.round(cx - half); x <= cx + half; x += 1) {
     const bump = Math.round((fbm1D(x / 160, bumps, { octaves: 2 }) - 0.5) * 8);
     fillRect(mask, x, beach - 2 + bump, x, height - 1);
   }
-  // Two rocks off shore.
   fillEllipse(mask, width * 0.09, waterY + 4, 90, 42);
   fillEllipse(mask, width * 0.91, waterY + 4, 76, 36);
-
-  // The house: a hollow box with a domed roof, standing on the sand right of the middle.
-  const houseX0 = Math.round(cx + 80);
-  const houseX1 = houseX0 + 160;
+  if (options.raster !== undefined) {
+    const raster = options.raster;
+    const rect = fitRaster(raster, { x: cx + 50, y: beach - 202, w: 220, h: 210 });
+    stampRaster(mask, raster, rect);
+    markBorderBedrock(mask, BORDER_BEDROCK_PX);
+    return { mask, props: palmProps(cx, half, beach), rasterized: true, paint: (tiles) => { paintRaster(tiles, raster, rect); } };
+  }
+  const x0 = Math.round(cx + 80);
+  const x1 = x0 + 160;
   const floor = beach - 2;
-  const houseTop = floor - 90;
-  const roofTop = houseTop - 34;
-  fillRect(mask, houseX0, houseTop, houseX1, floor + 10);
-  fillEllipse(mask, (houseX0 + houseX1) / 2, houseTop, 92, 34, undefined, roofTop, houseTop);
-  fillRect(mask, houseX0 + 16, houseTop + 16, houseX1 - 16, floor - 12, AIR);
+  const top = floor - 90;
+  fillRect(mask, x0, top, x1, floor + 10);
+  fillPolygon(mask, [{ x: x0 - 8, y: top + 1 }, { x: (x0 + x1) / 2, y: top - ROOF_HEIGHT }, { x: x1 + 8, y: top + 1 }]);
+  fillRect(mask, x0 + 28, top + 16, x1 - 28, floor - 12, AIR);
+  fillRect(mask, x1 - 40, top + 14, x1 + 10, top + 19);
+  fillRect(mask, x1 + 6, top + 20, x1 + 9, floor);
   markBorderBedrock(mask, BORDER_BEDROCK_PX);
-
-  const props: SceneryProp[] = [
-    { kind: 'palm', x: Math.round(cx - half + 70), y: beach - 1, h: 86, seed: 1 },
-    { kind: 'palm', x: Math.round(cx - 40), y: beach - 1, h: 74, seed: 2 },
-    { kind: 'palm', x: Math.round(cx + half - 60), y: beach - 1, h: 92, seed: 3 },
-    { kind: 'sign', x: (houseX0 + houseX1) / 2, y: roofTop - 8, w: 96, h: 18, text: SIGN_TEXT, color: ROOF_RED },
-  ];
-
-  const paint = (tiles: Parameters<ScenarioBuild['paint']>[0]): void => {
-    // Pink walls, a darker course along the bottom, the red dome, the door and two windows.
-    fillSpans(tiles, solidSpansIn(mask, houseX0, houseTop, houseX1, floor + 10), HOUSE_PINK);
-    fillSpans(tiles, solidSpansIn(mask, houseX0, floor - 10, houseX1, floor + 10), HOUSE_PINK_DARK);
-    fillSpans(tiles, solidSpansIn(mask, houseX0 - 2, roofTop, houseX1 + 2, houseTop - 1), ROOF_RED);
-    fillSpans(tiles, solidSpansIn(mask, houseX0 - 2, houseTop - 6, houseX1 + 2, houseTop - 1), ROOF_RED_DARK);
-    fillSpans(tiles, rectSpans(houseX0 + 64, floor - 44, houseX0 + 96, floor - 11), DOOR);
-    fillSpans(tiles, rectSpans(houseX0 + 24, houseTop + 26, houseX0 + 48, houseTop + 48), WINDOW);
-    fillSpans(tiles, rectSpans(houseX1 - 48, houseTop + 26, houseX1 - 24, houseTop + 48), WINDOW);
-  };
-
-  return { mask, props, paint };
+  return { mask, props: palmProps(cx, half, beach), paint: (tiles) => paintHouse(tiles, mask, x0, x1, top, floor) };
 }

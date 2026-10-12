@@ -2,20 +2,19 @@
  * The agentic sound loop (sound-pipeline.md section 8, ultraplan rev 2 Phase 1G):
  *
  *   node tools/audio/generate.ts [--dry-run] [--only weapons,ui,voice_en] [--limit N] [--force]
- *                                [--concurrency 3] [--cap 12000] [--min-remaining 20000]
+ *                                [--concurrency 3] [--attempts 3] [--cap 12000] [--min-remaining 20000]
  *
  * For every plan item not yet ok in the manifest: generate with ElevenLabs (up to 3 attempts,
  * rising prompt influence for SFX, a new seed for voice, one attempt for music), validate the raw
  * clip with ffprobe and volumedetect, shape it (trim one shots, pitch shift voice), normalize
  * (two pass loudnorm or a peak target for very short clips), export ogg and mp3, and upsert the
- * manifest immediately so the run can resume. Spend is capped per run and the subscription is
- * read as a gate before the first call. The key is read from ~/.claude/talk2me/.env or the
- * environment and never printed.
+ * manifest immediately so the run can resume. Estimated credits are reserved before each POST;
+ * this is not a dollar billing cap. The subscription is read before the first call. The key is
+ * read from the project environment or process environment and never printed.
  */
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { err, ok, type Result } from '../../src/core/result.ts';
@@ -41,6 +40,7 @@ export interface Args {
   /** Reuse the latest raw master already on disk instead of calling the API (zero spend re validation). */
   readonly reprocess: boolean;
   readonly concurrency: number;
+  readonly attempts: number;
   readonly cap: number;
   readonly minRemaining: number;
 }
@@ -50,20 +50,24 @@ export function parseArgs(argv: readonly string[]): Args {
     const i = argv.indexOf(flag);
     return i === -1 ? undefined : argv[i + 1];
   };
-  const int = (value: string | undefined, fallback: number): number => {
-    const n = value === undefined ? Number.NaN : Number.parseInt(value, 10);
-    return Number.isFinite(n) && n > 0 ? n : fallback;
+  const int = (flag: string, fallback: number, min = 1): number => {
+    if (!argv.includes(flag)) return fallback;
+    const value = get(flag);
+    const n = value !== undefined && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    if (!Number.isSafeInteger(n) || n < min) throw new Error(`${flag} must be an integer of at least ${min}`);
+    return n;
   };
   const only = get('--only');
   return {
     dryRun: argv.includes('--dry-run'),
     only: only === undefined ? [] : only.split(',').map((s) => s.trim()).filter((s) => s !== ''),
-    limit: int(get('--limit'), Number.MAX_SAFE_INTEGER),
+    limit: int('--limit', Number.MAX_SAFE_INTEGER),
     force: argv.includes('--force'),
     reprocess: argv.includes('--reprocess'),
-    concurrency: Math.min(4, int(get('--concurrency'), 3)),
-    cap: int(get('--cap'), 12_000),
-    minRemaining: int(get('--min-remaining'), 20_000),
+    concurrency: Math.min(4, int('--concurrency', 3)),
+    attempts: Math.min(3, int('--attempts', 3)),
+    cap: int('--cap', 12_000, 0),
+    minRemaining: int('--min-remaining', 20_000, 0),
   };
 }
 
@@ -74,8 +78,28 @@ export function selectItems(plan: SoundPlan, manifest: AudioManifest, args: Args
     .slice(0, args.limit);
 }
 
-function attemptsFor(item: PlanItem): number {
-  return item.kind === 'music' ? 1 : 3;
+/** Synchronous reservation includes in-flight work and retries; no failed request refunds. */
+export function createCreditBudget(cap: number): { reserve: (credits: number) => boolean; used: () => number } {
+  if (!Number.isFinite(cap) || cap < 0) throw new Error('estimated credit cap must be finite and nonnegative');
+  let reserved = 0;
+  return {
+    reserve: (credits) => {
+      if (!Number.isFinite(credits) || credits <= 0 || reserved + credits > cap) return false;
+      reserved += credits;
+      return true;
+    },
+    used: () => reserved,
+  };
+}
+
+export interface ProcessOptions {
+  readonly attempts?: number;
+  readonly reserve?: (credits: number) => boolean;
+}
+
+function attemptsFor(item: PlanItem, attempts = 3): number {
+  if (!Number.isInteger(attempts) || attempts < 1 || attempts > 3) throw new Error('attempts must be 1 to 3');
+  return item.kind === 'music' ? 1 : attempts;
 }
 
 /** After trimming, a one shot must keep at least this much sound or the take was near silence (wpn_bat_crack came back as 38 ms). */
@@ -121,7 +145,7 @@ interface Shaped {
   readonly normalization: string;
 }
 
-async function shape(item: PlanItem, rawFile: string): Promise<Result<Shaped, string>> {
+export async function shape(item: PlanItem, rawFile: string): Promise<Result<Shaped, string>> {
   mkdirSync(WORK_DIR, { recursive: true });
   const busDir = join(OUT_DIR, item.bus);
   mkdirSync(busDir, { recursive: true });
@@ -155,7 +179,7 @@ async function shape(item: PlanItem, rawFile: string): Promise<Result<Shaped, st
   });
 }
 
-function assetFor(item: PlanItem, shaped: Shaped, source: AudioAsset['source'], reasons: readonly string[], status: AudioAsset['status']): AudioAsset {
+export function assetFor(item: PlanItem, shaped: Shaped, source: AudioAsset['source'], reasons: readonly string[], status: AudioAsset['status']): AudioAsset {
   const loop = (item.kind === 'sfx' && item.loop) || item.kind === 'music';
   return {
     id: item.id,
@@ -196,27 +220,36 @@ export function latestRawFor(item: PlanItem): { readonly path: string; readonly 
   return null;
 }
 
-export async function processItem(item: PlanItem, client: ElevenClient, reprocess = false): Promise<ItemOutcome> {
-  mkdirSync(RAW_DIR, { recursive: true });
+export async function processItem(item: PlanItem, client: ElevenClient, reprocess = false, options: ProcessOptions = {}): Promise<ItemOutcome> {
   let credits = 0;
   let lastRaw: string | null = null;
   let lastReasons: readonly string[] = [];
   let lastInfluence: number | undefined;
   const existing = reprocess ? latestRawFor(item) : null;
-  const maxAttempts = existing === null ? attemptsFor(item) : existing.attempt;
+  if (reprocess && existing === null) return { asset: null, credits: 0, log: `${item.id}: FAILED (no raw master to reprocess)` };
+  const maxAttempts = existing === null ? attemptsFor(item, options.attempts) : existing.attempt;
   const firstAttempt = existing === null ? 1 : existing.attempt;
+  let lastAttempt = 0;
   for (let attempt = firstAttempt; attempt <= maxAttempts; attempt += 1) {
     let raw: string;
     if (existing !== null) {
       raw = existing.path;
+      lastAttempt = existing.attempt;
     } else {
+      const cost = estimateCredits(item);
+      if (options.reserve !== undefined && !options.reserve(cost)) {
+        lastReasons = [...lastReasons, 'estimated credit cap reached before request'];
+        break;
+      }
+      credits += cost;
+      lastAttempt = attempt;
       const generated = await generate(item, client, attempt);
-      credits += estimateCredits(item);
       if (!generated.ok) {
         lastReasons = [`attempt ${attempt}: ${generated.error}`];
         continue;
       }
       raw = join(RAW_DIR, `${item.id}.a${attempt}.mp3`);
+      mkdirSync(RAW_DIR, { recursive: true });
       writeFileSync(raw, generated.value.buffer);
       lastInfluence = generated.value.influence;
     }
@@ -243,28 +276,27 @@ export async function processItem(item: PlanItem, client: ElevenClient, reproces
       if (existing !== null) break;
       continue;
     }
-    const asset = assetFor(item, shaped.value, sourceFor(item, attempt, credits, lastInfluence, sha256(join(ROOT, 'assets', shaped.value.ogg))), [], 'ok');
+    const asset = assetFor(item, shaped.value, sourceFor(item, attempt, credits, lastInfluence, sha256(join(ROOT, 'public', shaped.value.ogg))), [], 'ok');
     return { asset, credits, log: `${item.id}: ok in ${attempt} attempt(s), ${shaped.value.durationMs} ms, ${shaped.value.normalization}, ~${credits} credits` };
   }
   if (lastRaw !== null) {
     const shaped = await shape(item, lastRaw);
     if (shaped.ok) {
-      const asset = assetFor(item, shaped.value, sourceFor(item, maxAttempts, credits, lastInfluence, sha256(join(ROOT, 'assets', shaped.value.ogg))), lastReasons, 'placeholder');
-      return { asset, credits, log: `${item.id}: PLACEHOLDER after ${maxAttempts} attempts (${lastReasons.join('; ')}), ~${credits} credits` };
+      const asset = assetFor(item, shaped.value, sourceFor(item, lastAttempt, credits, lastInfluence, sha256(join(ROOT, 'public', shaped.value.ogg))), lastReasons, 'placeholder');
+      return { asset, credits, log: `${item.id}: PLACEHOLDER after ${lastAttempt} attempts (${lastReasons.join('; ')}), ~${credits} credits` };
     }
   }
   return { asset: null, credits, log: `${item.id}: FAILED (${lastReasons.join('; ')}), ~${credits} credits` };
 }
 
-function readApiKey(): string | undefined {
-  const home = process.env['USERPROFILE'] ?? homedir();
-  const env = mergeEnv(loadDotEnv(join(home, '.claude', 'talk2me', '.env')), loadDotEnv(resolve(ROOT, '.env')), process.env);
+export function readApiKey(): string | undefined {
+  const env = mergeEnv(loadDotEnv(resolve(ROOT, '.env')), process.env);
   const key = env['ELEVENLABS_API_KEY'];
   return key === undefined || key.trim() === '' ? undefined : key.trim();
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
   const now = new Date().toISOString();
   const plan = loadPlan(PLAN_PATH);
   if (!plan.ok) {
@@ -279,7 +311,7 @@ async function main(): Promise<number> {
   let manifest = loaded.value;
   const items = selectItems(plan.value, manifest, args);
   const planned = items.reduce((sum, item) => sum + estimateCredits(item), 0);
-  console.log(`generate: ${items.length} item(s) selected, about ${planned} credits at list price (cap ${args.cap} per run)`);
+  console.log(`generate: ${items.length} item(s) selected, about ${planned} estimated credits for the first pass (${args.attempts} attempt(s) maximum, estimated credit cap ${args.cap}; not a USD cap)`);
   if (args.dryRun) {
     for (const item of items) console.log(`  ${item.kind.padEnd(5)} ${item.id.padEnd(40)} ~${estimateCredits(item)} credits`);
     return 0;
@@ -287,7 +319,7 @@ async function main(): Promise<number> {
   if (items.length === 0) return 0;
   const apiKey = readApiKey();
   if (apiKey === undefined) {
-    console.error('generate: ELEVENLABS_API_KEY not found (~/.claude/talk2me/.env or environment)');
+    console.error('generate: ELEVENLABS_API_KEY not found (project .env or explicit process environment required)');
     return 1;
   }
   const client = createElevenClient(apiKey);
@@ -302,17 +334,25 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // Keep the requested remaining-credit floor even while several workers have requests in flight.
+  const budget = createCreditBudget(Math.min(args.cap, Math.max(0, before.value.remaining - args.minRemaining)));
+  let capped = false;
+  const reserve = (credits: number): boolean => {
+    const accepted = budget.reserve(credits);
+    if (!accepted) capped = true;
+    return accepted;
+  };
   let spent = 0;
   let index = 0;
   let okCount = 0;
   let failCount = 0;
   const worker = async (): Promise<void> => {
     while (index < items.length) {
-      if (spent >= args.cap) return;
+      if (capped) return;
       const item = items[index];
       index += 1;
       if (item === undefined) return;
-      const outcome = await processItem(item, client, args.reprocess);
+      const outcome = await processItem(item, client, args.reprocess, { attempts: args.attempts, reserve });
       spent += outcome.credits;
       console.log(outcome.log);
       if (outcome.asset !== null) {
@@ -331,7 +371,7 @@ async function main(): Promise<number> {
   const measured = after.ok ? after.value.used - before.value.used : Number.NaN;
   const totals = summarize(manifest);
   console.log(`generate: done. ok ${okCount}, failed or placeholder ${failCount}, estimated ${spent} credits, measured ${Number.isFinite(measured) ? measured : 'n/a'} (subscription counter lags). Manifest: ${totals.ok} ok, ${totals.placeholder} placeholder, ${totals.failed} failed.`);
-  return spent >= args.cap && index < items.length ? 2 : 0;
+  return capped ? 2 : failCount > 0 ? 1 : 0;
 }
 
 // pathToFileURL, not a hand built file:/// URL: that one only matched Windows paths, so on Linux

@@ -54,7 +54,7 @@ export function applyCsp(html: string, options: Pick<OrugasPluginOptions, 'viteP
 }
 
 /** The public folders vercel.json serves immutable for a year: every file in them is versioned. */
-export const VERSIONED_PUBLIC_DIRS: readonly string[] = Object.freeze(['sprites', 'audio']);
+export const VERSIONED_PUBLIC_DIRS: readonly string[] = Object.freeze(['sprites', 'audio', 'scenery']);
 
 /**
  * Content hash of every file under the given public folders, keyed by the path it is served at

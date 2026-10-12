@@ -19,6 +19,7 @@
 import { SPRITE_SCALE } from '../config/units.ts';
 import type { Context2DLike, ContextFactory, FillStyleLike, RectLike } from './context.ts';
 import { isValidDimension, type Span } from './mask.ts';
+import type { RasterAsset } from './raster.ts';
 
 /** World px covered by one tile. */
 export const TILE_SIZE = 512;
@@ -293,6 +294,34 @@ export function applyCarveSpans(
   const rects = fillSpans(tiles, spans, ERASE_STYLE, 'destination-out');
   if (disc !== null && rects > 0) scorchRing(tiles, disc, style);
   return rects;
+}
+
+/** Bake a decoded raster once; destination alpha is the already-painted collision mask. */
+export function paintRaster(tiles: TerrainTiles, asset: RasterAsset, rect: RectLike): number {
+  if (!(rect.w > 0) || !(rect.h > 0)) return 0;
+  let painted = 0;
+  for (const tile of tiles.tiles) {
+    const x0 = Math.max(tile.x, rect.x);
+    const y0 = Math.max(tile.y, rect.y);
+    const x1 = Math.min(tile.x + tile.w, rect.x + rect.w);
+    const y1 = Math.min(tile.y + tile.h, rect.y + rect.h);
+    if (x1 <= x0 || y1 <= y0) continue;
+    const op = tile.ctx.globalCompositeOperation;
+    tile.ctx.globalCompositeOperation = 'source-atop';
+    tile.ctx.imageSmoothingEnabled = false;
+    try {
+      tile.ctx.drawImage(asset.image,
+        (x0 - rect.x) * asset.width / rect.w, (y0 - rect.y) * asset.height / rect.h,
+        (x1 - x0) * asset.width / rect.w, (y1 - y0) * asset.height / rect.h,
+        (x0 - tile.x) * tiles.scale, (y0 - tile.y) * tiles.scale,
+        (x1 - x0) * tiles.scale, (y1 - y0) * tiles.scale);
+      tiles.dirty[tileIndex(tiles, tile.col, tile.row)] = 1;
+      painted += 1;
+    } finally {
+      tile.ctx.globalCompositeOperation = op;
+    }
+  }
+  return painted;
 }
 
 /** Clears every tile canvas and marks all of them dirty, for a level rebuild. */

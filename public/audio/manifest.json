@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-03T23:22:15.931Z",
+  "generatedAt": "2026-10-12T12:01:15.112Z",
   "loudness": {
     "sfx": -16,
     "voice": -18,
@@ -2834,6 +2834,42 @@
       "status": "ok"
     },
     {
+      "id": "wpn_adamantium_claws",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_adamantium_claws.ogg",
+        "mp3": "audio/sfx/wpn_adamantium_claws.mp3"
+      },
+      "durationMs": 1033,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "replicate",
+        "endpoint": "/v1/predictions",
+        "model": "stability-ai/stable-audio-2.5",
+        "version": "a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491",
+        "predictionId": "29qt9n6b2nrmt0d15zy9dq00z8",
+        "prompt": "Original abstract game effect: three short metallic blade extensions followed by a fast triple air slash and a dry steel ring; one-shot, dry, no music, no voices.",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "estimatedCostUsd": 0.2,
+        "sha256": "725227440bcdecdbf76f22b1a82587b9f6ee09bbf983cde305e9fab98f085d60"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.52 LUFS, TP -1.6 dBTP"
+      },
+      "status": "ok"
+    },
+    {
       "id": "wpn_airstrike_flyby",
       "bus": "sfx",
       "group": "weapons",
@@ -3209,6 +3245,42 @@
       "status": "ok"
     },
     {
+      "id": "wpn_force_field",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_force_field.ogg",
+        "mp3": "audio/sfx/wpn_force_field.mp3"
+      },
+      "durationMs": 1761,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "replicate",
+        "endpoint": "/v1/predictions",
+        "model": "stability-ai/stable-audio-2.5",
+        "version": "a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491",
+        "predictionId": "89v1ckdsjnrmt0d15zyavz88ar",
+        "prompt": "Original abstract game effect: a soft bass pulse opens into a smooth electric dome hum with a bright protective ping and clean decay; one-shot, dry, no music, no voices.",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "estimatedCostUsd": 0.2,
+        "sha256": "c03680c651425500c30a7a8ed1efa02e3dd7630dc359e3bb69a16ae141156de4"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -13.89 LUFS, TP -4.37 dBTP"
+      },
+      "status": "ok"
+    },
+    {
       "id": "wpn_girder_place",
       "bus": "sfx",
       "group": "weapons",
@@ -3448,6 +3520,42 @@
       "status": "ok"
     },
     {
+      "id": "wpn_immortality",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_immortality.ogg",
+        "mp3": "audio/sfx/wpn_immortality.mp3"
+      },
+      "durationMs": 2000,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "replicate",
+        "endpoint": "/v1/predictions",
+        "model": "stability-ai/stable-audio-2.5",
+        "version": "a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491",
+        "predictionId": "prvn537jpxrmr0d15zy9dyjmvr",
+        "prompt": "Original abstract game effect: a low heartbeat thump rises into a warm sparkling recovery pulse with a crisp final bell; one-shot, dry, no music, no voices.",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "estimatedCostUsd": 0.2,
+        "sha256": "0f3ca91458d975c88b2e1e464a498b00302fa5f59e97c107010626f19e29af48"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.44 LUFS, TP -6.68 dBTP"
+      },
+      "status": "ok"
+    },
+    {
       "id": "wpn_mine_arm",
       "bus": "sfx",
       "group": "weapons",
@@ -3614,6 +3722,42 @@
         "clipOk": true,
         "reasons": [],
         "normalization": "loudnorm: input I -14.54 LUFS, TP -1.49 dBTP, loop kept untrimmed"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_room",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_room.ogg",
+        "mp3": "audio/sfx/wpn_room.mp3"
+      },
+      "durationMs": 1621,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "replicate",
+        "endpoint": "/v1/predictions",
+        "model": "stability-ai/stable-audio-2.5",
+        "version": "a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491",
+        "predictionId": "czd9ba70d5rmt0d15zyb29e3v4",
+        "prompt": "Original abstract game effect: an expanding airy pressure ring, a clean hollow chime and a brief spatial shimmer that fades completely; one-shot, dry, no music, no voices.",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "estimatedCostUsd": 0.2,
+        "sha256": "bbb63a0c36f4855a93a9195a4b99de0830cec1c774bf031504d7b516f294957d"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -15.54 LUFS, TP -5.74 dBTP"
       },
       "status": "ok"
     },
@@ -3819,6 +3963,42 @@
         "clipOk": true,
         "reasons": [],
         "normalization": "loudnorm: input I -11.07 LUFS, TP 2.87 dBTP"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "wpn_time_stop",
+      "bus": "sfx",
+      "group": "weapons",
+      "files": {
+        "ogg": "audio/sfx/wpn_time_stop.ogg",
+        "mp3": "audio/sfx/wpn_time_stop.mp3"
+      },
+      "durationMs": 1008,
+      "loop": false,
+      "loopStartMs": 0,
+      "loopEndMs": 0,
+      "gainDb": -2,
+      "pitchVariance": 0.08,
+      "channels": 1,
+      "source": {
+        "provider": "replicate",
+        "endpoint": "/v1/predictions",
+        "model": "stability-ai/stable-audio-2.5",
+        "version": "a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491",
+        "predictionId": "cgp71v53kxrmw0d15zy9v90p58",
+        "prompt": "Original abstract game effect: a clock tick stretches downward into a tight vacuum snap, followed by a short muted glass resonance; one-shot, dry, no music, no voices.",
+        "requestedSeconds": 2,
+        "attempts": 1,
+        "estimatedCostUsd": 0.2,
+        "sha256": "8cd34f669bab619f931b268911616f6b7406a292d03166c4fc5eeafe4a7c2549"
+      },
+      "checks": {
+        "durationOk": true,
+        "silenceOk": true,
+        "clipOk": true,
+        "reasons": [],
+        "normalization": "loudnorm: input I -14.56 LUFS, TP 5.48 dBTP"
       },
       "status": "ok"
     },

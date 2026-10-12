@@ -29,7 +29,7 @@ export function wormById(world: SimWorld, id: string | null): WormBody | undefin
 
 /** The worm a technique is aimed at, for the ones that have one. */
 export function victimOf(body: TechniqueBody): string | null {
-  return body.kind === 'needle' || body.kind === 'treasure' ? body.victimId : null;
+  return body.kind === 'needle' || body.kind === 'treasure' || body.kind === 'claws' ? body.victimId : null;
 }
 
 /** Holds a worm at (x, y): the technique places it every tick, the worm controller leaves it be. */

@@ -14,7 +14,7 @@ import { wormMiddleY } from '../worm-size.ts';
 import type { FinalBody, FinalStage, WormBody } from '../types.ts';
 import type { SimWorld } from '../world.ts';
 import type { FinalSpec } from '../../weapons/types.ts';
-import { beat, enter, finished, kill, place, release, sound, started, ticksFor, wormById } from './common.ts';
+import { KILL_DAMAGE, beat, enter, finished, kill, place, release, sound, started, ticksFor, wormById } from './common.ts';
 
 /** Cues of the Explosión Final; the farewell is a voice line the mixer skips until it is generated. */
 export const FINAL_SOUNDS = Object.freeze({
@@ -94,7 +94,11 @@ function burst(world: SimWorld, body: FinalBody, x: number, y: number, attacker:
     const distance = Math.hypot(mx - x, my - y);
     if (distance > spec.killRadiusPx) continue;
     body.killed.push(worm.id);
-    kill(world, body, worm, 'blast', distance === 0 ? 0 : (mx - x) / distance, distance === 0 ? -1 : (my - y) / distance);
+    if (worm.id === body.attackerId) {
+      world.events.push({ type: 'damage', wormId: worm.id, amount: KILL_DAMAGE, sourceTeamId: null, sourceWormId: null, cause: 'toll', at: { x: mx, y: my, dx: 0, dy: -1 } });
+    } else {
+      kill(world, body, worm, 'blast', distance === 0 ? 0 : (mx - x) / distance, distance === 0 ? -1 : (my - y) / distance);
+    }
   }
   beat(world, body, 'burst', body.killed.length, x, y);
   explode(world, { x, y, blast: spec.blast, sourceTeamId: body.ownerTeamId, sourceWormId: body.attackerId, soundId: FINAL_SOUNDS.burst });

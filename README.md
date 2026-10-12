@@ -1,6 +1,6 @@
 ﻿# Oruga Worms
 
-A browser artillery game with destructible terrain, 38 weapons and utilities, animated worms,
+A browser artillery game with destructible terrain, 43 weapons and utilities, animated worms,
 local multiplayer, and a CPU opponent. Built with TypeScript, Vite, and Canvas 2D.
 
 **Content warning:** the game shows cartoon blood and gore (blood sprays, stains, and worms bursting
@@ -40,6 +40,20 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
 | Play again | Play again button on the end screen |
 
 ### What's new
+
+#### Comic / powers upgrade
+
+- **TIME STOP** freezes every other living worm, including allies, for one individual turn. Gravity, falling and damage continue normally.
+- **Defensive Magic** raises a 100-point hexagonal barrier. It also intercepts an execution strike, but not drowning or the health price of a power.
+- **Adamantium Claws** is a short-range execution with line of sight, a three-claw slash and a cartoon decapitation finish. Shields and immortality can prevent the kill; `?gore=0` hides the decapitation.
+- **ROOM** uses Up/Down (or touch aim arrows) to choose 1–99% coverage. Its live circle shows the region. It exchanges living participants' health from one snapshot, then charges the caster without transferring the price to another worm; statuses remain with their owners.
+- **Immortality** is one unique supply pickup per match. Three lethal attacks leave its holder at 1 HP; a multi-hit attack counts once. The fourth lethal attack kills normally. Drowning remains fatal.
+- **ManimGX animation:** five real offline-rendered transparent clips are loaded from `public/sprites/fx/`. The browser does not load Python, Pyodide or ManimGX. Procedural effects remain available if the atlas fails to load.
+- **Meshy scenery:** the spaceship, castle and Kame House use transparent renders of generated textured GLBs. Collision masks and painted tiles come from the same occupancy data, so explosions erase both. Assets preload before a match is built; missing assets use the procedural fallback for that whole match.
+- Comic title, technique and end-screen cards; responsive phone scoreboard; readable status labels.
+- **Five original sound effects** for the new powers, generated with Stable Audio 2.5 on Replicate, normalized and shipped in OGG/MP3. They play from weapon and pickup events; existing sounds remain available. The direct ElevenLabs route was not used because its personal credential was rejected.
+
+Asset sources and authoring instructions: `docs/visual-reference-sources.md`, `tools/anim/`, `tools/assets/` and `tools/meshy/`. The GLB authoring inputs are not loaded by gameplay.
 
 - **WebGL glow**: the world is now drawn through a WebGL2 pass that makes everything bright
   shine (beams, fire, the sun, the white of a super bloom out of the picture), sends a shockwave

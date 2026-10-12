@@ -1,0 +1,7 @@
+{
+  "render": "spaceship-views/back.png",
+  "alpha_threshold": 128,
+  "exposure": 1.5,
+  "additional_apertures": [],
+  "note": "Transparent mesh openings retained; no invisible gameplay holes added."
+}

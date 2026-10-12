@@ -21,7 +21,7 @@ import { isSolid } from '../terrain/queries.ts';
 import { DEFAULT_THEME } from '../terrain/terrain.ts';
 import type { GameEvent } from './controller.ts';
 import type { FxDeps, FxState } from './fx.ts';
-import { initPuff, initSpark, outlinedText, pop } from './fx-kit.ts';
+import { initPuff, initSpark, pop } from './fx-kit.ts';
 import { SCARLET, SCARLET_SOFT, starAt } from './antares.ts';
 import { COSMOS_BLUE, COSMOS_PINK, COSMOS_VIOLET } from './galaxian.ts';
 import { FIRE_ORANGE, FIRE_RED, FIRE_YELLOW } from './hiken.ts';
@@ -30,6 +30,7 @@ import { CUT_BLUE, CUT_WHITE } from './santoryu.ts';
 import { TREASURE_GOLD, TREASURE_LIGHT } from './tenbu.ts';
 import { MAGIC_BLUE, MAGIC_WHITE } from './zoltraak.ts';
 import { MAJIN_GOLD, MAJIN_WHITE } from './final-explosion.ts';
+import { drawComicLabel } from './comic.ts';
 
 /** A name called over the screen: big letters, a smaller line under them, for a while. */
 export interface TechniqueCall {
@@ -80,6 +81,10 @@ const NAMES: Readonly<Record<string, { readonly text: string; readonly sub: stri
   dice: { text: 'SANTORYU', sub: 'RORONOA ZORO', fill: '#e9fff1', outline: '#0b3a1c' },
   zoltraak: { text: 'ZOLTRAAK', sub: 'FRIEREN', fill: MAGIC_WHITE, outline: '#0a2a4a' },
   final: { text: '¡EXPLOSIÓN FINAL!', sub: 'MAJIN VEGETA', fill: MAJIN_GOLD, outline: '#3a2600' },
+  time_stop: { text: 'TIME STOP', sub: 'TODOS MENOS TÚ', fill: '#a7f2ff', outline: '#152a43' },
+  force_field: { text: 'DEFENSIVE MAGIC', sub: 'FRIEREN / CAMPO DE FUERZA', fill: '#b9faff', outline: '#152a43' },
+  claws: { text: 'ADAMANTIUM', sub: 'WOLVERINE / SNIKT!', fill: '#ffcf63', outline: '#281a2f' },
+  room: { text: 'ROOM', sub: 'TRAFALGAR LAW / SHAMBLES', fill: '#b5eaff', outline: '#152a43' },
 });
 
 /** Calls a name over the screen; it takes the place of the one before, so two never sit on top of each other. */
@@ -147,6 +152,20 @@ export function onTechnique(fx: FxState, e: Extract<GameEvent, { type: 'techniqu
   }
   const { x, y } = e;
   switch (e.beat) {
+    case 'freeze':
+      ring(fx, x, y, 180, '#a7f2ff');
+      sparks(deps, x, y, 36, 80, 300, ['#a7f2ff', '#ffffff'], 0.6);
+      flash(fx, deps, x, y, 0.35, '#a7f2ff', 180);
+      return;
+    case 'shield':
+      ring(fx, x, y, 44, '#b9faff');
+      sparks(deps, x, y, 18, 25, 100, ['#b9faff', '#ffffff'], 0.7);
+      return;
+    case 'open':
+      ring(fx, x, y, 100, '#7edcff');
+      sparks(deps, x, y, 28, 60, 220, ['#7edcff', '#ffffff'], 0.7);
+      call(fx, 'SHAMBLES!', 'CAMPO QUIRÚRGICO', '#b5eaff', '#152a43', 0.26, 0.9, 1100);
+      return;
     // Antares
     case 'sting': {
       const star = starAt(e.n - 1, x, y);
@@ -247,7 +266,11 @@ export function onTechnique(fx: FxState, e: Extract<GameEvent, { type: 'techniqu
       sparks(deps, x, y - WORM_HEIGHT * 0.6, 8, 30, 120, [CUT_WHITE, CUT_BLUE], 0.3);
       return;
     case 'slash':
-      sparks(deps, x, y, 6, 60, 220, [CUT_WHITE, CUT_BLUE], 0.25);
+      sparks(deps, x, y, e.kind === 'claws' ? 22 : 6, 60, 220, [CUT_WHITE, CUT_BLUE], 0.25);
+      if (e.kind === 'claws') {
+        call(fx, 'SNIKT!', null, '#ffcf63', '#281a2f', 0.3, 1.2, 900);
+        flash(fx, deps, x, y, 0.4, '#ffffff', 130);
+      }
       return;
     case 'cut':
       ring(fx, x, y, 70, CUT_WHITE);
@@ -417,11 +440,15 @@ export function drawTechniqueCalls(ctx: Ctx2D, fx: FxState, viewport: Size, touc
     const size = Math.round((touch ? clamp(viewport.w / 16, 22, 64) : clamp(viewport.w / 14, 26, 84)) * c.size * grow);
     ctx.globalAlpha = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
     const y = viewport.h * (touch ? c.y + 0.12 : c.y);
-    ctx.font = `italic 900 ${size}px system-ui, sans-serif`;
-    outlinedText(ctx, c.text, viewport.w / 2, y, c.fill, c.outline, Math.max(2, size / 16));
+    const width = Math.min(viewport.w - 32, Math.max(220, c.text.length * size * 0.55));
+    drawComicLabel(ctx, c.text, viewport.w / 2, y, width, size * 0.8, c.fill);
     if (c.sub !== null) {
-      ctx.font = `bold ${Math.round(clamp(viewport.w / 60, 11, 18))}px system-ui, sans-serif`;
-      outlinedText(ctx, c.sub, viewport.w / 2, y + size * 0.62, '#ffffff', c.outline, 2);
+      const subY = y + size * 0.86;
+      ctx.fillStyle = c.outline;
+      ctx.fillRect((viewport.w - width) / 2, subY - 12, width, 24);
+      ctx.font = `bold ${Math.round(clamp(viewport.w / 60, 11, 18))}px "Courier New", monospace`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(c.sub, viewport.w / 2, subY, width - 16);
     }
   }
   ctx.globalAlpha = 1;

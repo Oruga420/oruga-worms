@@ -10,12 +10,16 @@
 
 import type { TechniqueBody } from './types.ts';
 import type { SimWorld } from './world.ts';
+import { cancelClaws, clawsHolds, clawsStageLength, stepClaws } from './techniques/claws.ts';
 import { cancelDice, diceHolds, diceStageLength, stepDice } from './techniques/dice.ts';
 import { cancelFinal, finalHolds, finalStageLength, stepFinal } from './techniques/final.ts';
+import { cancelForceField, forceFieldHolds, forceFieldStageLength, stepForceField } from './techniques/force-field.ts';
 import { cancelGalaxy, galaxyHolds, galaxyStageLength, stepGalaxy } from './techniques/galaxy.ts';
 import { cancelHiken, hikenHolds, hikenStageLength, stepHiken } from './techniques/hiken.ts';
 import { cancelMeteor, meteorHolds, meteorStageLength, stepMeteor } from './techniques/meteor.ts';
 import { cancelNeedle, needleHolds, needleStageLength, stepNeedle } from './techniques/needle.ts';
+import { cancelRoom, roomHolds, roomStageLength, stepRoom } from './techniques/room.ts';
+import { cancelTimeStop, timeStopHolds, timeStopStageLength, stepTimeStop } from './techniques/time-stop.ts';
 import { cancelTreasure, stepTreasure, treasureHolds, treasureStageLength } from './techniques/treasure.ts';
 import { cancelZoltraak, stepZoltraak, zoltraakHolds, zoltraakStageLength } from './techniques/zoltraak.ts';
 
@@ -41,6 +45,14 @@ export function stepTechnique(world: SimWorld, body: TechniqueBody): void {
       return stepZoltraak(world, body);
     case 'final':
       return stepFinal(world, body);
+    case 'time_stop':
+      return stepTimeStop(world, body);
+    case 'force_field':
+      return stepForceField(world, body);
+    case 'claws':
+      return stepClaws(world, body);
+    case 'room':
+      return stepRoom(world, body);
   }
 }
 
@@ -75,6 +87,18 @@ export function heldByTechniques(techniques: readonly TechniqueBody[]): Readonly
       case 'final':
         finalHolds(body, held);
         break;
+      case 'time_stop':
+        timeStopHolds(body, held);
+        break;
+      case 'force_field':
+        forceFieldHolds(body, held);
+        break;
+      case 'claws':
+        clawsHolds(body, held);
+        break;
+      case 'room':
+        roomHolds(body, held);
+        break;
     }
   }
   return held;
@@ -99,6 +123,14 @@ export function techniqueStageLength(body: TechniqueBody): number {
       return zoltraakStageLength(body);
     case 'final':
       return finalStageLength(body);
+    case 'time_stop':
+      return timeStopStageLength(body);
+    case 'force_field':
+      return forceFieldStageLength(body);
+    case 'claws':
+      return clawsStageLength(body);
+    case 'room':
+      return roomStageLength(body);
   }
 }
 
@@ -138,6 +170,18 @@ export function cancelTechniques(world: SimWorld): void {
         break;
       case 'final':
         cancelFinal(world, body);
+        break;
+      case 'time_stop':
+        cancelTimeStop(world, body);
+        break;
+      case 'force_field':
+        cancelForceField(world, body);
+        break;
+      case 'claws':
+        cancelClaws(world, body);
+        break;
+      case 'room':
+        cancelRoom(world, body);
         break;
     }
   }

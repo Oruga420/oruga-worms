@@ -82,6 +82,9 @@ import { drawPowerOrb } from './power-orb.ts';
 import { superPrice } from './price.ts';
 import { SAIBA_GREEN, SAIBA_SKIN_ALPHA, drawSproutScene, isSaibaman, seedHand } from './saibaman.ts';
 import { drawProps, drawSkyTheme, drawWaterTheme, sceneryOf } from './scenery.ts';
+import { drawPowerScene, drawPowerStatuses, drawRoomPreview } from './power-scenes.ts';
+import { drawImmortalMark } from './power-art.ts';
+import type { PowerAssets } from './power-assets.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -127,6 +130,8 @@ export interface RenderModel {
   readonly weapon?: WeaponId;
   /** The weapon atlas (icons and held layers); null or absent means arms stay empty. */
   readonly weaponSprites?: CharacterSprites | null;
+  /** Authored offline in ManimGX; procedural power geometry remains the load-failure fallback. */
+  readonly powerSprites?: PowerAssets | null;
   /** World point under the mouse, drawn as the crosshair while a targeted weapon is selected. */
   readonly pointer?: { readonly x: number; readonly y: number };
   /** True while the human's selected weapon fires where the mouse points (air strike, teleport, girder). */
@@ -498,6 +503,8 @@ function techniquePose(input: PoseInput, role: TechniqueRole): WormPose {
       if (body.mode === 'cast') return { ...base, frame: p > 0.75 ? 'hurt' : 'idle_b', offsetX: p > 0.75 ? shake(0.5) : 0 };
       return { ...base, frame: 'drown_gasp', offsetX: shake(0.4), tint: TREASURE_GOLD, tintAlpha: 0.2 + 0.25 * Math.abs(Math.sin(input.timeMs / 120)) };
     }
+    // Placeholder, five power upgrade: adamantium_claws' victim has no treatment of its own yet.
+    if (body.kind === 'claws') return { ...base, frame: 'hurt', offsetX: shake(0.5) };
     return base;
   }
   switch (body.kind) {
@@ -536,6 +543,15 @@ function techniquePose(input: PoseInput, role: TechniqueRole): WormPose {
       // Feet planted, arms out, shaking harder and glowing gold as everything it has gathers.
       if (body.stage === 'charge') return { ...base, frame: 'victory', offsetX: shake(0.3 + 1.2 * p), offsetY: -1.5 * p, stretchY: 1 + 0.08 * p, stretchX: 1 + 0.04 * p, tint: MAJIN_GOLD, tintAlpha: 0.45 * p };
       return { ...base, frame: 'idle_a' };
+    // Placeholders, five power upgrade: none of the three has a treatment of its own yet.
+    case 'time_stop':
+      return { ...base, frame: body.stage === 'charge' ? 'victory' : 'idle_a', offsetX: body.stage === 'charge' ? shake(0.3 * p) : 0 };
+    case 'force_field':
+      return { ...base, frame: body.stage === 'charge' ? 'hold_gun' : 'idle_a', tint: body.stage === 'charge' ? '#4fd2ff' : null, tintAlpha: body.stage === 'charge' ? 0.2 * p : 0 };
+    case 'claws':
+      return { ...base, frame: body.stage === 'windup' ? 'hold_melee' : 'idle_a', offsetX: body.stage === 'windup' ? -f * 1.5 * p : 0 };
+    case 'room':
+      return { ...base, frame: body.stage === 'charge' ? 'jump_crouch' : 'idle_a', stretchY: body.stage === 'charge' ? 1 + 0.03 * p : 1 };
   }
 }
 
@@ -943,13 +959,13 @@ function drawAim(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: numbe
  * Laser sight for the guns: a thin red beam from the muzzle to the first land or worm it meets,
  * with a dot where the round would land; brighter when it is on a worm.
  */
-function drawLaser(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, body: SimWorld['worms'][number], angleDeg: number, timeMs: number): void {
+function drawLaser(ctx: Ctx2D, viewport: Size, camera: Camera, world: SimWorld, body: SimWorld['worms'][number], angleDeg: number, timeMs: number, rangePx = LASER_PX): void {
   const dir = aimDirection(angleDeg, body.facing);
   // The muzzle and the hit test the guns use (behaviors/types.ts muzzlePoint, hitscan.ts), a Saibaman's smaller body included.
   const mx = body.x + body.facing * 6 * body.size;
   const my = body.y - wormHeight(body) * 0.6;
-  const wall = sweep(world.terrain.mask, mx, my, mx + dir.x * LASER_PX, my + dir.y * LASER_PX, 0);
-  let reach = wall.hit === null ? LASER_PX : Math.hypot(wall.x - mx, wall.y - my);
+  const wall = sweep(world.terrain.mask, mx, my, mx + dir.x * rangePx, my + dir.y * rangePx, 0);
+  let reach = wall.hit === null ? rangePx : Math.hypot(wall.x - mx, wall.y - my);
   let onWorm = false;
   for (const other of world.worms) {
     if (!other.alive || other.id === body.id) continue;
@@ -1381,7 +1397,9 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
       const technique = def.technique;
-      if (technique?.kind === 'treasure') drawLock(ctx, viewport, camera, model.world, activeBody, technique.rangePx, model.timeMs);
+      if (technique?.kind === 'room') drawRoomPreview(ctx, viewport, camera, activeBody, model.state.world, model.aim.angleDeg, model.timeMs);
+      else if (technique?.kind === 'claws') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs, technique.rangePx);
+      else if (technique?.kind === 'treasure') drawLock(ctx, viewport, camera, model.world, activeBody, technique.rangePx, model.timeMs);
       else if (technique?.kind === 'dice') {
         const square = diceSquare(technique, activeBody, activeBody.facing, model.aim.angleDeg);
         const corner = worldToScreen(camera, viewport, { x: square.x, y: square.y });
@@ -1463,6 +1481,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const victim = victimId !== null && performers.get(victimId)?.body === body ? scene(victimId) : undefined;
     drawTechniqueScene(ctx, viewport, camera, body, attacker, victim, model);
   }
+  drawPowerStatuses(ctx, viewport, camera, model.state.teams.flatMap((team) => team.worms), model.world.worms, model.timeMs, model.powerSprites);
 
   // The super move's white screen: the world washes out, the fighters stay on it in black.
   const whiteout = clamp(model.whiteout ?? 0, 0, 1);
@@ -1720,6 +1739,14 @@ function drawTechniqueScene(ctx: Ctx2D, viewport: Size, camera: Camera, body: Te
   };
   const f = body.facing;
   switch (body.kind) {
+    case 'time_stop':
+    case 'force_field':
+    case 'claws':
+    case 'room':
+      draw(attacker);
+      drawPowerScene(ctx, viewport, camera, body, model.state.world, t, model.gore !== false, model.powerSprites,
+        body.kind === 'claws' && model.state.teams.some((team) => team.worms.some((worm) => worm.id === body.victimId && !worm.alive)));
+      return;
     case 'needle': {
       draw(victim);
       draw(attacker);
@@ -1919,8 +1946,17 @@ function drawCrosshair(ctx: Ctx2D, viewport: Size, camera: Camera, pointer: { re
 function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: number, kind: CrateKind, landed: boolean, model: RenderModel): void {
   const p = worldToScreen(camera, viewport, { x, y });
   const z = camera.zoom;
-  if (kind === 'power') {
+  if (kind === 'power' || kind === 'immortality') {
     drawPowerOrb(ctx, p.x, p.y, z, model.timeMs, landed);
+    if (kind === 'immortality') {
+      drawImmortalMark(ctx, p.x, p.y + 12 * z, z, 3, model.timeMs);
+      ctx.save();
+      ctx.fillStyle = '#ffe18b';
+      ctx.font = 'bold 10px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('IMMORTAL / 3', p.x, p.y - 42 * z);
+      ctx.restore();
+    }
     return;
   }
   const size = 14 * z;

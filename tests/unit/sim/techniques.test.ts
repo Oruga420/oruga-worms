@@ -172,7 +172,7 @@ describe('the Galaxian Explosion', () => {
 describe('the Explosión Final', () => {
   const FINAL = WEAPONS.final_explosion;
 
-  it('is a melee row with no aim and no toll: the worm is the price', () => {
+  it('is a melee row with no aim and no upfront toll: the worm is the price at the burst', () => {
     expect(FINAL.kind).toBe('MELEE');
     expect(FINAL.toll).toBeUndefined();
     expect(FINAL.tollShare).toBeUndefined();
@@ -190,7 +190,8 @@ describe('the Explosión Final', () => {
     expect(heldByTechniques(world.techniques).has('hero')).toBe(true);
     const events = playOut(world);
     expect(beats(events)).toEqual(['burst3']);
-    expect(damageTo(events, 'hero')).toEqual([KILL_DAMAGE]);
+    expect(damageTo(events, 'hero')).toEqual([]);
+    expect(tolls(events, 'hero')).toEqual([expect.objectContaining({ amount: KILL_DAMAGE, sourceTeamId: null, sourceWormId: null })]);
     expect(damageTo(events, near.id)).toEqual([KILL_DAMAGE]);
     expect(damageTo(events, friend.id)).toEqual([KILL_DAMAGE]);
     expect(damageTo(events, far.id)).toEqual([]);

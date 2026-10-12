@@ -75,6 +75,8 @@ import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
 import { superResting } from './match/super-rest.ts';
 import { fire } from './weapons/fire.ts';
+import { loadPowerAssets, type PowerAssets } from './game/power-assets.ts';
+import { loadSceneryAssets } from './game/scenery-assets.ts';
 
 /** How hard each beat of Gear 5 shakes the camera: the drums and the awakening hardest. */
 const DEVOUR_SHAKE: Readonly<Record<DevourBeat, number>> = Object.freeze({ drum: 3.5, awake: 7, stretch: 0, grab: 1.5, snap: 0, chomp: 2.5, gulp: 4, burp: 3 });
@@ -102,6 +104,7 @@ interface OrugasDebug {
   readonly seed: () => number;
   /** The scenario in play ('island', 'spaceship', 'castle', 'kame_house'), so a test can prove ?map= and the card pick it. */
   readonly scenario: () => string;
+  readonly rasterized: () => boolean;
   /** The active worm's sim body, for diagnosing movement stalls (backlog 4.5). */
   readonly activeBody: () => { x: number; y: number; vx: number; vy: number; motion: string; onGround: boolean; fuelMs: number } | null;
   /** The settings in play (audio levels and key bindings), as loaded from storage at boot. */
@@ -118,6 +121,8 @@ interface OrugasDebug {
   readonly keybinds: () => Keybinds;
   /** Frames in the weapon atlas once it has loaded (0 before), so a test can prove the art shipped. */
   readonly weaponFrames: () => number;
+  readonly authoredPowerClips: () => readonly string[];
+  readonly powerStatus: () => readonly { id: string; hp: number; alive: boolean; frozenTurns: number; shieldDurability: number; immortalityCharges: number }[];
   /** Picks a weapon by id through the controller's own guard (ammo, scheme delay); unknown ids are ignored. */
   readonly selectWeapon: (id: string) => void;
   /** 'desktop' or 'touch', as picked on the title screen, and the title's device buttons. */
@@ -214,7 +219,7 @@ const TICK_MS_CAMERA = 1000 / SIM_HZ;
 /** The camera's normal worm-follow smoothing, restored after a shot. */
 const DEFAULT_FOLLOW_TAU_MS = 150;
 
-function boot(): void {
+async function boot(): Promise<void> {
   const stage = document.getElementById('stage');
   if (!(stage instanceof HTMLElement)) throw new Error('#stage is missing from index.html');
 
@@ -250,13 +255,23 @@ function boot(): void {
 
   const contextFactory = createDomContextFactory(document);
   if (contextFactory === null) throw new Error('this browser has no 2D canvas context');
+  renderer.render(() => undefined, (ctx, viewport) => {
+    ctx.fillStyle = '#101c2c';
+    ctx.fillRect(0, 0, viewport.w, viewport.h);
+    ctx.fillStyle = '#ffd34e';
+    ctx.font = '900 24px Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOADING THE ARENA', viewport.w / 2, viewport.h / 2);
+  });
+  const sceneryAssets = await loadSceneryAssets();
+  renderer.markHudDirty();
 
   // A fresh island and fresh spawns every game; ?seed=N pins one map for a test or a bug report.
   const randomBits = (target: Uint32Array): Uint32Array => window.crypto.getRandomValues(target);
   // The map under the title and the team setup: the default teams, as many worms as a match has, on
   // the island unless ?map=castle (or spaceship, kame_house) in the URL picks a scenario to start on.
   const initialTeamSetup: TeamSetupState = Object.freeze({ ...DEFAULT_TEAM_SETUP, scenario: parseScenarioParam(window.location.search) ?? DEFAULT_TEAM_SETUP.scenario });
-  const built = buildGame({ setup: toMatchSetup(initialTeamSetup, pickMatchSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory });
+  const built = buildGame({ setup: toMatchSetup(initialTeamSetup, pickMatchSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory, sceneryAssets });
   if (!built.ok) throw new Error(`game setup failed: ${built.error.message}`);
 
   // Always build the client; it probes the sidecar once and the controller falls back to the
@@ -389,6 +404,8 @@ function boot(): void {
   // The weapon atlas (panel icons and held layers) loads the same way; until it lands the panel
   // shows letter glyphs and the worm's fist stays empty.
   let weaponSprites: CharacterSprites | null = null;
+  let powerSprites: PowerAssets | null = null;
+  void loadPowerAssets().then((assets) => { powerSprites = assets; });
   // The mouse in world px, sampled each tick for the targeted weapons' crosshair.
   let pointerWorld = { x: 0, y: 0 };
   // Mouse look: dragging on the stage pans the camera and holds it there for a moment before the
@@ -506,7 +523,7 @@ function boot(): void {
   /** Builds the match from the chosen teams and starts it; a rejected setup leaves the card up. */
   const beginMatch = (seed: number): void => {
     const setup = toMatchSetup(teamSetup, seed, WORLD_SIZE_DEFAULT);
-    const rebuilt = buildGame({ setup, createContext: contextFactory });
+    const rebuilt = buildGame({ setup, createContext: contextFactory, sceneryAssets });
     if (!rebuilt.ok) return;
     game = rebuilt.value;
     controller = createController(game, cpuOptions);
@@ -531,7 +548,7 @@ function boot(): void {
   // Restart the match (R at the end screen) with a fresh seed; rebuild the world and controller.
   // R at the end screen: the same teams on a fresh island.
   const restart = (): void => {
-    const rebuilt = buildGame({ setup: toMatchSetup(teamSetup, pickRestartSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory });
+    const rebuilt = buildGame({ setup: toMatchSetup(teamSetup, pickRestartSeed(window.location.search, randomBits), WORLD_SIZE_DEFAULT), createContext: contextFactory, sceneryAssets });
     if (!rebuilt.ok) return;
     game = rebuilt.value;
     controller = createController(game, cpuOptions);
@@ -829,6 +846,7 @@ function boot(): void {
           sprites,
           weapon: selected,
           weaponSprites,
+          powerSprites,
           pointer: pointerWorld,
           targeting,
           anim: (wormId: string) => wormAnim(fx, wormId),
@@ -937,6 +955,7 @@ function boot(): void {
       stepsRemaining: () => controller.stepsRemaining(),
       seed: () => controller.state().seed,
       scenario: () => game.terrain.scenery?.id ?? 'island',
+      rasterized: () => game.terrain.scenery?.rasterized === true,
       settings: () => settings,
       paused: () => paused,
       scoreboard: () => buildScoreboard(controller.state()).map((row) => ({ name: row.name, winner: row.winner, points: row.points, aliveWorms: row.aliveWorms })),
@@ -945,6 +964,8 @@ function boot(): void {
       optionsCells: () => (optionsLayout === null ? [] : optionsLayout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h }))),
       keybinds: () => settings.keybinds,
       weaponFrames: () => (weaponSprites === null ? 0 : WEAPON_IDS.filter((id) => weaponSprites?.atlas.frame(WEAPONS[id].icon) !== undefined).length),
+      authoredPowerClips: () => Object.keys(powerSprites?.atlas.manifest.animations ?? {}),
+      powerStatus: () => controller.state().teams.flatMap((team) => team.worms.map((worm) => ({ id: worm.id, hp: worm.hp, alive: worm.alive, frozenTurns: worm.frozenTurns ?? 0, shieldDurability: worm.shieldDurability ?? 0, immortalityCharges: worm.immortalityCharges ?? 0 }))),
       selectWeapon: (id: string) => {
         const found = WEAPON_IDS.find((weapon) => weapon === id);
         if (found !== undefined) controller.selectWeapon(found);
@@ -996,7 +1017,7 @@ function boot(): void {
         const active = activeWormOf(controller.state());
         const body = active === undefined ? undefined : findBody(world, active.id);
         const x = dx !== undefined && body !== undefined ? Math.round(body.x + body.facing * dx) : (pickCrateColumn(world) ?? Math.floor(world.terrain.width / 2));
-        spawnCrate(world, kind === 'weapon' || kind === 'utility' || kind === 'power' ? kind : 'health', x);
+        spawnCrate(world, kind === 'weapon' || kind === 'utility' || kind === 'power' || kind === 'immortality' ? kind : 'health', x);
       },
       // Sink a worm that is NOT the active one, so the turn is not forfeited mid checklist.
       drownOne: () => {
@@ -1127,4 +1148,8 @@ function boot(): void {
   loop.start();
 }
 
-boot();
+void boot().catch((error: unknown) => {
+  const stage = document.getElementById('stage');
+  if (stage !== null) stage.textContent = 'The arena could not start. Reload the page to try again.';
+  console.error('Orugas boot failed', error);
+});

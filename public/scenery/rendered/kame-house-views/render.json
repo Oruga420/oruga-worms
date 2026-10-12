@@ -1,0 +1,24 @@
+{
+  "input": "assets/meshy/kame-house/model.glb",
+  "blender": "5.1.1",
+  "engine": "BLENDER_WORKBENCH",
+  "size": 768,
+  "views": [
+    "front",
+    "right",
+    "back",
+    "left"
+  ],
+  "bounds_min": [
+    -0.703702986240387,
+    -0.9507740139961243,
+    -0.8652539849281311
+  ],
+  "bounds_max": [
+    0.6972579956054688,
+    0.9519870281219482,
+    0.8627560138702393
+  ],
+  "camera": "orthographic",
+  "background": "transparent"
+}

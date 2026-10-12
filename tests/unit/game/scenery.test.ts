@@ -39,13 +39,13 @@ describe('drawSkyTheme', () => {
     expect(count(ctx, 'fill')).toBeGreaterThan(20);
   });
 
-  it('paints the spaceship sky with stars and the ringed planet, no clouds or ridges', () => {
+  it('paints the spaceship sky with stars, the ringed planet and orbital depth', () => {
     const ctx = createRecordingContext();
     drawSkyTheme(ctx, VIEWPORT, camera(), SCENARIOS.spaceship.sky, 300, 1000);
     // The gradient, then a small rect per star, then the planet's bands and shade.
     expect(count(ctx, 'fillRect')).toBeGreaterThan(110);
-    expect(count(ctx, 'stroke')).toBe(2);
-    expect(count(ctx, 'scale')).toBe(2);
+    expect(count(ctx, 'stroke')).toBeGreaterThan(6);
+    expect(count(ctx, 'closePath')).toBeGreaterThan(8);
   });
 
   it('paints the castle dusk with stars, the moon, pink clouds and dark ridges, and the Kame House sky without ridges', () => {
@@ -55,8 +55,8 @@ describe('drawSkyTheme', () => {
     drawSkyTheme(kame, VIEWPORT, camera(), SCENARIOS.kame_house.sky, 300, 1000);
     expect(count(castle, 'fillRect')).toBeGreaterThan(100);
     expect(count(kame, 'fillRect')).toBe(1);
-    // Two ridges are two closed fills more than none.
-    expect(count(castle, 'closePath')).toBe(count(kame, 'closePath') + 2);
+    // Distant spires and two fir layers add depth beyond the original ridges.
+    expect(count(castle, 'closePath')).toBeGreaterThan(count(kame, 'closePath') + 12);
   });
 });
 
@@ -112,12 +112,12 @@ describe('drawProps', () => {
 });
 
 describe('drawGame with a built scenario', () => {
-  it('draws Kame House with its sign and palms, and the spaceship with its engines, on top of the land', () => {
+  it('draws Kame House lettering only through destructible tiles, and spaceship engines over land', () => {
     const kame = game('kame_house');
     const ctx = createRecordingContext();
     drawGame(ctx, VIEWPORT, camera(), { state: kame.state, world: kame.world, aim: INITIAL_AIM, timeMs: 1000 });
     const texts = ctx.calls.filter((c) => c.name === 'fillText').map((c) => String(c.args[0]));
-    expect(texts).toContain(SIGN_TEXT);
+    expect(texts).not.toContain(SIGN_TEXT);
     expect(count(ctx, 'drawImage')).toBeGreaterThan(0);
     const ship = game('spaceship');
     const plain = createRecordingContext();

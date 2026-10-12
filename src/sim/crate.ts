@@ -17,8 +17,8 @@ import type { CrateBody, CrateKind, WormBody } from './types.ts';
 import type { SimWorld } from './world.ts';
 
 /** What a crate sounds like as it appears, and as a worm takes it: the power orb shimmers in and sings. */
-const SPAWN_SOUND: Readonly<Record<CrateKind, string>> = Object.freeze({ weapon: 'wld_crate_parachute', health: 'wld_crate_parachute', utility: 'wld_crate_parachute', power: 'wpn_teleport_zap' });
-const PICKUP_SOUND: Readonly<Record<CrateKind, string>> = Object.freeze({ weapon: 'wld_weapon_pickup', health: 'wld_health_pickup', utility: 'wld_weapon_pickup', power: 'wpn_holy_choir' });
+const SPAWN_SOUND: Readonly<Record<CrateKind, string>> = Object.freeze({ weapon: 'wld_crate_parachute', health: 'wld_crate_parachute', utility: 'wld_crate_parachute', power: 'wpn_teleport_zap', immortality: 'wpn_holy_choir' });
+const PICKUP_SOUND: Readonly<Record<CrateKind, string>> = Object.freeze({ weapon: 'wld_weapon_pickup', health: 'wld_health_pickup', utility: 'wld_weapon_pickup', power: 'wpn_holy_choir', immortality: 'wpn_immortality' });
 
 export function spawnCrate(world: SimWorld, kind: CrateKind, x: number): CrateBody {
   const crate: CrateBody = { id: world.nextId(), kind, x, y: -CRATE_SIZE_PX, landed: false, counted: false, alive: true };

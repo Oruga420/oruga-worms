@@ -1,0 +1,24 @@
+{
+  "input": "assets/meshy/castle/model.glb",
+  "blender": "5.1.1",
+  "engine": "BLENDER_WORKBENCH",
+  "size": 1024,
+  "views": [
+    "front",
+    "right",
+    "back",
+    "left"
+  ],
+  "bounds_min": [
+    -0.9318640232086182,
+    -0.3823679983615875,
+    -0.9524270296096802
+  ],
+  "bounds_max": [
+    0.9247469902038574,
+    0.3860439956188202,
+    0.9517139792442322
+  ],
+  "camera": "orthographic",
+  "background": "transparent"
+}

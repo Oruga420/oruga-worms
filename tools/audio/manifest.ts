@@ -13,7 +13,7 @@ import type { Bus } from './plan.ts';
 export type AssetStatus = 'ok' | 'failed' | 'placeholder';
 
 export interface AssetSource {
-  readonly provider: 'elevenlabs';
+  readonly provider: 'elevenlabs' | 'replicate';
   readonly endpoint: string;
   readonly model: string;
   readonly prompt?: string;
@@ -22,7 +22,10 @@ export interface AssetSource {
   readonly promptInfluence?: number;
   readonly requestedSeconds?: number;
   readonly attempts: number;
-  readonly credits: number;
+  readonly credits?: number;
+  readonly estimatedCostUsd?: number;
+  readonly version?: string;
+  readonly predictionId?: string;
   readonly sha256: string;
 }
 

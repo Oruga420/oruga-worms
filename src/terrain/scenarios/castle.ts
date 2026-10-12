@@ -9,7 +9,8 @@ import { buildMask, resolveGenerateOptions, surfaceProfile } from '../generate.t
 import { AIR } from '../mask.ts';
 import { topmostSolid } from '../queries.ts';
 import type { ScenarioBuild, ScenarioBuildOptions, SceneryProp } from '../scenarios.ts';
-import { fillSpans } from '../tiles.ts';
+import { fillSpans, paintRaster } from '../tiles.ts';
+import { fitRaster, stampRaster } from '../raster.ts';
 import { fillMerlons, fillRect, rectSpans, solidSpansIn, topEdgeSpansIn } from './shapes.ts';
 
 export const STONE = '#8d8f98';
@@ -42,6 +43,12 @@ export function buildCastle(options: ScenarioBuildOptions): ScenarioBuild {
   }
   base = Math.max(base, Math.round(height * 0.5));
   const sink = base + 60;
+  if (options.raster !== undefined) {
+    const raster = options.raster;
+    const rect = fitRaster(raster, { x: cx - width * 0.28, y: sink - height * 0.62, w: width * 0.56, h: height * 0.62 });
+    stampRaster(mask, raster, rect);
+    return { mask, props: [], rasterized: true, paint: (tiles) => { paintRaster(tiles, raster, rect); } };
+  }
 
   // The keep in the middle, the towers at the ends, the walls between.
   const keep = { x0: cx - 100, x1: cx + 100, top: base - 230 };

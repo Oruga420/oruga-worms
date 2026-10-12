@@ -5,7 +5,7 @@
  * immutability in the ledger). Nothing here is a MatchState; the match layer converts events.
  */
 
-import type { BeamSpec, BlastSpec, ClusterSpec, ComboSpec, DevourSpec, DiceSpec, FinalSpec, GalaxySpec, HexSpec, HikenSpec, MeteorSpec, NeedleSpec, ProjectileSpec, SpawnSpec, SproutSpec, TechniqueKind, TreasureSpec, ZoltraakSpec } from '../weapons/types.ts';
+import type { BeamSpec, BlastSpec, ClawsSpec, ClusterSpec, ComboSpec, DevourSpec, DiceSpec, FinalSpec, ForceFieldSpec, GalaxySpec, HexSpec, HikenSpec, MeteorSpec, NeedleSpec, ProjectileSpec, RoomSpec, SpawnSpec, SproutSpec, TechniqueKind, TimeStopSpec, TreasureSpec, ZoltraakSpec } from '../weapons/types.ts';
 
 export type WormMotion = 'idle' | 'walking' | 'jumping' | 'falling' | 'flying' | 'parachuting' | 'jetpacking' | 'drowning' | 'dead';
 
@@ -62,8 +62,8 @@ export interface ProjectileBody {
   chainTriggered: boolean;
 }
 
-/** What a crate holds; power is the glowing orb that recharges a super (match/crates.ts rollPower). */
-export type CrateKind = 'weapon' | 'health' | 'utility' | 'power';
+/** What a crate holds; power is the glowing orb that recharges a super (match/crates.ts rollPower); immortality is the unique once a match pickup. */
+export type CrateKind = 'weapon' | 'health' | 'utility' | 'power' | 'immortality';
 
 export interface CrateBody {
   readonly id: number;
@@ -477,7 +477,57 @@ export interface FinalBody extends TechniqueBase {
   readonly killed: string[];
 }
 
-export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody | MeteorBody | DiceBody | ZoltraakBody | FinalBody;
+export type TimeStopStage = 'charge' | 'recover';
+
+/** time_stop in progress (sim/techniques/time-stop.ts): the caster is held through the charge; the freeze lands at the end of it. */
+export interface TimeStopBody extends TechniqueBase {
+  readonly kind: 'time_stop';
+  readonly spec: TimeStopSpec;
+  stage: TimeStopStage;
+  /** The freeze has gone out to the rest of the field. */
+  applied: boolean;
+}
+
+export type ForceFieldStage = 'charge' | 'recover';
+
+/** force_field in progress (sim/techniques/force-field.ts): the caster is held through the charge; the shield lands at the end of it. */
+export interface ForceFieldBody extends TechniqueBase {
+  readonly kind: 'force_field';
+  readonly spec: ForceFieldSpec;
+  stage: ForceFieldStage;
+  /** The shield has been raised. */
+  applied: boolean;
+}
+
+export type ClawsStage = 'windup' | 'recover';
+
+/** adamantium_claws in progress (sim/techniques/claws.ts): the attacker is held through the windup; the strike lands at the end of it. */
+export interface ClawsBody extends TechniqueBase {
+  readonly kind: 'claws';
+  readonly spec: ClawsSpec;
+  stage: ClawsStage;
+  /** Null when nobody was in reach and in sight: the claws swipe at the air. */
+  readonly victimId: string | null;
+  readonly targetX: number;
+  readonly targetY: number;
+  /** The claws have struck (or swiped at nothing). */
+  struck: boolean;
+}
+
+export type RoomStage = 'charge' | 'recover';
+
+/** ROOM in progress (sim/techniques/room.ts): the caster is held through the charge; the exchange lands at the end of it. */
+export interface RoomBody extends TechniqueBase {
+  readonly kind: 'room';
+  readonly spec: RoomSpec;
+  stage: RoomStage;
+  /** The aim's elevation at the moment of the cast, held fixed through the charge. */
+  readonly angleDeg: number;
+  /** The exchange has gone out to the match layer. */
+  applied: boolean;
+}
+
+export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody | MeteorBody | DiceBody | ZoltraakBody | FinalBody | TimeStopBody | ForceFieldBody | ClawsBody | RoomBody;
 
 /**
  * The beats of the techniques the presentation plays, by kind:
@@ -488,7 +538,11 @@ export type TechniqueBody = NeedleBody | GalaxyBody | TreasureBody | HikenBody |
  * - meteor: call, fall, burst;
  * - dice: draw, slash (n from 1), cut (with the cubes);
  * - zoltraak: circle (n from 1), beam (n from 1);
- * - final: burst (n the worms it took, its user among them).
+ * - final: burst (n the worms it took, its user among them);
+ * - time_stop: freeze (the field locks solid);
+ * - force_field: shield (the barrier goes up);
+ * - claws: slash (the strike lands), miss (nobody was there);
+ * - room: open (the region is declared and the exchange lands).
  */
 export type TechniqueBeat =
   | 'sting'
@@ -508,7 +562,10 @@ export type TechniqueBeat =
   | 'slash'
   | 'cut'
   | 'circle'
-  | 'beam';
+  | 'beam'
+  | 'freeze'
+  | 'shield'
+  | 'open';
 
 /** Where a hit landed and which way it pushed, so the presentation can spray the blood the right way. */
 export interface HitPoint {
@@ -570,7 +627,17 @@ export type SimEvent =
   | { readonly type: 'techniqueBeat'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly beat: TechniqueBeat; readonly n: number; readonly x: number; readonly y: number; readonly facing: 1 | -1; readonly cells?: readonly DiceCell[] }
   | { readonly type: 'techniqueEnd'; readonly techniqueId: number; readonly kind: TechniqueKind; readonly attackerId: string; readonly victimId: string | null; readonly landed: boolean }
   /** The Tesoro del Cielo sealed a worm: the ledger takes its team's next turns, hits of them (match/seals.ts). */
-  | { readonly type: 'sealed'; readonly weaponId: string; readonly casterId: string; readonly casterTeamId: string; readonly targetId: string; readonly hits: number; readonly hitToll: number };
+  | { readonly type: 'sealed'; readonly weaponId: string; readonly casterId: string; readonly casterTeamId: string; readonly targetId: string; readonly hits: number; readonly hitToll: number }
+  /** time_stop landed: every living worm but the caster owes the ledger one skipped own turn (match/turn.ts). */
+  | { readonly type: 'freeze'; readonly casterId: string; readonly turns: number }
+  /** force_field landed: the caster gets a damage buffer that clears after its own next turn. */
+  | { readonly type: 'shield'; readonly casterId: string; readonly durability: number; readonly ownTurns: number }
+  /**
+   * ROOM fired: the raw aim elevation at the moment of firing, the same Up/Down and touch arrows
+   * already steer. The match layer alone turns it into a coverage percent and resolves the whole
+   * exchange (match/room.ts): the sim does not know what a percent of the map's area means.
+   */
+  | { readonly type: 'roomCast'; readonly casterId: string; readonly angleDeg: number };
 
 export interface WormIntent {
   readonly moveX: -1 | 0 | 1;

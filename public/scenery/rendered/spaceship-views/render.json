@@ -1,0 +1,24 @@
+{
+  "input": "assets/meshy/spaceship/model.glb",
+  "blender": "5.1.1",
+  "engine": "BLENDER_WORKBENCH",
+  "size": 1024,
+  "views": [
+    "front",
+    "right",
+    "back",
+    "left"
+  ],
+  "bounds_min": [
+    -0.9518970251083374,
+    -0.1913599967956543,
+    -0.510915994644165
+  ],
+  "bounds_max": [
+    0.9515290260314941,
+    0.19237500429153442,
+    0.5129349827766418
+  ],
+  "camera": "orthographic",
+  "background": "transparent"
+}
