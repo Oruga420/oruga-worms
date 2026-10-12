@@ -20,7 +20,8 @@
                     "e2e":  "playwright test",
                     "sidecar":  "node sidecar/index.ts",
                     "ports":  "node scripts/find-ports.mjs",
-                    "audio:generate":  "node tools/audio/generate.ts"
+                    "audio:generate":  "node tools/audio/generate.ts",
+                    "voice:agent":  "node tools/voice/create-agent.ts"
                 },
     "devDependencies":  {
                             "@eslint/js":  "10.0.1",

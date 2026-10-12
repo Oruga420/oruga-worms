@@ -11,6 +11,7 @@
 
 import { CPU_TURN_SCHEMA, type CpuBackend, type CpuHealthResponse, type CpuTurnHttpResponse } from '../src/ai/contract.ts';
 import { decideCpuTurn, type CpuTurnDeps } from './cpu-turn.ts';
+import { voiceSession, type VoiceSessionBody, type VoiceSessionConfig } from './voice-session.ts';
 
 export interface ApiRequest {
   readonly method: string;
@@ -23,7 +24,7 @@ export interface ApiErrorBody {
   readonly error: string;
 }
 
-export type ApiBody = CpuHealthResponse | CpuTurnHttpResponse | ApiErrorBody;
+export type ApiBody = CpuHealthResponse | CpuTurnHttpResponse | ApiErrorBody | VoiceSessionBody;
 
 export interface ApiResponse {
   readonly status: number;
@@ -34,12 +35,17 @@ export interface HandlerOptions {
   readonly backend: CpuBackend;
   /** When present the turn route serves real decisions; without it every turn is a 503 fallback. */
   readonly deps?: CpuTurnDeps;
+  /** The voice agent's session route (sidecar/voice-session.ts); absent, it answers 503. */
+  readonly voice?: VoiceSessionConfig;
+  /** For tests: the fetch the voice route mints signed URLs with. */
+  readonly fetchImpl?: typeof fetch;
 }
 
 export const DEFAULT_HANDLER_OPTIONS: HandlerOptions = Object.freeze({ backend: 'off' });
 
 export const ROUTE_CPU_TURN = '/cpu-turn';
 export const ROUTE_CPU_TURN_HEALTH = '/cpu-turn/health';
+export const ROUTE_VOICE_SESSION = '/voice/session';
 
 export function json(status: number, body: ApiBody): ApiResponse {
   return Object.freeze({ status, body: Object.freeze(body) });
@@ -68,6 +74,12 @@ export async function handleApiRoute(req: ApiRequest, options: HandlerOptions = 
     }
     const result = await decideCpuTurn(req.body, options.deps);
     return json(result.status, result.body);
+  }
+
+  if (route === ROUTE_VOICE_SESSION) {
+    if (method !== 'GET') return json(405, { error: 'method not allowed' });
+    const session = await voiceSession(options.voice, options.fetchImpl);
+    return json(session.status, session.body);
   }
 
   return json(404, { error: 'not found' });

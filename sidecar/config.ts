@@ -10,6 +10,7 @@ import type { CpuTurnDeps } from './cpu-turn.ts';
 import type { EnvMap } from './env.ts';
 import { createMatchBudget } from './rate-limit.ts';
 import type { GuardConfig } from './server.ts';
+import type { VoiceSessionConfig } from './voice-session.ts';
 
 export const DEFAULT_MAX_CALLS_PER_MATCH = 200;
 export const TOKEN_HEADER = 'x-orugas-token';
@@ -20,6 +21,8 @@ export interface SidecarConfig extends GuardConfig {
   readonly apiKey?: string;
   readonly modelOverride?: string;
   readonly maxCallsPerMatch: number;
+  /** The voice agent (GET /api/voice/session): ELEVENLABS_AGENT_ID, and ELEVENLABS_API_KEY for a private one. */
+  readonly voice: VoiceSessionConfig;
 }
 
 export interface ConfigDefaults {
@@ -60,9 +63,12 @@ export function readSidecarConfig(env: EnvMap, defaults: ConfigDefaults): Sideca
   const apiKey = nonEmpty(env['ANTHROPIC_API_KEY']);
   const modelOverride = nonEmpty(env['ORUGAS_CPU_MODEL']);
   const token = nonEmpty(env['ORUGAS_CPU_TOKEN']);
+  const voiceKey = nonEmpty(env['ELEVENLABS_API_KEY']);
+  const voiceAgent = nonEmpty(env['ELEVENLABS_AGENT_ID']);
   return Object.freeze({
     backend: parseBackend(env['ORUGAS_CPU_BACKEND']),
     llmEnabled: parseSwitch(env['ORUGAS_CPU_LLM'], true),
+    voice: Object.freeze({ ...(voiceKey === undefined ? {} : { apiKey: voiceKey }), ...(voiceAgent === undefined ? {} : { agentId: voiceAgent }) }),
     maxCallsPerMatch: parsePositiveInt(env['ORUGAS_CPU_MAX_CALLS_PER_MATCH'], DEFAULT_MAX_CALLS_PER_MATCH),
     allowedOrigins: origins === undefined
       ? defaultAllowedOrigins(defaults.vitePort)
@@ -94,5 +100,6 @@ export function describeConfig(config: SidecarConfig): string {
     `budget=${config.maxCallsPerMatch}/match`,
     `origins=${config.allowedOrigins.length}`,
     `token=${config.token === undefined ? 'none' : 'required'}`,
+    `voice=${config.voice.agentId === undefined ? 'off' : config.voice.apiKey === undefined ? 'public agent' : 'private agent'}`,
   ].join(' ');
 }

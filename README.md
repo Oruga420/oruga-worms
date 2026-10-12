@@ -41,6 +41,49 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
 
 ### What's new
 
+- **Voice control (WebMCP + ElevenLabs)**: press the **🎤 Voz** button (or **V**) and talk to your
+  worms. Everything the keys do works by voice, on the human's turn:
+  - "**Raúl, yo te elijo, utiliza Kamehameha**": Raúl takes the turn (only before the turn's worm has
+    moved), and the AI works out the shot: a CALCULANDO panel rolls the numbers while a reticle
+    clicks from enemy to enemy (¡CLIC! ¡CLIC!), the camera takes in the target, BLANCO FIJADO, the
+    worm shouts its battle cry in a speech bubble, then walks if that helps, turns, aims, charges
+    and fires. The AI is the CPU's own heuristic, asked for the best shot with that weapon.
+  - "**camina a la izquierda cinco pasos**": the worm walks five steps of its turn's ten and counts
+    them over its head (1! 2! 3! ...); a wall stops it early.
+  - "**saca la escopeta**", "**cambia a la granada santa**", "**apunta a 30 grados**", "**sube la
+    mira**", "**dispara al 60 por ciento**", "**salta**", "**voltereta**", "**pasa el turno**",
+    "**alto**", "**ataca a Ana con la bazuca**". Orders chain ("camina 3 a la derecha, saca la
+    escopeta y dispara") and queue behind the one running; any key takes the worm back.
+  - With an **ElevenLabs agent** set up, the agent hears you, calls the game's tools and talks back
+    (in Spanish by default) narrating each shot; it writes the battle cries. Without one, the
+    browser's own speech recognition does it (Chrome, Edge, Safari; `?voicelang=en-US` for English).
+  - **WebMCP**: the same twelve tools (`orugas_get_battle_state`, `orugas_choose_worm`,
+    `orugas_walk`, `orugas_aim`, `orugas_select_weapon`, `orugas_fire`, `orugas_ai_attack`, ...) are
+    registered on `navigator.modelContext`, so a browser agent can play your turn too.
+  Every tool goes through the controller's command door (`src/game/commands.ts`): a voice order can
+  do exactly what a player at the keys could, nothing more, and the CPU's turns stay the CPU's.
+- **Comic book supers**: every super now plays out as a comic too. A panel slams in over the top of
+  the screen in black and white ink with one loud colour: the worm drawn big, speed lines and
+  halftone behind it, its power gathering (the Kamehameha's blue ball cupped at its hip, Gear 5's
+  white sun, the Freezer's pink finger, Zoro's three swords), a yellow caption box ("RAÚL CARGA SU
+  PODER...") and the move's name in a jagged burst. The supers that cost health get their own
+  PENITENCIA / SACRIFICIO panel, and the big moments splash across the screen: ¡HAAAAA!, ¡POW!,
+  ¡ÑAM!, ¡GLUP!, ¡K.O.!, ¡SPLAT!, ¡KABOOM!, in a starburst with an ink shadow and ink drops.
+
+#### Setting up the voice agent
+
+1. Put `ELEVENLABS_API_KEY` in `sidecar/.env` and run `npm run voice:agent`: it creates the
+   "Orugas Worm Commander" agent on your ElevenLabs account with the game's client tools and its
+   persona (`tools/voice/agent.ts`), and prints its id. `npm run voice:agent -- --update` pushes a
+   changed persona or tool list to it.
+2. Set `ELEVENLABS_AGENT_ID` next to the key in `sidecar/.env` for `npm run dev`, and both in the
+   Vercel project's environment for the deployed game. The page asks `GET /api/voice/session`
+   (`api/voice/session.ts` on Vercel, `sidecar/voice-session.ts` in dev), which mints a signed
+   socket URL with the key, so the key never reaches the browser. Without the key the agent must be
+   public and only its id is handed out; `?agent=<id>` in the URL opens a public agent directly.
+3. Without any agent, the 🎤 button falls back to the browser's speech recognition and a local
+   Spanish/English parser (`src/voice/parse.ts`), so voice works with no key at all.
+
 - **WebGL glow**: the world is now drawn through a WebGL2 pass that makes everything bright
   shine (beams, fire, the sun, the white of a super bloom out of the picture), sends a shockwave
   rippling through the picture from every explosion, a finisher, a burst worm and a beam, splits

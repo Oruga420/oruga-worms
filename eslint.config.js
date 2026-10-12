@@ -48,8 +48,13 @@ export default defineConfig([
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['sidecar/**/*.ts', 'tools/**/*.ts', 'scripts/**/*.mjs', 'tests/**/*.ts', '*.config.{ts,js}'],
+    files: ['sidecar/**/*.ts', 'tools/**/*.ts', 'api/**/*.ts', 'scripts/**/*.mjs', 'tests/**/*.ts', '*.config.{ts,js}'],
     languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    // The voice agent's microphone worklet, served as is from public/ (src/voice/elevenlabs.ts).
+    files: ['public/voice/*.js'],
+    languageOptions: { globals: { AudioWorkletProcessor: 'readonly', registerProcessor: 'readonly' } },
   },
   {
     name: 'orugas/no-get-image-data-in-hot-paths',

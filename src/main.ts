@@ -30,6 +30,11 @@ import { drawGame, teamColor, type CharacterSprites, type Scratch } from './game
 import { createGore, drawGore, drawLens, goreEnabledFromSearch, resetGore, updateGore } from './game/gore.ts';
 import { advanceFx, applyFxEvents, createFx, drawFxScreen, drawFxWorld, noteWeapon, wormAnim, type FxDeps, type FxState } from './game/fx.ts';
 import { cinematicFor } from './game/cinematic.ts';
+import { advanceComic, applyComicEvents, comicSay, scanFocus, createComic, drainComicCues, drawComicScreen, drawComicWorld, resetComic } from './game/comic.ts';
+import { battleView } from './voice/battle.ts';
+import { createVoicePanel } from './voice/panel.ts';
+import { runTool, type GameApi } from './voice/tools.ts';
+import { registerWebMcp } from './voice/webmcp.ts';
 import { GAME_CONFIG } from './config/game-config.ts';
 import { loadAtlas } from './engine/atlas.ts';
 import { drawHud, hudKey } from './game/hud.ts';
@@ -96,6 +101,12 @@ interface OrugasDebug {
   readonly fireAll: () => readonly { weapon: string; ok: boolean; error?: string }[];
   /** Weapon panel and movement budget, for the smoke test: what the HUD shows, not a shortcut around it. */
   readonly selectedWeapon: () => string;
+  /** Runs one of the voice / WebMCP tools (src/voice/tools.ts) as the agent would. */
+  readonly voiceTool: (name: string, args?: Record<string, unknown>) => { ok: boolean; text: string };
+  /** The active worm is still carrying out a command. */
+  readonly commandBusy: () => boolean;
+  /** What the comic layer shows: the panels' titles, the splats, the step counts, the AI scans, the bubbles. */
+  readonly comic: () => { panels: readonly string[]; splats: readonly string[]; steps: number; scans: number; bubbles: readonly string[] };
   readonly inventory: () => { activeId: string; fuseMs: number | null; worms: readonly { id: string; ammo: Readonly<Record<string, number>>; superRest: number; turns: number }[]; drops: readonly { kind: string; landed: boolean; x: number; y: number }[] };
   readonly stepsRemaining: () => number;
   /** The match seed in play, so a test can prove ?seed=N pins the map. */
@@ -344,6 +355,8 @@ function boot(): void {
   let fx: FxState = createFx();
   // What the glow pass draws beyond the scene (game/post.ts): the waves and splits of the frame's events.
   const post = createPost();
+  // The supers told as a comic (game/comic.ts): the panels, the splats, the step counts, the AI calculating.
+  const comic = createComic();
   const scratch = createScratch();
   const onScreen = (x: number, y: number): boolean => {
     const viewport = renderer.viewport();
@@ -355,6 +368,12 @@ function boot(): void {
     for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.hp;
     return 0;
   };
+  const wormName = (wormId: string): string => {
+    for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.name;
+    return '???';
+  };
+  // Set once the voice panel exists (below the loop); a no-op until then.
+  let noteTurnToVoice: () => void = () => undefined;
   const maxHpOf = (wormId: string): number => {
     for (const team of controller.state().teams) for (const worm of team.worms) if (worm.id === wormId) return worm.maxHp;
     return GAME_CONFIG.wormHp;
@@ -364,6 +383,7 @@ function boot(): void {
     particles.clear();
     fx = createFx();
     resetPost(post);
+    resetComic(comic);
   };
   const scheduler = createRafScheduler();
 
@@ -743,6 +763,7 @@ function boot(): void {
           soundDirector.handleEvents(gameEvents);
           applyFxEvents(fx, gameEvents, fxDeps);
           applyPostEvents(post, gameEvents, fx.now);
+          applyComicEvents(comic, gameEvents, { nameOf: (id) => wormName(id) });
           for (const event of gameEvents) {
             // Every blow of a super shakes the screen; the finisher and a worm bursting shake it hard.
             if (event.type === 'comboHit') camera = shake(camera, event.finisher ? 9 : 2.4);
@@ -784,8 +805,12 @@ function boot(): void {
           const aim = updateCameraTarget(cameraDirector, controller.world(), TICK_MS_CAMERA, { halfW: viewport.w / camera.zoom / 2, halfH: viewport.h / camera.zoom / 2 });
           cameraDirector = aim.director;
           const freeLook = performance.now() < freeLookUntilMs && aim.director.focus === 'worm';
+          // While the AI calculates, the camera takes in the worm and the enemy the reticle is on.
+          const scanAt = scanFocus(comic, controller.world());
           if (aim.target !== null) {
             camera = follow(camera, aim.target, aim.tauMs);
+          } else if (scanAt !== null) {
+            camera = follow(camera, scanAt, 260);
           } else if (!freeLook) {
             const active = activeWormOf(nowState);
             const body = active === undefined ? undefined : findBody(controller.world(), active.id);
@@ -794,6 +819,9 @@ function boot(): void {
         }
         camera = updateCamera(camera, 1000 / SIM_HZ, viewport);
         particles.update(1 / SIM_HZ);
+        advanceComic(comic, 1000 / SIM_HZ);
+        for (const cue of drainComicCues(comic)) if (mixer.manifest()?.assets[cue] !== undefined) mixer.play(cue);
+        noteTurnToVoice();
         advanceFx(fx, 1000 / SIM_HZ, appPhase === 'playing' ? { world: controller.world(), hpOf, maxHp: GAME_CONFIG.wormHp, maxHpOf } : null, fxDeps);
         updateGore(gore, 1 / SIM_HZ, controller.world().terrain, rng);
       },
@@ -870,7 +898,9 @@ function boot(): void {
             drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
             drawParticles(ctx, particles, view, viewport);
             drawLens(ctx, gore, viewport);
+            if (appPhase === 'playing') drawComicWorld(ctx, comic, view, viewport, controller.world());
             drawFxScreen(ctx, fx, viewport, { touch: deviceMode === 'touch' });
+            if (appPhase === 'playing') drawComicScreen(ctx, comic, viewport, { touch: deviceMode === 'touch' });
           },
           (ctx, viewport: Size) => {
             if (appPhase === 'menu') {
@@ -910,6 +940,34 @@ function boot(): void {
 
   window.addEventListener('resize', () => renderer.resize());
 
+  // Voice and WebMCP (src/voice): the same tools for the ElevenLabs agent, the browser's own speech
+  // recognition and any WebMCP agent, all through the controller's command door (game/commands.ts).
+  const gameApi: GameApi = {
+    view: () => (appPhase === 'playing' ? battleView(controller) : null),
+    command: (cmd) => controller.command(cmd),
+    say: (text) => {
+      const active = activeWormOf(controller.state());
+      if (active !== undefined) comicSay(comic, active.id, text);
+    },
+  };
+  registerWebMcp(gameApi);
+  const voicePanel = createVoicePanel(stage, gameApi);
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'KeyV' || event.repeat || listeningFor !== null || appPhase !== 'playing') return;
+    voicePanel.toggle();
+  });
+  // The agent hears whose turn it is as each one starts, so "dispara" means the right worm.
+  let lastNotedTurn = -1;
+  noteTurnToVoice = (): void => {
+    if (appPhase !== 'playing') return;
+    const state = controller.state();
+    if (state.phase !== 'Active' || state.turn === lastNotedTurn) return;
+    lastNotedTurn = state.turn;
+    const team = activeTeamOf(state);
+    const worm = activeWormOf(state);
+    voicePanel.note(`Turn ${state.turn}: ${worm?.name ?? '?'} of ${team?.name ?? '?'} is up, ${team?.controller === 'human' ? 'a human turn: take orders' : 'the CPU plays it: wait'}.`);
+  };
+
   if (import.meta.env.DEV) {
     window.__orugas = Object.freeze({
       frames: () => frames,
@@ -928,6 +986,9 @@ function boot(): void {
       },
       // Fire every panel weapon once from the active worm, reporting which ones threw.
       selectedWeapon: () => controller.selectedWeapon(),
+      voiceTool: (name: string, args: Record<string, unknown> = {}) => runTool(gameApi, name, args),
+      commandBusy: () => controller.commandBusy(),
+      comic: () => ({ panels: comic.panels.map((p) => p.title), splats: comic.splats.map((sp) => sp.text), steps: comic.steps.length, scans: comic.scans.length, bubbles: comic.bubbles.map((b) => b.text) }),
       inventory: () => ({
         activeId: activeWormOf(controller.state())?.id ?? '',
         fuseMs: controller.selectedFuseMs(),

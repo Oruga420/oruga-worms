@@ -34,11 +34,14 @@ import { pickCrateColumn, spawnCrate } from '../sim/crate.ts';
 import { detonate } from '../sim/projectile.ts';
 import { detonateSheep } from '../sim/sheep.ts';
 import { createCpuState, decideCpuTurn, type CpuControllerOptions, type CpuControllerState } from '../ai/cpu-controller.ts';
+import { decideHeuristic } from '../ai/heuristic.ts';
+import { buildCpuRequest } from '../ai/snapshot.ts';
 import { buildPlan, capWalkTicks, quantizePower } from '../ai/plan-executor.ts';
 import { windFractionFromStep } from '../match/state.ts';
 import { GRAVITY_PX_PER_S2 } from '../sim/constants.ts';
 import type { SnapshotInput } from '../ai/snapshot.ts';
-import { INITIAL_AIM, aimBy, release, setAngle, tickCharge, type AimState } from './aim.ts';
+import { AIM_RATE_DEG_PER_S, INITIAL_AIM, aimBy, release, setAngle, tickCharge, type AimState } from './aim.ts';
+import { CALC_TICKS, MAX_COMMAND_STEPS, STALL_PX, STALL_TICKS, ok, planFromResponse, refuse, type AutoPlan, type CommandResult, type PlanWorm, type WormCommand } from './commands.ts';
 import { isSimPhase, snapshotPositions, syncMatchToSim, translateSimEvents } from './bridge.ts';
 import type { Game } from './setup.ts';
 import type { TechniqueKind, WeaponId } from '../weapons/types.ts';
@@ -122,7 +125,30 @@ export type GameEvent =
    * A worm opened a crate: the weapon it got (a super, out of a power orb) or the hp it healed,
    * for the callout over its head. (x, y) is the top of the worm.
    */
-  | { readonly type: 'crateOpened'; readonly wormId: string; readonly crate: CrateType; readonly weapon: WeaponId | null; readonly healed: number; readonly x: number; readonly y: number };
+  | { readonly type: 'crateOpened'; readonly wormId: string; readonly crate: CrateType; readonly weapon: WeaponId | null; readonly healed: number; readonly x: number; readonly y: number }
+  /** A worm on command took one more whole step of the n it was told to walk (the count over its head). */
+  | { readonly type: 'step'; readonly wormId: string; readonly n: number; readonly total: number; readonly x: number; readonly y: number }
+  /** A worm was picked to play the turn by name ("¡YO TE ELIJO!"). */
+  | { readonly type: 'wormPicked'; readonly wormId: string; readonly name: string; readonly x: number; readonly y: number }
+  /**
+   * The AI is working out an auto attack: the enemies its reticle hops over, the one it settles on,
+   * the shot it found, and the line the worm shouts. ticks is how long the calculating lasts.
+   */
+  | {
+      readonly type: 'aiScan';
+      readonly wormId: string;
+      readonly name: string;
+      readonly weapon: WeaponId;
+      readonly targets: readonly { readonly id: string; readonly x: number; readonly y: number }[];
+      readonly targetId: string | null;
+      readonly angleDeg: number;
+      readonly power: number;
+      readonly confidence: number;
+      readonly message: string;
+      readonly ticks: number;
+      readonly x: number;
+      readonly y: number;
+    };
 
 export interface Controller {
   tick(input: ControllerInput): void;
@@ -149,7 +175,28 @@ export interface Controller {
    * to reach sudden death without playing out the whole round.
    */
   advanceRoundClock(ms: number): void;
+  /** A command for the human's active worm (voice, WebMCP): checked now, played out over the ticks. */
+  command(cmd: WormCommand): CommandResult;
+  /** The active worm is still carrying out a command. */
+  commandBusy(): boolean;
 }
+
+/** One beat of a command, played a tick at a time on the human's Active turn. */
+type ScriptStep =
+  | { readonly kind: 'walk'; readonly dir: -1 | 1; readonly steps: number; startPx: number | null; counted: number; lastPx: number; stall: number }
+  | { readonly kind: 'wait'; ticks: number }
+  | { readonly kind: 'face'; readonly dir: -1 | 1 }
+  | { readonly kind: 'hop'; readonly backflip: boolean }
+  | { readonly kind: 'weapon'; readonly id: WeaponId }
+  | { readonly kind: 'aim'; readonly angleDeg: number }
+  | { readonly kind: 'fire'; readonly power: number; readonly targetPoint?: { readonly x: number; readonly y: number }; readonly fuseMs?: number }
+  /** An auto attack ordered behind other steps: planned when the worm gets to it, from where it then stands. */
+  | { readonly kind: 'plan'; readonly weapon: WeaponId; readonly targetWormId?: string; readonly message?: string };
+
+/** How much faster than a held key a command swings the aim, so it reads as the worm sighting in. */
+const COMMAND_AIM_RATE = AIM_RATE_DEG_PER_S * 2.5;
+/** How much faster a command charges the shot than a held fire key. */
+const COMMAND_CHARGE_RATE = 1.6;
 
 interface Pending {
   /** Queued human or CPU walk intents to feed before firing. */
@@ -523,6 +570,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   let humanIntent: WormIntent = IDLE_INTENT;
+  // The command being played out on the human's turn, one step at a time (src/game/commands.ts).
+  let script: ScriptStep[] = [];
 
   const currentIntents = (): Map<string, WormIntent> => {
     const active = activeWormOf(state);
@@ -721,7 +770,298 @@ export function createController(game: Game, options: ControllerOptions): Contro
     });
   };
 
+  /** The human's active worm and its body, when it is the human's Active turn. */
+  const commandable = (): { readonly worm: NonNullable<ReturnType<typeof activeWormOf>>; readonly body: NonNullable<ReturnType<typeof findBody>> } | string => {
+    if (state.phase === 'MatchEnd') return 'The match is over.';
+    if (!isHumanTurn()) return 'It is not a human turn.';
+    if (state.phase !== 'Active') return state.phase === 'TurnStart' || state.phase === 'HotSeat' ? 'The turn has not started yet.' : 'The shot is already out.';
+    const worm = activeWormOf(state);
+    const body = worm === undefined ? undefined : findBody(world, worm.id);
+    if (worm === undefined || body === undefined || !body.alive) return 'There is no worm to command.';
+    return { worm, body };
+  };
+
+  /** One tick of the command in hand: walk, turn, swing the aim, charge and fire, like the keys would. */
+  const playScript = (): void => {
+    const active = activeWormOf(state);
+    const body = active === undefined ? undefined : findBody(world, active.id);
+    const step = script[0];
+    let intent: WormIntent = IDLE_INTENT;
+    if (step === undefined || body === undefined) {
+      script = [];
+    } else {
+      switch (step.kind) {
+        case 'walk': {
+          if (step.startPx === null) {
+            step.startPx = spentPx;
+            step.lastPx = spentPx;
+          }
+          const walked = spentPx - step.startPx;
+          const whole = Math.min(step.steps, Math.floor((walked + 0.5) / MOVE.stepPx));
+          while (step.counted < whole) {
+            step.counted += 1;
+            events.push({ type: 'step', wormId: body.id, n: step.counted, total: step.steps, x: body.x, y: body.y - wormHeight(body) });
+            events.push({ type: 'sound', id: `wrm_footstep_${((step.counted - 1) % 3) + 1}`, x: body.x, y: body.y });
+          }
+          step.stall = spentPx - step.lastPx < STALL_PX ? step.stall + 1 : 0;
+          step.lastPx = spentPx;
+          if (step.counted >= step.steps || !canMove() || step.stall >= STALL_TICKS) {
+            script.shift();
+          } else {
+            intent = { moveX: step.dir, jump: false, backflip: false, thrust: false };
+          }
+          break;
+        }
+        case 'plan': {
+          script.shift();
+          const worm = activeWormOf(state);
+          if (worm !== undefined && whyUnusable(step.weapon) === null) startAuto(worm, body, step.weapon, step.targetWormId, step.message);
+          break;
+        }
+        case 'wait':
+          step.ticks -= 1;
+          if (step.ticks <= 0) script.shift();
+          break;
+        case 'face':
+          body.facing = step.dir;
+          script.shift();
+          break;
+        case 'hop':
+          if (canMove() && !inTheAir(body.motion)) {
+            chargeJump();
+            intent = { moveX: 0, jump: !step.backflip, backflip: step.backflip, thrust: false };
+          }
+          script.shift();
+          break;
+        case 'weapon':
+          selectWeapon(step.id);
+          script.shift();
+          break;
+        case 'aim': {
+          const diff = step.angleDeg - aim.angleDeg;
+          const rate = COMMAND_AIM_RATE * TICK_S;
+          if (Math.abs(diff) <= rate) {
+            aim = setAngle(aim, step.angleDeg);
+            script.shift();
+          } else {
+            aim = setAngle(aim, aim.angleDeg + Math.sign(diff) * rate);
+          }
+          break;
+        }
+        case 'fire': {
+          const weapon = selectedWeapon();
+          const def = getWeapon(weapon);
+          if (whyUnusable(weapon) !== null) {
+            script.shift();
+            break;
+          }
+          const goal = def.charged ? Math.max(0.1, Math.min(1, step.power)) : 0;
+          if (def.charged && aim.power < goal) {
+            aim = tickCharge(aim, true, TICK_S * COMMAND_CHARGE_RATE);
+            if (aim.power < goal) break;
+          }
+          script.shift();
+          const power = def.charged ? goal : 1;
+          aim = { ...aim, charging: false, power: 0 };
+          const target = def.requiresTargetSelect ? (step.targetPoint ?? null) : null;
+          if (def.requiresTargetSelect && target === null) break;
+          startShot(weapon, {
+            angleDeg: aim.angleDeg,
+            power,
+            ...(target === null ? {} : { targetPoint: target }),
+            ...(def.fuse === undefined ? {} : { fuseMs: step.fuseMs ?? selectedFuseMs() ?? def.fuse.defaultMs }),
+          });
+          break;
+        }
+      }
+    }
+    humanIntent = intent;
+    apply({ type: 'TimerTick', dtMs: TICK_MS });
+    emitSim();
+    // The shot is out (or the turn moved on): nothing left of the command applies.
+    if (state.phase !== 'Active') script = [];
+  };
+
+  const plainName = (id: WeaponId): string => getWeapon(id).name;
+
+  /** The weapon the worm will hold once the orders queued so far are done. */
+  const queuedWeapon = (): WeaponId => {
+    for (let i = script.length - 1; i >= 0; i -= 1) {
+      const step = script[i];
+      if (step?.kind === 'weapon') return step.id;
+      if (step?.kind === 'plan') return step.weapon;
+    }
+    return selectedWeapon();
+  };
+
+  /** Why the worm cannot use this weapon now, or null when it can. */
+  const whyUnusable = (id: WeaponId): string | null => {
+    const worm = activeWormOf(state);
+    if (worm === undefined) return 'no worm';
+    if ((worm.ammo[id] ?? 0) === 0) return `${worm.name} has no ${plainName(id)} left.`;
+    const delay = getWeapon(id).delayTurns ?? 0;
+    if (worm.turns < delay) return `${plainName(id)} opens on ${worm.name}'s turn ${delay + 1}.`;
+    if (isSuper(id) && supersRest()) return `${worm.name} used a super last turn and rests them this turn.`;
+    return null;
+  };
+
+  /** Asks the heuristic for the best shot with that weapon (at that worm, when named) and turns it into a plan. */
+  const planAuto = (weapon: WeaponId, targetWormId: string | undefined, from: PlanWorm): AutoPlan => {
+    const snapshot = buildSnapshot();
+    const team = activeTeamOf(state);
+    const worms = snapshot.worms.filter((w) => targetWormId === undefined || w.teamId === team?.id || w.id === targetWormId);
+    const scoped = { ...snapshot, difficulty: 'hard' as const, worms, ammo: snapshot.ammo.filter((a) => a.weapon === weapon) };
+    const request = buildCpuRequest(scoped);
+    const response = decideHeuristic({
+      request,
+      registry: WEAPONS,
+      mask: snapshot.mask,
+      worms: worms.map((w) => ({ id: w.id, teamId: w.teamId, x: w.x, y: w.y, hp: w.hp, alive: w.alive, ...(w.size === undefined ? {} : { size: w.size }) })),
+    });
+    const enemies: PlanWorm[] = snapshot.worms.filter((w) => w.teamId !== team?.id && w.alive).map((w) => ({ id: w.id, teamId: w.teamId, x: w.x, y: w.y, hp: w.hp, alive: w.alive }));
+    return planFromResponse({ response, weapon, from, enemies, stepPx: MOVE.stepPx, ...(targetWormId === undefined ? {} : { targetWormId }) });
+  };
+
+  const nameOf = (wormId: string | null): string | null => (wormId === null ? null : (findWormState(state, wormId)?.worm.name ?? null));
+
+  const command = (cmd: WormCommand): CommandResult => {
+    if (cmd.kind === 'stop') {
+      script = [];
+      return ok('Stopped.');
+    }
+    const ready = commandable();
+    if (typeof ready === 'string') return refuse(ready);
+    const { worm, body } = ready;
+    // Orders given while the worm is still at the last one queue behind it ("walk 5 left, then fire").
+    const queued = script.length > 0;
+    switch (cmd.kind) {
+      case 'select': {
+        if (cmd.wormId === worm.id) return ok(`${worm.name} is already up.`);
+        const team = activeTeamOf(state);
+        const picked = team?.worms.find((w) => w.id === cmd.wormId);
+        if (picked === undefined) return refuse('That worm is not on the team whose turn it is.');
+        if (!picked.alive || picked.hp <= 0) return refuse(`${picked.name} is out of the fight.`);
+        if (queued || spentPx > 0 || state.shot !== null) return refuse(`${worm.name} has already moved this turn; pick a worm before it walks.`);
+        apply({ type: 'WormSelected', wormId: picked.id });
+        if (activeWormOf(state)?.id !== picked.id) return refuse(`${picked.name} cannot play this turn.`);
+        aim = INITIAL_AIM;
+        letGoOfUnusable();
+        const pickedBody = findBody(world, picked.id);
+        events.push({ type: 'wormPicked', wormId: picked.id, name: picked.name, x: pickedBody?.x ?? body.x, y: (pickedBody?.y ?? body.y) - 20 });
+        return ok(`${picked.name}, I choose you!`, { worm: picked.name });
+      }
+      case 'walk': {
+        const steps = Math.max(1, Math.min(MAX_COMMAND_STEPS, Math.round(cmd.steps)));
+        const left = stepsRemaining();
+        if (left <= 0) return refuse(`${worm.name} has no steps left this turn.`);
+        const taken = Math.min(steps, left);
+        script.push({ kind: 'walk', dir: cmd.dir, steps: taken, startPx: null, counted: 0, lastPx: 0, stall: 0 });
+        return ok(`${worm.name} walks ${taken} step${taken === 1 ? '' : 's'} ${cmd.dir < 0 ? 'left' : 'right'}${taken < steps ? ` (only ${left} left this turn)` : ''}.`, { steps: taken });
+      }
+      case 'face':
+        script.push({ kind: 'face', dir: cmd.dir });
+        return ok(`${worm.name} turns ${cmd.dir < 0 ? 'left' : 'right'}.`);
+      case 'jump':
+      case 'backflip':
+        if (!canMove()) return refuse(`${worm.name} has no steps left to jump with.`);
+        script.push({ kind: 'hop', backflip: cmd.kind === 'backflip' });
+        return ok(`${worm.name} ${cmd.kind === 'jump' ? 'jumps' : 'backflips'}.`);
+      case 'aim': {
+        const angle = Math.max(-90, Math.min(90, cmd.angleDeg));
+        script.push({ kind: 'aim', angleDeg: angle });
+        return ok(`Aiming at ${Math.round(angle)} degrees.`);
+      }
+      case 'aimBy': {
+        const angle = Math.max(-90, Math.min(90, aim.angleDeg + cmd.deltaDeg));
+        script.push({ kind: 'aim', angleDeg: angle });
+        return ok(`Aiming at ${Math.round(angle)} degrees.`);
+      }
+      case 'weapon': {
+        const why = whyUnusable(cmd.id);
+        if (why !== null) return refuse(why);
+        if (queued) script.push({ kind: 'weapon', id: cmd.id });
+        else selectWeapon(cmd.id);
+        return ok(`${worm.name} takes the ${plainName(cmd.id)}.`, { weapon: cmd.id });
+      }
+      case 'fire': {
+        const weapon = queuedWeapon();
+        const why = whyUnusable(weapon);
+        if (why !== null) return refuse(why);
+        const def = getWeapon(weapon);
+        if (def.requiresTargetSelect && cmd.targetPoint === undefined) return refuse(`The ${plainName(weapon)} needs a target: name a worm, or ask for an auto attack.`);
+        script.push({ kind: 'fire', power: cmd.power ?? 1, ...(cmd.targetPoint === undefined ? {} : { targetPoint: cmd.targetPoint }) });
+        return ok(`${worm.name} fires the ${plainName(weapon)}!`, { weapon });
+      }
+      case 'auto': {
+        const weapon = cmd.weapon ?? queuedWeapon();
+        const why = whyUnusable(weapon);
+        if (why !== null) return refuse(why);
+        const team = activeTeamOf(state);
+        if (cmd.targetWormId !== undefined) {
+          const target = findWormState(state, cmd.targetWormId);
+          if (target === null || !target.worm.alive || target.team.id === team?.id) return refuse('That is not an enemy worm still in the fight.');
+        }
+        if (queued) {
+          script.push({ kind: 'plan', weapon, ...(cmd.targetWormId === undefined ? {} : { targetWormId: cmd.targetWormId }), ...(cmd.message === undefined ? {} : { message: cmd.message }) });
+          return ok(`${worm.name} will work out the ${plainName(weapon)} shot once it gets there.`, { weapon });
+        }
+        startAuto(worm, body, weapon, cmd.targetWormId, cmd.message);
+        return lastAuto ?? ok('');
+      }
+      case 'skip':
+        if (queued) return refuse(`${worm.name} is still busy; say stop first.`);
+        apply({ type: 'SkipTurn', reason: 'skip' });
+        return ok(`${worm.name} passes the turn.`);
+    }
+  };
+
+  /** The answer of the last auto attack planned, for the tool that asked for it. */
+  let lastAuto: CommandResult | null = null;
+
+  /** Plans an auto attack from where the worm stands now and queues it: the calculating, the walk, the turn, the aim, the shot. */
+  const startAuto = (worm: NonNullable<ReturnType<typeof activeWormOf>>, body: NonNullable<ReturnType<typeof findBody>>, weapon: WeaponId, targetWormId: string | undefined, cry: string | undefined): void => {
+    const team = activeTeamOf(state);
+    const from: PlanWorm = { id: worm.id, teamId: team?.id ?? '', x: body.x, y: body.y, hp: worm.hp, alive: true };
+    const plan = planAuto(weapon, targetWormId, from);
+    const affordable = Math.min(plan.walkSteps, stepsRemaining());
+    const targetName = nameOf(plan.targetId);
+    const message = cry !== undefined && cry.trim() !== '' ? cry.trim().slice(0, 80) : `${plainName(weapon).toUpperCase()}!`;
+    const targets = world.worms.filter((b) => b.alive && b.teamId !== team?.id && hpOf(b.id) > 0).map((b) => ({ id: b.id, x: b.x, y: b.y - wormHeight(b) / 2 }));
+    events.push({
+      type: 'aiScan',
+      wormId: worm.id,
+      name: worm.name,
+      weapon,
+      targets,
+      targetId: plan.targetId,
+      angleDeg: plan.angleDeg,
+      power: plan.power,
+      confidence: plan.confidence,
+      message,
+      ticks: CALC_TICKS,
+      x: body.x,
+      y: body.y - wormHeight(body),
+    });
+    // In front of whatever was queued after it, so the orders keep the order they were given in.
+    const steps: ScriptStep[] = [];
+    steps.push({ kind: 'weapon', id: weapon });
+    steps.push({ kind: 'wait', ticks: CALC_TICKS });
+    if (plan.walkDir !== 0 && affordable > 0) steps.push({ kind: 'walk', dir: plan.walkDir, steps: affordable, startPx: null, counted: 0, lastPx: 0, stall: 0 });
+    steps.push({ kind: 'face', dir: plan.facing });
+    steps.push({ kind: 'aim', angleDeg: plan.angleDeg });
+    steps.push({ kind: 'fire', power: plan.power, ...(plan.targetPoint === undefined ? {} : { targetPoint: plan.targetPoint }), ...(plan.fuseMs === undefined ? {} : { fuseMs: plan.fuseMs }) });
+    script.unshift(...steps);
+    lastAuto = ok(
+      plan.targetId === null
+        ? `${worm.name} finds nobody to hit with the ${plainName(weapon)}.`
+        : `${worm.name} locks on ${targetName}: ${plainName(weapon)} at ${plan.angleDeg} degrees, ${Math.round(plan.power * 100)}% power${affordable > 0 ? `, after ${affordable} step${affordable === 1 ? '' : 's'} ${plan.walkDir < 0 ? 'left' : 'right'}` : ''}${plan.fallback ? ' (no sure shot, firing straight at it)' : ''}.`,
+      { weapon, target: targetName, angleDeg: plan.angleDeg, power: Math.round(plan.power * 100), walkSteps: affordable, confidence: plan.confidence, fallback: plan.fallback },
+    );
+  };
+
   return {
+    command,
+    commandBusy: () => script.length > 0,
     tick(input) {
       endFightsAtMatchEnd();
       dropAnnouncedCrate();
@@ -751,6 +1091,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
           pending.refireTicks = 0;
           pending.burst = null;
           pending.sequence = null;
+          script = [];
           // A fresh turn, a fresh movement budget and the first barrel.
           spentPx = 0;
           shotIndex = 0;
@@ -760,6 +1101,14 @@ export function createController(game: Game, options: ControllerOptions): Contro
       }
 
       if (state.phase === 'Active') {
+        if (isHumanTurn() && script.length > 0) {
+          // A key pressed while a command plays takes the worm back.
+          if (input.moveX !== 0 || input.fireHeld || input.jump || input.backflip || input.aimDelta !== 0) script = [];
+          else {
+            playScript();
+            return;
+          }
+        }
         if (isHumanTurn()) {
           // Walking and jumping both draw on the movement budget; aiming and firing never do, so a
           // worm that has spent its steps can still take the shot.

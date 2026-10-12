@@ -24,7 +24,7 @@ export const TEAM_NAME_PRESETS: readonly string[] = Object.freeze(['Reds', 'Blue
 
 /** Worm names per team, six per team; the fourth set is reused when a name list runs out. */
 const WORM_NAMES: readonly (readonly string[])[] = Object.freeze([
-  Object.freeze(['Rojo', 'Rita', 'Rex', 'Rosa', 'Rudy', 'Rocco']),
+  Object.freeze(['Rojo', 'Rita', 'Rex', 'Rosa', 'Raúl', 'Rocco']),
   Object.freeze(['Azul', 'Ana', 'Ash', 'Alma', 'Axel', 'Abril']),
   Object.freeze(['Verde', 'Vera', 'Vic', 'Vale', 'Vito', 'Vilma']),
   Object.freeze(['Oro', 'Olga', 'Otto', 'Omar', 'Olivia', 'Oscar']),

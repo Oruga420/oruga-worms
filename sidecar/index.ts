@@ -27,7 +27,7 @@ if (!port.ok || !vitePort.ok) {
 const config = readSidecarConfig(env, { vitePort: vitePort.value });
 const deps = buildCpuTurnDeps(config, (line) => console.log(line));
 
-startSidecar({ port: port.value, backend: config.backend, deps, guards: config })
+startSidecar({ port: port.value, backend: config.backend, deps, guards: config, voice: config.voice })
   .then((running) => {
     console.log(`orugas sidecar listening on http://${running.host}:${running.port}/api (${describeConfig(config)})`);
   })

@@ -7,7 +7,7 @@
  * - the loop: TimerTick every frame, BannerDone when a presentation phase finished showing;
  * - the sim: FireStarted, FireCompleted, RetreatDone, ActivityPing, DamageApplied, WormDied,
  *   WormDrowned, WormSpawned, WormSealed, AllBodiesAtRest, CrateLanded, CratePicked, CrateDestroyed;
- * - the input layer or the CPU: SkipTurn, Surrender;
+ * - the input layer or the CPU: SkipTurn, Surrender, WormSelected (a voice command picks the worm);
  * - replays: WindRolled, to pin the wind instead of drawing it from the match rng.
  */
 
@@ -141,6 +141,15 @@ export interface SkipTurnEvent {
   readonly reason?: SkipReason;
 }
 
+/**
+ * The player picks which worm of the active team plays this turn ("Raúl, yo te elijo"), before it
+ * has moved or fired. The worm up gives its turn back and the picked one counts it as its own.
+ */
+export interface WormSelectedEvent {
+  readonly type: 'WormSelected';
+  readonly wormId: string;
+}
+
 export interface SurrenderEvent {
   readonly type: 'Surrender';
   readonly teamId: string;
@@ -169,6 +178,7 @@ export type MatchEvent =
   | CratePickedEvent
   | CrateDestroyedEvent
   | SkipTurnEvent
+  | WormSelectedEvent
   | SurrenderEvent
   | WindRolledEvent;
 
@@ -191,6 +201,7 @@ export const MATCH_EVENT_TYPES: readonly MatchEventType[] = Object.freeze([
   'CratePicked',
   'CrateDestroyed',
   'SkipTurn',
+  'WormSelected',
   'Surrender',
   'WindRolled',
 ]);

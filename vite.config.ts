@@ -81,6 +81,7 @@ function orugasPlugin(options: OrugasPluginOptions): Plugin {
   const handlerOptions: HandlerOptions = Object.freeze({
     backend: options.config.backend,
     deps: buildCpuTurnDeps(options.config, (line) => console.log(`[sidecar] ${line}`)),
+    voice: options.config.voice,
   });
   const throttle = createThrottle(options.config.throttle ?? {});
   return {

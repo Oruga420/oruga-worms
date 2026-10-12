@@ -15,6 +15,7 @@ import type { CpuBackend } from '../src/ai/contract.ts';
 import { err, ok, type Result } from '../src/core/result.ts';
 import { createThrottle, hasValidToken, isAllowedHost, isAllowedOrigin, isJsonContentType, type Throttle, type ThrottleOptions } from './auth.ts';
 import type { CpuTurnDeps } from './cpu-turn.ts';
+import type { VoiceSessionConfig } from './voice-session.ts';
 import { handleApiRoute, normalizeRoute, ROUTE_CPU_TURN, type ApiResponse, type HandlerOptions } from './handler.ts';
 
 export const API_PREFIX = '/api';
@@ -35,6 +36,8 @@ export interface SidecarOptions {
   readonly deps?: CpuTurnDeps;
   /** Without guards the turn route only has the Host check: test mode. Production always passes guards. */
   readonly guards?: GuardConfig;
+  /** The voice agent's session route (sidecar/voice-session.ts). */
+  readonly voice?: VoiceSessionConfig;
 }
 
 export interface RunningSidecar {
@@ -219,6 +222,7 @@ export function startSidecar(options: SidecarOptions): Promise<RunningSidecar> {
   const handlerOptions: HandlerOptions = Object.freeze({
     backend: options.backend,
     ...(options.deps === undefined ? {} : { deps: options.deps }),
+    ...(options.voice === undefined ? {} : { voice: options.voice }),
   });
   const throttle = createThrottle(options.guards?.throttle ?? {});
   let allowedPorts: readonly number[] = [];

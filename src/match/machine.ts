@@ -25,6 +25,7 @@ import type {
   SkipTurnEvent,
   SurrenderEvent,
   WormSealedEvent,
+  WormSelectedEvent,
   WormSpawnedEvent,
 } from './events.ts';
 import { deepFreeze } from './immutable.ts';
@@ -56,7 +57,7 @@ import {
 } from './machine-phases.ts';
 import { isPreResolvePhase } from './phases.ts';
 import { retreatMsFor } from './retreat.ts';
-import { addSeal, takeSealedTurn } from './seals.ts';
+import { addSeal, sealsOn, takeSealedTurn } from './seals.ts';
 import { restAfterSuper, superResting } from './super-rest.ts';
 import { scoreDamage, scoreShotClosed, scoreShotFired } from './scoring.ts';
 import { saibamanAmmoTable } from './setup.ts';
@@ -106,11 +107,35 @@ function dispatch(state: MatchState, event: MatchEvent, deps: MatchDeps): MatchS
       return onCrateDestroyed(state, event.wasCounted ?? true);
     case 'SkipTurn':
       return onSkipTurn(state, event);
+    case 'WormSelected':
+      return onWormSelected(state, event);
     case 'Surrender':
       return onSurrender(state, event);
     case 'WindRolled':
       return { ...state, wind: makeWindState(event.step) };
   }
+}
+
+/**
+ * Worm select: only in Active with no shot taken, only a living, unsealed worm of the active team.
+ * The turn moves from the worm up to the picked one, so each worm's own turn count (its scheme
+ * delays) stays true. Whether the worm up has already walked is the controller's call.
+ */
+function onWormSelected(state: MatchState, event: WormSelectedEvent): MatchState {
+  if (state.phase !== 'Active' || state.shot !== null) return state;
+  const team = activeTeamOf(state);
+  if (team === undefined) return state;
+  const index = team.worms.findIndex((worm) => worm.id === event.wormId);
+  const picked = team.worms[index];
+  if (index < 0 || picked === undefined || !picked.alive || picked.hp <= 0 || index === team.activeWormIndex) return state;
+  if (sealsOn(state, picked.id).length > 0) return state;
+  const previous = team.activeWormIndex;
+  const next = updateTeam(state, state.activeTeamIndex, (current) => ({
+    ...current,
+    activeWormIndex: index,
+    worms: current.worms.map((worm, i) => (i === index ? { ...worm, turns: worm.turns + 1 } : i === previous ? { ...worm, turns: Math.max(0, worm.turns - 1) } : worm)),
+  }));
+  return appendLog(next, 'turn.start', `${team.name} picks ${picked.name}`);
 }
 
 function onBannerDone(state: MatchState, deps: MatchDeps): MatchState {

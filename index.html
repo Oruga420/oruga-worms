@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!--
       Strict CSP (ultraplan.html, security requirements). No external scripts, no inline scripts.
-      vite.config.ts appends the sidecar origin to connect-src at build time, and in dev only it
+      connect-src lets the voice agent reach ElevenLabs (src/voice/elevenlabs.ts); vite.config.ts appends
+      the sidecar origin to it at build time, and in dev only it
       adds the HMR websocket sources and 'unsafe-inline' for the styles Vite injects.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://api.elevenlabs.io wss://api.elevenlabs.io wss://*.elevenlabs.io; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <title>Orugas</title>
     <link rel="stylesheet" href="/src/styles.css" />
