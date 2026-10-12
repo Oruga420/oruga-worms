@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawPowerScene, drawPowerStatuses, drawRoomPreview } from '@/game/power-scenes.ts';
+import { clawVictimDefeated, drawPowerScene, drawPowerStatuses, drawRoomPreview, powerHoldProgress } from '@/game/power-scenes.ts';
 import { createCamera } from '@/engine/camera.ts';
 import type { ClawsBody, ForceFieldBody } from '@/sim/types.ts';
 import { createRecordingContext } from '../ui/recording-context.ts';
@@ -9,6 +9,19 @@ const camera = createCamera({ x: 100, y: 100, bounds: { w: 1000, h: 600 } });
 const shield: ForceFieldBody = { id: 1, kind: 'force_field', weaponId: 'force_field', attackerId: 'a', ownerTeamId: 'a', stage: 'charge', stageTicks: 20, holdX: 100, holdY: 100, facing: 1, applied: false, alive: true, spec: { kind: 'force_field', chargeMs: 600, recoverMs: 600, durability: 100, ownTurns: 1 } };
 
 describe('power scene wiring', () => {
+  it('shows the finisher on confirmed zero HP without waiting for the end-of-turn alive flag', () => {
+    expect(clawVictimDefeated({ hp: 0, alive: true })).toBe(true);
+    expect(clawVictimDefeated({ hp: 1, alive: true })).toBe(false);
+    expect(clawVictimDefeated(undefined)).toBe(false);
+  });
+
+  it('keeps persistent sprite playback inside intact hold frames', () => {
+    for (let time = 0; time < 2400; time += 17) {
+      expect([8, 9, 10, 11]).toContain(Math.floor(powerHoldProgress('hex-shield', time) * 16));
+      expect([6, 7, 8, 9]).toContain(Math.floor(powerHoldProgress('immortality-wings', time) * 16));
+      expect([0, 1, 2, 3]).toContain(Math.floor(powerHoldProgress('frozen-plate', time) * 4));
+    }
+  });
   it('draws the real 99-percent ROOM preview and the input hint', () => {
     const ctx = createRecordingContext();
     drawRoomPreview(ctx, viewport, camera, { id: 'a', alive: true, x: 0, y: 0 }, { w: 1920, h: 696 }, 90, 1000);

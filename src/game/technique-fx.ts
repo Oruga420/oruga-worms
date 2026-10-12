@@ -153,16 +153,13 @@ export function onTechnique(fx: FxState, e: Extract<GameEvent, { type: 'techniqu
   const { x, y } = e;
   switch (e.beat) {
     case 'freeze':
-      ring(fx, x, y, 180, '#a7f2ff');
       sparks(deps, x, y, 36, 80, 300, ['#a7f2ff', '#ffffff'], 0.6);
       flash(fx, deps, x, y, 0.35, '#a7f2ff', 180);
       return;
     case 'shield':
-      ring(fx, x, y, 44, '#b9faff');
       sparks(deps, x, y, 18, 25, 100, ['#b9faff', '#ffffff'], 0.7);
       return;
     case 'open':
-      ring(fx, x, y, 100, '#7edcff');
       sparks(deps, x, y, 28, 60, 220, ['#7edcff', '#ffffff'], 0.7);
       call(fx, 'SHAMBLES!', 'CAMPO QUIRÚRGICO', '#b5eaff', '#152a43', 0.26, 0.9, 1100);
       return;

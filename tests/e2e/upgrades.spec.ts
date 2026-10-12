@@ -8,12 +8,12 @@ async function statuses(page: Page): Promise<Status[]> {
   return page.evaluate('window.__orugas.powerStatus()') as Promise<Status[]>;
 }
 
-async function start(page: Page, device = 'desktop'): Promise<string[]> {
+async function start(page: Page, device = 'desktop', gore = true): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`${BASE}/?gl=0&seed=19&device=${device}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/?gl=0&seed=19&device=${device}&gore=${gore ? 1 : 0}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(window.__orugas), undefined, { timeout: 45000 });
-  await expect.poll(() => page.evaluate('window.__orugas.authoredPowerClips().length')).toBe(5);
+  await expect.poll(() => page.evaluate('window.__orugas.authoredPowerClips().length')).toBe(7);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__orugas?.appPhase() === 'setup');
   const cells = await page.evaluate('window.__orugas.teamSetupCells()') as Cell[];
@@ -40,7 +40,7 @@ async function releaseFire(page: Page): Promise<void> {
   await page.keyboard.up('Space');
 }
 
-test('loads real ManimGX clips and raises the force field through player controls', async ({ page }, info) => {
+test('loads painted sprite clips and raises the force field through player controls', async ({ page }, info) => {
   const errors = await start(page);
   const caster = await unlock(page, 'force_field');
   await releaseFire(page);
@@ -73,8 +73,25 @@ test('ROOM reaches its 99 percent setting using the aim controls and charges the
   expect(errors).toEqual([]);
 });
 
-test('claws execute a nearby visible target without killing their caster', async ({ page }, info) => {
-  const errors = await start(page);
+async function observeSpriteDraws(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const stats = { heads: 0, painted: 0 };
+    Object.assign(window, { __spriteQA: stats });
+    const original = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function(this: CanvasRenderingContext2D, ...args: unknown[]) {
+      const image = args[0];
+      if (image instanceof HTMLImageElement) {
+        if (image.src.includes('/sprites/fx/painted-v2.png')) stats.painted += 1;
+        if (args.length === 9 && args[3] === 38 && args[4] === 31 && /\/sprites\/(olive|teal|ochre|night)/.test(image.src)) stats.heads += 1;
+      }
+      Reflect.apply(original, this, args);
+    };
+  });
+}
+
+for (const gore of [true, false]) test(`claws execute with painted sprites, gore=${gore}`, async ({ page }, info) => {
+  await observeSpriteDraws(page);
+  const errors = await start(page, 'desktop', gore);
   const caster = await unlock(page, 'adamantium_claws');
   const target = await page.evaluate('window.__orugas.lineUpEnemy(26)') as string | null;
   expect(target).not.toBeNull();
@@ -88,9 +105,22 @@ test('claws execute a nearby visible target without killing their caster', async
     } finally { await page.keyboard.up(key); }
   }
   await releaseFire(page);
-  await expect.poll(async () => (await statuses(page)).find((worm) => worm.id === target)?.alive).toBe(false);
+  await expect.poll(async () => (await statuses(page)).find((worm) => worm.id === target)?.hp).toBe(0);
+  if (gore) await expect.poll(() => page.evaluate('window.__spriteQA.heads')).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('claw-finisher.png') });
+  await expect.poll(async () => (await statuses(page)).find((worm) => worm.id === target)?.alive).toBe(false);
+  if (!gore) expect(await page.evaluate('window.__spriteQA.heads')).toBe(0);
+  expect(await page.evaluate('window.__spriteQA.painted')).toBeGreaterThan(0);
   expect((await statuses(page)).find((worm) => worm.id === caster)?.alive).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('ordinary bazooka explosions use the painted fire-and-smoke animation', async ({ page }, info) => {
+  await observeSpriteDraws(page);
+  const errors = await start(page);
+  await page.evaluate('window.__orugas.fireBazooka(-80, 0.15)');
+  await expect.poll(() => page.evaluate('window.__spriteQA.painted')).toBeGreaterThan(0);
+  await page.screenshot({ path: info.outputPath('painted-explosion.png') });
   expect(errors).toEqual([]);
 });
 

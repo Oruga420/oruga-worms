@@ -41,6 +41,7 @@ import { SAIBA_GREEN, SPROUT_GLOW } from './saibaman.ts';
 import { LAUGH_TICK, hexLight } from '../sim/hex.ts';
 import type { CharacterSprites } from './render.ts';
 import { drawStar, initPuff, initSpark, outlinedText, pop, type Pop } from './fx-kit.ts';
+import { drawAuthoredPower, type PowerAssets } from './power-assets.ts';
 import { drawCubes, drawTechniqueCalls, emitTechniqueFx, onTechnique, stepCubes, type Cube, type TechniqueCall } from './technique-fx.ts';
 
 export type { Pop };
@@ -48,6 +49,13 @@ export type { Pop };
 export const TRACER_MS = 90;
 export const MUZZLE_MS = 70;
 export const RING_MS = 320;
+/** The painted blast-burst clip's own life: 16 frames at 20fps, longer than the procedural RING_MS
+ *  it replaces so the sprite's tail is never truncated by the old ring's expiry window. */
+export const PAINTED_BLAST_MS = 800;
+/** Count cap on fx.paintedBlasts, same shift-the-oldest pool policy as gore.ts's MAX_LENS_SPLATS
+ *  and post.ts's WAVE_CAP: PAINTED_BLAST_MS alone bounds how long one lives, not how many a single
+ *  tick (a cluster bomb's cluster of sub-explosions) can pile up. */
+export const MAX_PAINTED_BLASTS = 24;
 export const SWING_MS = 230;
 export const NUMBER_MS = 1500;
 /** Hits on the same worm this close together add up in one number, as Worms counts health down. */
@@ -123,6 +131,10 @@ export interface Flash {
   readonly size: number;
   readonly bornAt: number;
   readonly kind: 'muzzle' | 'impact' | 'blast';
+  /** Set only on an explosion's 'blast' flash: correlates it to the PaintedBlast drawFxWorld may
+   *  draw instead. Carrying the id (not just the kind) lets the swap be keyed on whether the
+   *  authored sprite for THIS blast actually drew, never on PowerAssets being non-null alone. */
+  readonly blastId?: number;
 }
 
 export interface Ring {
@@ -131,6 +143,20 @@ export interface Ring {
   readonly radius: number;
   readonly bornAt: number;
   readonly color: string;
+  /** Same correlation id as the matching Flash; only an explosion's shock ring carries one. */
+  readonly blastId?: number;
+}
+
+/** An ordinary explosion's blast, authored-sprite side: same base x/y/radius the sim/controller
+ *  already emits, played over PAINTED_BLAST_MS once PowerAssets carry the 'blast-burst' clip. The
+ *  procedural Flash/Ring sharing its id are only dropped once drawAuthoredPower actually draws
+ *  this specific blast (missing atlas clip or rim keeps the procedural fallback). */
+export interface PaintedBlast {
+  readonly id: number;
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  readonly bornAt: number;
 }
 
 export interface Swing {
@@ -205,6 +231,9 @@ export interface FxState {
   readonly tracers: Tracer[];
   readonly flashes: Flash[];
   readonly rings: Ring[];
+  readonly paintedBlasts: PaintedBlast[];
+  /** Monotonic source of PaintedBlast/Flash/Ring blastId correlation; never read for anything else. */
+  blastSeq: number;
   readonly swings: Swing[];
   readonly sinkers: Sinker[];
   combo: ComboShow | null;
@@ -222,7 +251,7 @@ export interface FxState {
 }
 
 export function createFx(): FxState {
-  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], swings: [], sinkers: [], combo: null, beam: null, devour: null, hex: null, pops: [], calls: [], cubes: [], screenFlash: null, redPulse: null };
+  return { now: 0, worms: new Map(), numbers: [], tracers: [], flashes: [], rings: [], paintedBlasts: [], blastSeq: 0, swings: [], sinkers: [], combo: null, beam: null, devour: null, hex: null, pops: [], calls: [], cubes: [], screenFlash: null, redPulse: null };
 }
 
 function timersOf(fx: FxState, wormId: string): WormFxTimers {
@@ -330,8 +359,17 @@ function onExplosion(fx: FxState, e: Extract<GameEvent, { type: 'explosion' }>):
   const radius = e.radius ?? 20;
   // Bullet puffs and split shells have tiny or zero radii: no shock ring for those.
   if (radius < 10) return;
-  fx.flashes.push({ x: e.x, y: e.y, angle: 0, size: radius * 0.8, bornAt: fx.now, kind: 'blast' });
-  fx.rings.push({ x: e.x, y: e.y, radius: radius * 1.35, bornAt: fx.now, color: e.particle === 'holy' ? '#fff3b0' : '#ffe2a8' });
+  // Whether the authored sprite actually draws (assets loaded, clip + rim both present) can only
+  // be known at draw time, so both representations are recorded here, correlated by blastId;
+  // drawFxWorld drops the procedural pair only once drawAuthoredPower reports success for it.
+  const blastId = fx.blastSeq;
+  fx.blastSeq += 1;
+  // Same pool-limit policy as gore.ts's MAX_LENS_SPLATS / post.ts's WAVE_CAP: drop the oldest once
+  // a single batch (a cluster bomb's sub-explosions) would otherwise grow this without bound.
+  if (fx.paintedBlasts.length >= MAX_PAINTED_BLASTS) fx.paintedBlasts.shift();
+  fx.paintedBlasts.push({ id: blastId, x: e.x, y: e.y, radius, bornAt: fx.now });
+  fx.flashes.push({ x: e.x, y: e.y, angle: 0, size: radius * 0.8, bornAt: fx.now, kind: 'blast', blastId });
+  fx.rings.push({ x: e.x, y: e.y, radius: radius * 1.35, bornAt: fx.now, color: e.particle === 'holy' ? '#fff3b0' : '#ffe2a8', blastId });
 }
 
 function onCombo(fx: FxState, e: Extract<GameEvent, { type: 'comboStart' | 'comboHit' | 'comboEnd' }>, deps: FxDeps): void {
@@ -765,6 +803,7 @@ export function advanceFx(fx: FxState, dtMs: number, scene: FxWorld | null, deps
   prune(fx.tracers, fx.now, TRACER_MS);
   prune(fx.flashes, fx.now, Math.max(MUZZLE_MS, 160));
   prune(fx.rings, fx.now, RING_MS);
+  prune(fx.paintedBlasts, fx.now, PAINTED_BLAST_MS);
   prune(fx.swings, fx.now, SWING_MS);
   for (let i = fx.numbers.length - 1; i >= 0; i -= 1) {
     const number = fx.numbers[i];
@@ -813,12 +852,33 @@ function toScreen(camera: Camera, viewport: Size): { readonly z: number; readonl
  * (whiteout above one half) the light effects would vanish into the white, so the blows' impact
  * stars are drawn in black and red instead.
  */
-export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: Size, sprites?: ReadonlyMap<number, CharacterSprites>, whiteout = 0): void {
+export function drawFxWorld(
+  ctx: Ctx2D,
+  fx: FxState,
+  camera: Camera,
+  viewport: Size,
+  sprites?: ReadonlyMap<number, CharacterSprites>,
+  whiteout = 0,
+  powerSprites?: PowerAssets | null,
+): void {
   const { z, ox, oy } = toScreen(camera, viewport);
   const sx = (x: number): number => x * z + ox;
   const sy = (y: number): number => y * z + oy;
   drawCubes(ctx, fx, camera, viewport);
   ctx.save();
+
+  // Paints each live blast first (when assets are loaded at all) and records which ones actually
+  // drew, so the procedural flash/ring fallback below is only skipped for a blast whose authored
+  // sprite really appeared on screen (missing 'blast-burst' clip, missing rim, bad size, etc. all
+  // report false from drawAuthoredPower and simply leave the procedural pair in place).
+  const authoredBlastIds = new Set<number>();
+  if (powerSprites !== null && powerSprites !== undefined) {
+    for (const blast of fx.paintedBlasts) {
+      const progress = clamp((fx.now - blast.bornAt) / PAINTED_BLAST_MS, 0, 1);
+      const drawn = drawAuthoredPower(ctx, powerSprites, 'blast-burst', progress, { x: sx(blast.x), y: sy(blast.y), radiusPx: blast.radius * z });
+      if (drawn) authoredBlastIds.add(blast.id);
+    }
+  }
 
   for (const sinker of fx.sinkers) {
     const age = fx.now - sinker.bornAt;
@@ -842,6 +902,7 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
   }
 
   for (const ring of fx.rings) {
+    if (ring.blastId !== undefined && authoredBlastIds.has(ring.blastId)) continue;
     const t = (fx.now - ring.bornAt) / RING_MS;
     ctx.globalAlpha = clamp(1 - t, 0, 1) * 0.85;
     ctx.strokeStyle = ring.color;
@@ -866,6 +927,7 @@ export function drawFxWorld(ctx: Ctx2D, fx: FxState, camera: Camera, viewport: S
     ctx.stroke();
   }
   for (const flash of fx.flashes) {
+    if (flash.blastId !== undefined && authoredBlastIds.has(flash.blastId)) continue;
     const age = fx.now - flash.bornAt;
     if (flash.kind === 'muzzle') {
       const t = age / MUZZLE_MS;

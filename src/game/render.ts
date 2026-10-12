@@ -82,9 +82,9 @@ import { drawPowerOrb } from './power-orb.ts';
 import { superPrice } from './price.ts';
 import { SAIBA_GREEN, SAIBA_SKIN_ALPHA, drawSproutScene, isSaibaman, seedHand } from './saibaman.ts';
 import { drawProps, drawSkyTheme, drawWaterTheme, sceneryOf } from './scenery.ts';
-import { drawPowerScene, drawPowerStatuses, drawRoomPreview } from './power-scenes.ts';
+import { clawVictimDefeated, drawPowerScene, drawPowerStatuses, drawRoomPreview, powerHoldProgress } from './power-scenes.ts';
 import { drawImmortalMark } from './power-art.ts';
-import type { PowerAssets } from './power-assets.ts';
+import { drawAuthoredPower, type PowerAssets, type VictimSprite } from './power-assets.ts';
 
 /** Both Ctx2D and Context2DLike are structural subsets of the real 2D context, which the browser passes as is. */
 function asTileContext(ctx: Ctx2D): Context2DLike {
@@ -130,7 +130,7 @@ export interface RenderModel {
   readonly weapon?: WeaponId;
   /** The weapon atlas (icons and held layers); null or absent means arms stay empty. */
   readonly weaponSprites?: CharacterSprites | null;
-  /** Authored offline in ManimGX; procedural power geometry remains the load-failure fallback. */
+  /** Painted sprite animation, composited offline in ManimGX; geometry is only a load-failure fallback. */
   readonly powerSprites?: PowerAssets | null;
   /** World point under the mouse, drawn as the crosshair while a targeted weapon is selected. */
   readonly pointer?: { readonly x: number; readonly y: number };
@@ -1333,6 +1333,8 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
   const hexDrawn = new Set<string>();
   const aimingPhase = phase === 'Active' || phase === 'Firing';
   const visuals = new Map<string, { visual: WormVisual; pose: WormPose; wounds: number }>();
+  // Painted protections sit behind the character, so opaque glass cannot hide its face or health tag.
+  drawPowerStatuses(ctx, viewport, camera, model.state.teams.flatMap((team) => team.worms), model.world.worms, model.timeMs, model.powerSprites);
 
   for (const body of model.world.worms) {
     if (!body.alive) continue;
@@ -1397,7 +1399,7 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const def = model.weapon === undefined ? undefined : getWeapon(model.weapon);
     if (def !== undefined && phase === 'Active' && model.aimAssist === true) {
       const technique = def.technique;
-      if (technique?.kind === 'room') drawRoomPreview(ctx, viewport, camera, activeBody, model.state.world, model.aim.angleDeg, model.timeMs);
+      if (technique?.kind === 'room') drawRoomPreview(ctx, viewport, camera, activeBody, model.state.world, model.aim.angleDeg, model.timeMs, model.powerSprites);
       else if (technique?.kind === 'claws') drawLaser(ctx, viewport, camera, model.world, activeBody, model.aim.angleDeg, model.timeMs, technique.rangePx);
       else if (technique?.kind === 'treasure') drawLock(ctx, viewport, camera, model.world, activeBody, technique.rangePx, model.timeMs);
       else if (technique?.kind === 'dice') {
@@ -1481,8 +1483,6 @@ export function drawGame(ctx: Ctx2D, viewport: Size, camera: Camera, model: Rend
     const victim = victimId !== null && performers.get(victimId)?.body === body ? scene(victimId) : undefined;
     drawTechniqueScene(ctx, viewport, camera, body, attacker, victim, model);
   }
-  drawPowerStatuses(ctx, viewport, camera, model.state.teams.flatMap((team) => team.worms), model.world.worms, model.timeMs, model.powerSprites);
-
   // The super move's white screen: the world washes out, the fighters stay on it in black.
   const whiteout = clamp(model.whiteout ?? 0, 0, 1);
   if (whiteout > 0) {
@@ -1614,6 +1614,15 @@ function drawBeamPath(ctx: Ctx2D, viewport: Size, camera: Camera, body: { readon
 
 type SceneWorm = { readonly visual: WormVisual; readonly pose: WormPose; readonly wounds: number };
 
+function victimSpriteFor(model: RenderModel, wormId: string | null): VictimSprite | undefined {
+  if (wormId === null) return undefined;
+  const team = model.state.teams.find((entry) => entry.worms.some((worm) => worm.id === wormId));
+  const sprite = team === undefined ? undefined : model.sprites?.get(team.colorIndex);
+  if (sprite === undefined) return undefined;
+  const body = model.world.worms.find((worm) => worm.id === wormId);
+  return { ...sprite, size: body?.size ?? 1, facing: body?.facing ?? 1 };
+}
+
 /** The giant head in screen space, or null while there is none. */
 function mouthLook(camera: Camera, viewport: Size, devour: DevourBody): MouthLook | null {
   const state = mouthState(devour);
@@ -1742,11 +1751,15 @@ function drawTechniqueScene(ctx: Ctx2D, viewport: Size, camera: Camera, body: Te
     case 'time_stop':
     case 'force_field':
     case 'claws':
-    case 'room':
+    case 'room': {
+      const killed = body.kind === 'claws' && model.state.teams.some((team) => team.worms.some((worm) => worm.id === body.victimId && clawVictimDefeated(worm)));
+      const portrait = body.kind === 'claws' ? victimSpriteFor(model, body.victimId) : undefined;
+      const effect = (): void => drawPowerScene(ctx, viewport, camera, body, model.state.world, t, model.gore !== false, model.powerSprites, killed, portrait);
+      if (body.kind === 'force_field') effect();
       draw(attacker);
-      drawPowerScene(ctx, viewport, camera, body, model.state.world, t, model.gore !== false, model.powerSprites,
-        body.kind === 'claws' && model.state.teams.some((team) => team.worms.some((worm) => worm.id === body.victimId && !worm.alive)));
+      if (body.kind !== 'force_field') effect();
       return;
+    }
     case 'needle': {
       draw(victim);
       draw(attacker);
@@ -1947,9 +1960,10 @@ function drawCrate(ctx: Ctx2D, viewport: Size, camera: Camera, x: number, y: num
   const p = worldToScreen(camera, viewport, { x, y });
   const z = camera.zoom;
   if (kind === 'power' || kind === 'immortality') {
-    drawPowerOrb(ctx, p.x, p.y, z, model.timeMs, landed);
+    const painted = kind === 'immortality' && drawAuthoredPower(ctx, model.powerSprites, 'immortality-wings', powerHoldProgress('immortality-wings', model.timeMs), { x: p.x, y: p.y - 8 * z, sizePx: 44 * z });
+    if (!painted) drawPowerOrb(ctx, p.x, p.y, z, model.timeMs, landed);
     if (kind === 'immortality') {
-      drawImmortalMark(ctx, p.x, p.y + 12 * z, z, 3, model.timeMs);
+      drawImmortalMark(ctx, p.x, p.y + 12 * z, z, 3, model.timeMs, !painted);
       ctx.save();
       ctx.fillStyle = '#ffe18b';
       ctx.font = 'bold 10px "Courier New", monospace';

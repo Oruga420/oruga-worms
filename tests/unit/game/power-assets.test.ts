@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { drawAuthoredPower, loadPowerAssets } from '@/game/power-assets.ts';
+import { canRenderRadiusSprite, drawAuthoredPower, drawVictimHead, loadPowerAssets } from '@/game/power-assets.ts';
 import type { ImageSource } from '@/engine/canvas-types.ts';
 import { createRecordingContext } from '../ui/recording-context.ts';
 
@@ -23,7 +23,7 @@ function browserStubs(mode: 'ok' | 'error' | 'timeout' = 'ok'): void {
   });
 }
 
-describe('actual ManimGX runtime assets', () => {
+describe('sprite atlas loading and drawing', () => {
   it('loads through browser fetch and Image implementations', async () => {
     browserStubs();
     expect(await loadPowerAssets()).not.toBeNull();
@@ -57,7 +57,7 @@ describe('actual ManimGX runtime assets', () => {
     const assets = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn });
     expect(assets).not.toBeNull();
     const ctx = createRecordingContext();
-    expect(drawAuthoredPower(ctx, assets, 'hex-shield', 0.5, 100, 80, 120)).toBe(true);
+    expect(drawAuthoredPower(ctx, assets, 'hex-shield', 0.5, { x: 100, y: 80, sizePx: 120 })).toBe(true);
     expect(ctx.calls.some((call) => call.name === 'drawImage' && call.args[0] === image)).toBe(true);
     expect(warn).not.toHaveBeenCalled();
   });
@@ -67,19 +67,19 @@ describe('actual ManimGX runtime assets', () => {
     const assets = await loadPowerAssets({ readJson: async () => { throw new Error('offline'); }, readImage: async () => image, warn });
     expect(assets).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
-    expect(drawAuthoredPower(createRecordingContext(), assets, 'room-bloom', 0, 0, 0, 120)).toBe(false);
+    expect(drawAuthoredPower(createRecordingContext(), assets, 'room-bloom', 0, { x: 0, y: 0, sizePx: 120 })).toBe(false);
   });
 
   it('rejects invalid playback progress, empty frames, and missing frames without drawing', async () => {
     const assets = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn: vi.fn() });
     if (!assets) throw new Error('Expected the checked-in atlas to load');
     const ctx = createRecordingContext();
-    expect(drawAuthoredPower(ctx, assets, 'room-bloom', Number.NaN, 0, 0, 120)).toBe(false);
-    expect(drawAuthoredPower(ctx, assets, 'room-bloom', 0, 0, 0, 0)).toBe(false);
+    expect(drawAuthoredPower(ctx, assets, 'room-bloom', Number.NaN, { x: 0, y: 0, sizePx: 120 })).toBe(false);
+    expect(drawAuthoredPower(ctx, assets, 'room-bloom', 0, { x: 0, y: 0, sizePx: 0 })).toBe(false);
     const empty = { ...assets, atlas: { ...assets.atlas, frameIds: () => [] } };
-    expect(drawAuthoredPower(ctx, empty, 'room-bloom', 0, 0, 0, 120)).toBe(false);
+    expect(drawAuthoredPower(ctx, empty, 'room-bloom', 0, { x: 0, y: 0, sizePx: 120 })).toBe(false);
     const missing = { ...assets, atlas: { ...assets.atlas, frameIds: () => ['missing'] } };
-    expect(drawAuthoredPower(ctx, missing, 'room-bloom', 0, 0, 0, 120)).toBe(false);
+    expect(drawAuthoredPower(ctx, missing, 'room-bloom', 0, { x: 0, y: 0, sizePx: 120 })).toBe(false);
     expect(ctx.calls).toHaveLength(0);
   });
 
@@ -87,7 +87,63 @@ describe('actual ManimGX runtime assets', () => {
     const warn = vi.fn();
     const assets = await loadPowerAssets({ readJson: vi.fn().mockRejectedValue({ upstream: 'opaque' }), readImage: async () => image, warn });
     expect(assets).toBeNull();
-    expect(warn).toHaveBeenCalledWith('ManimGX atlas unavailable; procedural effects remain active. Asset error');
+    expect(warn).toHaveBeenCalledWith('Painted sprite atlas unavailable; fallback effects remain active. Asset error');
+  });
+
+  it('sizes a painted boundary from its authored rim instead of a fixed icon box', async () => {
+    const loaded = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn: vi.fn() });
+    if (!loaded) throw new Error('Fixture atlas failed');
+    const assets = { ...loaded, atlas: { ...loaded.atlas, attachOffset: () => ({ x: 40, y: 0 }) } };
+    const ctx = createRecordingContext();
+    expect(drawAuthoredPower(ctx, assets, 'room-bloom', 0.5, { x: 100, y: 80, radiusPx: 200 })).toBe(true);
+    expect(ctx.calls.find((call) => call.name === 'drawImage')?.args.slice(5)).toEqual([-300, -320, 800, 800]);
+  });
+
+  it('refuses invalid geometry or a radius without an authored rim', async () => {
+    const assets = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn: vi.fn() });
+    const ctx = createRecordingContext();
+    for (const draw of [
+      { x: 0, y: 0, radiusPx: 100 }, { x: 0, y: 0, radiusPx: 0 },
+      { x: Infinity, y: 0, sizePx: 120 }, { x: 0, y: 0, sizePx: Infinity },
+      { x: 0, y: 0, sizePx: 120, alpha: Number.NaN },
+    ]) expect(drawAuthoredPower(ctx, assets, 'room-bloom', 0.5, draw)).toBe(false);
+    expect(ctx.calls).toHaveLength(0);
+  });
+
+  it('flips a slash about its pivot without affecting another draw', async () => {
+    const assets = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn: vi.fn() });
+    const ctx = createRecordingContext();
+    expect(drawAuthoredPower(ctx, assets, 'slash-spark', 0.5, { x: 100, y: 80, sizePx: 120, flipX: true, alpha: 0.5 })).toBe(true);
+    expect(ctx.calls.find((call) => call.name === 'translate')?.args).toEqual([100, 80]);
+    expect(ctx.calls.find((call) => call.name === 'scale')?.args).toEqual([-1, 1]);
+    expect(ctx.calls.at(-1)?.name).toBe('restore');
+  });
+
+  it('uses the actual character artwork for the detached head, not a geometric face', async () => {
+    const character: unknown = JSON.parse(readFileSync(new URL('../../../public/sprites/olive_commando/atlas.json', import.meta.url), 'utf8'));
+    const characterImage = { width: 480, height: 480 } as ImageSource;
+    const sprite = await loadPowerAssets({ readJson: async () => character, readImage: async () => characterImage, warn: vi.fn() });
+    const ctx = createRecordingContext();
+    expect(drawVictimHead(ctx, sprite, 100, 100, 2, 0.5, 1)).toBe(true);
+    expect(ctx.calls.some((call) => call.name === 'drawImage' && call.args[0] === characterImage)).toBe(true);
+    expect(ctx.calls.filter((call) => call.name === 'arc')).toHaveLength(0);
+    expect(ctx.calls.at(-1)?.name).toBe('restore');
+  });
+
+  it('declines a missing victim portrait or invalid playback without drawing a substitute face', () => {
+    const ctx = createRecordingContext();
+    expect(drawVictimHead(ctx, null, 100, 100, 2, 0.5, 1)).toBe(false);
+    expect(ctx.calls).toHaveLength(0);
+  });
+
+  it('only replaces legacy blast particles when every painted frame and its rim are present', async () => {
+    const loaded = await loadPowerAssets({ readJson: async () => manifest, readImage: async () => image, warn: vi.fn() });
+    if (!loaded) throw new Error('Fixture atlas failed');
+    expect(canRenderRadiusSprite(null, 'room-bloom')).toBe(false);
+    expect(canRenderRadiusSprite(loaded, 'room-bloom')).toBe(false);
+    const withRim = { ...loaded, atlas: { ...loaded.atlas, attachOffset: () => ({ x: 40, y: 0 }) } };
+    expect(canRenderRadiusSprite(withRim, 'room-bloom')).toBe(true);
+    expect(canRenderRadiusSprite({ ...withRim, atlas: { ...withRim.atlas, frame: () => undefined } }, 'room-bloom')).toBe(false);
   });
 
   it('rejects malformed manifests instead of failing the game render loop', async () => {

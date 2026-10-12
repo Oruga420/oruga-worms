@@ -87,17 +87,19 @@ export function drawRoomField(ctx: Ctx2D, x: number, y: number, radius: number, 
   ctx.restore();
 }
 
-export function drawFrozenMark(ctx: Ctx2D, x: number, feetY: number, zoom: number, turns: number): void {
+export function drawFrozenMark(ctx: Ctx2D, x: number, feetY: number, zoom: number, turns: number, plate = true): void {
   if (turns <= 0) return;
   ctx.save();
-  ctx.fillStyle = ICE;
-  ctx.strokeStyle = WHITE;
-  ctx.globalAlpha = 0.17;
-  polygon(ctx, x, feetY - 12 * zoom, 25 * zoom, 6, Math.PI / 6);
-  ctx.fill();
-  ctx.globalAlpha = 0.8;
-  ctx.lineWidth = Math.max(1, zoom);
-  ctx.stroke();
+  if (plate) {
+    ctx.fillStyle = ICE;
+    ctx.strokeStyle = WHITE;
+    ctx.globalAlpha = 0.17;
+    polygon(ctx, x, feetY - 12 * zoom, 25 * zoom, 6, Math.PI / 6);
+    ctx.fill();
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = Math.max(1, zoom);
+    ctx.stroke();
+  }
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#10243c';
   ctx.fillRect(x - 36, feetY - 43 * zoom - 8, 72, 16);
@@ -109,14 +111,16 @@ export function drawFrozenMark(ctx: Ctx2D, x: number, feetY: number, zoom: numbe
   ctx.restore();
 }
 
-export function drawImmortalMark(ctx: Ctx2D, x: number, feetY: number, zoom: number, charges: number, timeMs: number): void {
+export function drawImmortalMark(ctx: Ctx2D, x: number, feetY: number, zoom: number, charges: number, timeMs: number, halo = true): void {
   if (charges <= 0) return;
   const count = Math.min(3, Math.floor(charges));
   ctx.save();
-  ctx.strokeStyle = GOLD;
-  ctx.globalAlpha = 0.2 + Math.sin(timeMs / 250) * 0.06;
-  ctx.lineWidth = 3 * zoom;
-  ring(ctx, x, feetY - 12 * zoom, 25 * zoom);
+  if (halo) {
+    ctx.strokeStyle = GOLD;
+    ctx.globalAlpha = 0.2 + Math.sin(timeMs / 250) * 0.06;
+    ctx.lineWidth = 3 * zoom;
+    ring(ctx, x, feetY - 12 * zoom, 25 * zoom);
+  }
   ctx.globalAlpha = 1;
   ctx.fillStyle = GOLD;
   for (let i = 0; i < count; i += 1) {

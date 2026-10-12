@@ -75,7 +75,7 @@ import { pickCrateColumn, spawnCrate } from './sim/crate.ts';
 import { activeTeamOf, activeWormOf } from './match/ledger.ts';
 import { superResting } from './match/super-rest.ts';
 import { fire } from './weapons/fire.ts';
-import { loadPowerAssets, type PowerAssets } from './game/power-assets.ts';
+import { canRenderRadiusSprite, loadPowerAssets, type PowerAssets } from './game/power-assets.ts';
 import { loadSceneryAssets } from './game/scenery-assets.ts';
 
 /** How hard each beat of Gear 5 shakes the camera: the drums and the awakening hardest. */
@@ -782,9 +782,12 @@ async function boot(): Promise<void> {
               const tier = event.particle ?? 'medium';
               const intensity = tier === 'small' ? 0.6 : tier === 'medium' ? 0.9 : 1;
               const radius = event.radius ?? 30;
-              spawnExplosion(particles, { x: event.x, y: event.y, radius, intensity }, rng);
-              if (tier === 'big' || tier === 'holy') {
-                spawnExplosion(particles, { x: event.x, y: event.y - radius * 0.3, radius: radius * 1.4, intensity: 1 }, rng);
+              // The painted clip already carries fire, debris and smoke; do not cover it with grey disks.
+              if (radius < 10 || !canRenderRadiusSprite(powerSprites, 'blast-burst')) {
+                spawnExplosion(particles, { x: event.x, y: event.y, radius, intensity }, rng);
+                if (tier === 'big' || tier === 'holy') {
+                  spawnExplosion(particles, { x: event.x, y: event.y - radius * 0.3, radius: radius * 1.4, intensity: 1 }, rng);
+                }
               }
               const kick = tier === 'holy' ? 2.2 : tier === 'big' ? 1.6 : 1;
               camera = shake(camera, (event.shake ?? 4) * kick);
@@ -885,7 +888,7 @@ async function boot(): Promise<void> {
           (ctx, viewport: Size) => {
             drawGame(ctx, viewport, view, model);
             drawGore(ctx, gore, view, viewport, cine.whiteout);
-            drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout);
+            drawFxWorld(ctx, fx, view, viewport, sprites, cine.whiteout, powerSprites);
             drawParticles(ctx, particles, view, viewport);
             drawLens(ctx, gore, viewport);
             drawFxScreen(ctx, fx, viewport, { touch: deviceMode === 'touch' });
