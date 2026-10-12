@@ -48,7 +48,7 @@ export default defineConfig([
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['sidecar/**/*.ts', 'tools/**/*.ts', 'api/**/*.ts', 'scripts/**/*.mjs', 'tests/**/*.ts', '*.config.{ts,js}'],
+    files: ['sidecar/**/*.ts', 'tools/**/*.ts', 'api/**/*.ts', 'middleware.ts', 'scripts/**/*.mjs', 'tests/**/*.ts', '*.config.{ts,js}'],
     languageOptions: { globals: { ...globals.node } },
   },
   {
