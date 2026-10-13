@@ -48,7 +48,7 @@ export const WEAPON_ALIASES: Readonly<Record<WeaponId, readonly string[]>> = Obj
   teleport: ['teleport', 'teletransporte', 'teletransportar', 'teletransportate'],
   girder: ['girder', 'viga'],
   skip_go: ['skip go'],
-  sheep: ['sheep', 'oveja', 'borrego'],
+  sheep: ['sheep', 'oveja', 'ovejita', 'borrego', 'borrega', 'borreguito', 'chip', 'ship', 'shiip', 'chiip', 'la oveja'],
   saibaman: ['saibaman', 'saiba man', 'semilla'],
   antares: ['antares', 'aguja escarlata', 'scarlet needle', 'milo'],
   galaxian: ['explosion de galaxias', 'galaxian explosion', 'galaxias', 'galaxian', 'galaxia'],

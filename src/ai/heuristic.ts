@@ -75,7 +75,8 @@ function activeWorm(input: HeuristicInput): WormPoint | undefined {
   return input.worms.find((w) => w.id === input.request.active.wormId);
 }
 
-function shotFor(def: WeaponDef, from: WormPoint, angleDeg: number, power: number, facing: 1 | -1): ShotSpec | null {
+/** The shell a shot launches, from where the sim's muzzle puts it (aim-at.ts aims with it too). */
+export function shotFor(def: WeaponDef, from: WormPoint, angleDeg: number, power: number, facing: 1 | -1): ShotSpec | null {
   const spec = def.projectile;
   const blast = def.blast;
   if (spec === undefined || blast === undefined) return null;

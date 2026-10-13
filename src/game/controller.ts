@@ -36,6 +36,8 @@ import { detonateSheep } from '../sim/sheep.ts';
 import { createCpuState, decideCpuTurn, type CpuControllerOptions, type CpuControllerState } from '../ai/cpu-controller.ts';
 import { decideHeuristic } from '../ai/heuristic.ts';
 import { buildCpuRequest } from '../ai/snapshot.ts';
+import { aimAtWorm } from '../ai/aim-at.ts';
+import { blastDamage } from '../sim/damage.ts';
 import { buildPlan, capWalkTicks, quantizePower } from '../ai/plan-executor.ts';
 import { windFractionFromStep } from '../match/state.ts';
 import { GRAVITY_PX_PER_S2 } from '../sim/constants.ts';
@@ -185,7 +187,10 @@ export interface Controller {
 
 /** One beat of a command, played a tick at a time on the human's Active turn. */
 type ScriptStep =
-  | { readonly kind: 'walk'; readonly dir: -1 | 1; readonly steps: number; startPx: number | null; counted: number; lastPx: number; stall: number }
+  /** px, when given, is the exact distance to walk (an AI plan's); steps is then only the count shown. */
+  | { readonly kind: 'walk'; readonly dir: -1 | 1; readonly steps: number; readonly px?: number; startPx: number | null; counted: number; lastPx: number; stall: number }
+  /** Aim at that worm from where the worm now stands, then turn, swing the aim and fire (aim-at.ts). */
+  | { readonly kind: 'aimAt'; readonly targetId: string | null; readonly weapon: WeaponId; readonly fuseMs?: number }
   | { readonly kind: 'wait'; ticks: number }
   | { readonly kind: 'face'; readonly dir: -1 | 1 }
   | { readonly kind: 'hop'; readonly backflip: boolean }
@@ -572,6 +577,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
   };
 
   let humanIntent: WormIntent = IDLE_INTENT;
+  // A sheep sent at a worm by an auto attack goes off when it reaches it, as a player would press fire.
+  let sheepTargetId: string | null = null;
   // The command being played out on the human's turn, one step at a time (src/game/commands.ts).
   let script: ScriptStep[] = [];
 
@@ -812,11 +819,24 @@ export function createController(game: Game, options: ControllerOptions): Contro
           }
           step.stall = spentPx - step.lastPx < STALL_PX ? step.stall + 1 : 0;
           step.lastPx = spentPx;
-          if (step.counted >= step.steps || !canMove() || step.stall >= STALL_TICKS) {
+          const arrived = step.px !== undefined ? walked >= step.px - 0.5 : step.counted >= step.steps;
+          if (arrived || !canMove() || step.stall >= STALL_TICKS) {
             script.shift();
           } else {
             intent = { moveX: step.dir, jump: false, backflip: false, thrust: false };
           }
+          break;
+        }
+        case 'aimAt': {
+          script.shift();
+          const solved = solveAim(body, step.weapon, step.targetId);
+          if (solved === null) break;
+          if (getWeapon(step.weapon).spawn?.detonateOnSecondFire === true && solved.targetId !== null) sheepTargetId = solved.targetId;
+          script.unshift(
+            { kind: 'face', dir: solved.facing },
+            { kind: 'aim', angleDeg: solved.angleDeg },
+            { kind: 'fire', power: solved.power, ...(solved.targetPoint === undefined ? {} : { targetPoint: solved.targetPoint }), ...(step.fuseMs === undefined ? {} : { fuseMs: step.fuseMs }) },
+          );
           break;
         }
         case 'plan': {
@@ -1015,6 +1035,8 @@ export function createController(game: Game, options: ControllerOptions): Contro
         const why = whyUnusable(weapon);
         if (why !== null) return refuse(why);
         const def = getWeapon(weapon);
+        // "Dispárale a Ana": a shot at a worm is aimed at it, not fired along whatever aim is up.
+        if (cmd.targetWormId !== undefined && !def.requiresTargetSelect) return command({ kind: 'auto', weapon, targetWormId: cmd.targetWormId });
         if (def.requiresTargetSelect && cmd.targetPoint === undefined) return refuse(`The ${plainName(weapon)} needs a target: name a worm, or ask for an auto attack.`);
         script.push({ kind: 'fire', power: cmd.power ?? 1, ...(cmd.targetPoint === undefined ? {} : { targetPoint: cmd.targetPoint }) });
         return ok(`${worm.name} fires the ${plainName(weapon)}!`, { weapon });
@@ -1046,11 +1068,97 @@ export function createController(game: Game, options: ControllerOptions): Contro
   let lastAuto: CommandResult | null = null;
 
   /** Plans an auto attack from where the worm stands now and queues it: the calculating, the walk, the turn, the aim, the shot. */
+  /** How close the sheep gets to the worm it was sent at before it goes off, world px. */
+  const SHEEP_REACH_PX = 16;
+
+  /** The sheep an auto attack sent goes off once it reaches its worm (or the worm is gone). */
+  const guideSheep = (): void => {
+    if (sheepTargetId === null) return;
+    const team = activeTeamOf(state);
+    const sheep = world.sheep.find((s) => s.alive && !s.detonateRequested && s.ownerTeamId === team?.id);
+    if (sheep === undefined) return;
+    const target = findBody(world, sheepTargetId);
+    if (target === undefined || !target.alive || hpOf(target.id) <= 0) {
+      sheepTargetId = null;
+      return;
+    }
+    if (Math.abs(sheep.x - target.x) <= SHEEP_REACH_PX && Math.abs(sheep.y - target.y) <= 40 && sheepWorthIt(sheep.x, sheep.y, target.id)) {
+      sheepTargetId = null;
+      detonateOwnSheep();
+      events.push({ type: 'detonateOrder', wormId: activeWormOf(state)?.id ?? '', x: sheep.x, y: sheep.y });
+    }
+  };
+
+  /** Going off here hurts the target more than it hurts the worm's own team (itself included). */
+  const sheepWorthIt = (x: number, y: number, targetId: string): boolean => {
+    const blast = getWeapon('sheep').blast;
+    if (blast === undefined) return true;
+    const team = activeTeamOf(state);
+    let enemy = 0;
+    let friendly = 0;
+    for (const worm of world.worms) {
+      if (!worm.alive || hpOf(worm.id) <= 0) continue;
+      const dealt = Math.min(hpOf(worm.id), blastDamage(blast.maxDamage, Math.hypot(worm.x - x, wormMiddleY(worm) - y), blast.radiusPx));
+      if (worm.teamId === team?.id) friendly += dealt;
+      else if (worm.id === targetId) enemy += dealt;
+    }
+    return enemy > friendly;
+  };
+
+  /** The enemy worm to aim at: the one named if it still stands, else the nearest. */
+  const enemyFor = (body: { readonly x: number; readonly y: number }, preferred: string | null): ReturnType<typeof findBody> => {
+    const team = activeTeamOf(state);
+    const alive = world.worms.filter((b) => b.alive && b.teamId !== team?.id && hpOf(b.id) > 0);
+    return alive.find((b) => b.id === preferred) ?? alive.sort((a, b) => Math.hypot(a.x - body.x, a.y - body.y) - Math.hypot(b.x - body.x, b.y - body.y))[0];
+  };
+
+  /** Solves the shot at a worm from where the body stands now (aim-at.ts), against the live terrain and wind. */
+  const solveAim = (body: NonNullable<ReturnType<typeof findBody>>, weapon: WeaponId, preferred: string | null): (ReturnType<typeof aimAtWorm> & { readonly targetId: string | null }) | null => {
+    const target = enemyFor(body, preferred);
+    if (target === undefined) return null;
+    const point = (b: NonNullable<ReturnType<typeof findBody>>) => ({ id: b.id, teamId: b.teamId, x: b.x, y: b.y, hp: hpOf(b.id), alive: b.alive && hpOf(b.id) > 0, size: b.size });
+    const solution = aimAtWorm({
+      def: getWeapon(weapon),
+      from: point(body),
+      target: point(target),
+      worms: world.worms.map(point),
+      // The wind the sim really applies (world.wind), which is what the shell will feel.
+      env: { mask: world.terrain.mask, waterY: state.waterY, wind: world.wind, gravity: world.gravity },
+    });
+    return { ...solution, targetId: target.id };
+  };
+
   const startAuto = (worm: NonNullable<ReturnType<typeof activeWormOf>>, body: NonNullable<ReturnType<typeof findBody>>, weapon: WeaponId, targetWormId: string | undefined, cry: string | undefined): void => {
     const team = activeTeamOf(state);
     const from: PlanWorm = { id: worm.id, teamId: team?.id ?? '', x: body.x, y: body.y, hp: worm.hp, alive: true };
-    const plan = planAuto(weapon, targetWormId, from);
+    const def = getWeapon(weapon);
+    const heuristicPlan = planAuto(weapon, targetWormId, from);
+    // The heuristic found no shot it trusts: no walk, the aim is solved at the worm from here.
+    const plan = heuristicPlan.fallback ? { ...heuristicPlan, walkDir: 0 as const, walkSteps: 0, walkPx: 0, targetId: heuristicPlan.targetId ?? targetWormId ?? null } : { ...heuristicPlan };
+    // The worm the player named is the target, whoever the heuristic's shot would also catch.
+    if (targetWormId !== undefined) plan.targetId = targetWormId;
+    const shell = def.projectile !== undefined && def.blast !== undefined;
+    if (shell && def.blast !== undefined) {
+      // A shell: from here if there is a clean shot from here; too close to the target, a few steps
+      // back first, out of its own blast; otherwise where the heuristic would walk.
+      const radius = def.blast.radiusPx;
+      const here = solveAim(body, weapon, plan.targetId);
+      const target = here === null ? undefined : findBody(world, here.targetId ?? '');
+      const gap = target === undefined ? Infinity : Math.abs(target.x - body.x);
+      if (here !== null && here.safe && here.missPx <= radius * 0.6) {
+        Object.assign(plan, { walkDir: 0, walkSteps: 0, walkPx: 0 });
+      } else if (target !== undefined && gap < radius * 2.5) {
+        const px = radius * 2.5 - gap + 8;
+        Object.assign(plan, { walkDir: target.x < body.x ? 1 : -1, walkSteps: Math.max(1, Math.ceil(px / MOVE.stepPx)), walkPx: px });
+      }
+    }
+    // A shell, an animal, a strike or a guess is aimed again after the walk (the walk can end a few px
+    // off the plan, and a shell fired from the wrong spot can land at the worm's own feet).
+    const reaim = plan.fallback || (def.projectile !== undefined && def.blast !== undefined) || def.kind === 'ANIMAL' || def.requiresTargetSelect;
     const affordable = Math.min(plan.walkSteps, stepsRemaining());
+    // What the calculating shows: the real solution when the worm fires from where it stands.
+    const shown = reaim && (plan.walkDir === 0 || affordable === 0) ? solveAim(body, weapon, plan.targetId) : null;
+    if (shown !== null) Object.assign(plan, { angleDeg: Math.round(shown.angleDeg), power: shown.power, targetId: shown.targetId });
     const targetName = nameOf(plan.targetId);
     const message = cry !== undefined && cry.trim() !== '' ? cry.trim().slice(0, 80) : `${plainName(weapon).toUpperCase()}!`;
     const targets = world.worms.filter((b) => b.alive && b.teamId !== team?.id && hpOf(b.id) > 0).map((b) => ({ id: b.id, x: b.x, y: b.y - wormHeight(b) / 2 }));
@@ -1073,15 +1181,20 @@ export function createController(game: Game, options: ControllerOptions): Contro
     const steps: ScriptStep[] = [];
     steps.push({ kind: 'weapon', id: weapon });
     steps.push({ kind: 'wait', ticks: CALC_TICKS });
-    if (plan.walkDir !== 0 && affordable > 0) steps.push({ kind: 'walk', dir: plan.walkDir, steps: affordable, startPx: null, counted: 0, lastPx: 0, stall: 0 });
-    steps.push({ kind: 'face', dir: plan.facing });
-    steps.push({ kind: 'aim', angleDeg: plan.angleDeg });
-    steps.push({ kind: 'fire', power: plan.power, ...(plan.targetPoint === undefined ? {} : { targetPoint: plan.targetPoint }), ...(plan.fuseMs === undefined ? {} : { fuseMs: plan.fuseMs }) });
+    if (plan.walkDir !== 0 && affordable > 0) steps.push({ kind: 'walk', dir: plan.walkDir, steps: affordable, ...(affordable === plan.walkSteps ? { px: plan.walkPx } : {}), startPx: null, counted: 0, lastPx: 0, stall: 0 });
+    if (reaim) {
+      // Aimed again once the walk is over, from where the worm really stands.
+      steps.push({ kind: 'aimAt', targetId: plan.targetId, weapon, ...(plan.fuseMs === undefined ? {} : { fuseMs: plan.fuseMs }) });
+    } else {
+      steps.push({ kind: 'face', dir: plan.facing });
+      steps.push({ kind: 'aim', angleDeg: plan.angleDeg });
+      steps.push({ kind: 'fire', power: plan.power, ...(plan.targetPoint === undefined ? {} : { targetPoint: plan.targetPoint }), ...(plan.fuseMs === undefined ? {} : { fuseMs: plan.fuseMs }) });
+    }
     script.unshift(...steps);
     lastAuto = ok(
       plan.targetId === null
         ? `${worm.name} finds nobody to hit with the ${plainName(weapon)}.`
-        : `${worm.name} locks on ${targetName}: ${plainName(weapon)} at ${plan.angleDeg} degrees, ${Math.round(plan.power * 100)}% power${affordable > 0 ? `, after ${affordable} step${affordable === 1 ? '' : 's'} ${plan.walkDir < 0 ? 'left' : 'right'}` : ''}${plan.fallback ? ' (no sure shot, firing straight at it)' : ''}.`,
+        : `${worm.name} locks on ${targetName}: ${plainName(weapon)} at ${plan.angleDeg} degrees, ${Math.round(plan.power * 100)}% power${affordable > 0 ? `, after ${affordable} step${affordable === 1 ? '' : 's'} ${plan.walkDir < 0 ? 'left' : 'right'}` : ''}${shown !== null && !shown.safe ? ' (too close: it may get caught in its own blast)' : ''}.`,
       { weapon, target: targetName, angleDeg: plan.angleDeg, power: Math.round(plan.power * 100), walkSteps: affordable, confidence: plan.confidence, fallback: plan.fallback },
     );
   };
@@ -1119,6 +1232,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
           pending.burst = null;
           pending.sequence = null;
           script = [];
+          sheepTargetId = null;
           // A fresh turn, a fresh movement budget and the first barrel.
           spentPx = 0;
           shotIndex = 0;
@@ -1211,6 +1325,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         humanIntent = state.phase === 'Retreat' && isHumanTurn() ? { moveX: input.moveX, jump: input.jump, backflip: input.backflip, thrust: input.thrust } : IDLE_INTENT;
         // The second fire press detonates the sheep while it runs (its spec's detonateOnSecondFire).
         if (input.fireReleased && isHumanTurn()) detonateOwnSheep();
+        guideSheep();
         if (state.phase === 'Firing' && isHumanTurn() && pending.burst !== null && getWeapon(pending.burst.weapon).hitscan?.aimWhileFiring) {
           aim = aimBy(aim, input.aimDelta, TICK_S);
           pending.burst = { ...pending.burst, aim: { ...pending.burst.aim, angleDeg: aim.angleDeg } };

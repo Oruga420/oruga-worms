@@ -28,7 +28,7 @@ export type WormCommand =
   | { readonly kind: 'aimBy'; readonly deltaDeg: number }
   | { readonly kind: 'weapon'; readonly id: WeaponId }
   /** Fire the weapon in hand at the aim; power 0..1 (full when absent); targetPoint for an air strike, a teleport, a meteor. */
-  | { readonly kind: 'fire'; readonly power?: number; readonly targetPoint?: { readonly x: number; readonly y: number } }
+  | { readonly kind: 'fire'; readonly power?: number; readonly targetPoint?: { readonly x: number; readonly y: number }; readonly targetWormId?: string }
   /** Let the AI find the best shot (with this weapon, at this worm when named), show it calculating, and take it. */
   | { readonly kind: 'auto'; readonly weapon?: WeaponId; readonly targetWormId?: string; readonly message?: string }
   | { readonly kind: 'skip' }
@@ -67,6 +67,8 @@ export interface AutoPlan {
   readonly walkDir: -1 | 0 | 1;
   /** Steps of the movement budget the walk takes (0 when it fires from where it stands). */
   readonly walkSteps: number;
+  /** The walk in world px, as the AI planned it: walked exactly, not rounded to whole steps. */
+  readonly walkPx: number;
   readonly facing: 1 | -1;
   readonly angleDeg: number;
   /** 0..1. */
@@ -142,6 +144,7 @@ export function planFromResponse(input: {
       weapon,
       walkDir,
       walkSteps,
+      walkPx,
       facing,
       angleDeg: response.aimAngleDeg,
       power: Math.max(0.05, Math.min(1, response.power / 100)),
@@ -163,7 +166,7 @@ export function planFromResponse(input: {
       }
     }
   }
-  if (target === null) return { weapon, walkDir: 0, walkSteps: 0, facing: 1, angleDeg: 45, power: 1, targetId: null, confidence: 0, fallback: true };
+  if (target === null) return { weapon, walkDir: 0, walkSteps: 0, walkPx: 0, facing: 1, angleDeg: 45, power: 1, targetId: null, confidence: 0, fallback: true };
   const line = straightAt({ x: from.x, y: from.y - 10 }, { x: target.x, y: target.y - 10 });
-  return { weapon, walkDir: 0, walkSteps: 0, facing: line.facing, angleDeg: Math.round(line.angleDeg), power: 1, targetPoint: { x: target.x, y: target.y }, targetId: target.id, confidence: 0.2, fallback: true };
+  return { weapon, walkDir: 0, walkSteps: 0, walkPx: 0, facing: line.facing, angleDeg: Math.round(line.angleDeg), power: 1, targetPoint: { x: target.x, y: target.y }, targetId: target.id, confidence: 0.2, fallback: true };
 }

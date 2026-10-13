@@ -111,4 +111,10 @@ describe('parseUtterance', () => {
     expect(parseUtterance('dispara a Ana', NAMES)).toEqual([{ tool: 'fire', args: { target: 'Ana' } }]);
     expect(parseUtterance('usa la granada contra Ana', NAMES)).toEqual([{ tool: 'ai_attack', args: { weapon: 'grenade', target: 'Ana' } }]);
   });
+  it('hears the sheep however it is said, and a shot at a worm names its target', () => {
+    expect(parseUtterance('utiliza sheep', NAMES)).toEqual([{ tool: 'ai_attack', args: { weapon: 'sheep' } }]);
+    expect(parseUtterance('usa la oveja', NAMES)).toEqual([{ tool: 'ai_attack', args: { weapon: 'sheep' } }]);
+    expect(parseUtterance('lanza el chip', NAMES)).toEqual([{ tool: 'ai_attack', args: { weapon: 'sheep' } }]);
+    expect(parseUtterance('dispárale a Ana', NAMES)).toEqual([{ tool: 'fire', args: { target: 'Ana' } }]);
+  });
 });

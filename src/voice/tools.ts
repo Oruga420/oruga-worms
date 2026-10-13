@@ -189,7 +189,7 @@ export const TOOLS: readonly ToolDef[] = Object.freeze([
   },
   {
     name: 'fire',
-    description: 'Fire the weapon in hand at the current aim. power is 0-100 (full when left out). Weapons called from the sky (air strike, teleport, meteorito) need a target worm.',
+    description: 'Fire the weapon in hand. With a target worm it is aimed at that worm first (the AI solves the angle and the charge, safe for the shooter); without one it fires along the current aim. power is 0-100 (full when left out). Weapons called from the sky (air strike, teleport, meteorito) need a target worm.',
     params: { power: { type: 'number', description: 'Charge 0-100, default 100.' }, target: { type: 'string', description: 'Enemy worm name, for the weapons that need a target point.' }, worm: WORM },
     required: [],
   },
@@ -393,7 +393,7 @@ export function runTool(api: GameApi, name: string, args: Readonly<Record<string
       const targetName = str(args, 'target');
       const target = targetName === undefined ? null : findWormByName(view.worms, targetName);
       if (targetName !== undefined && target === null) return { ok: false, text: `There is no worm called ${targetName}.` };
-      return answer(api.command({ kind: 'fire', ...(power === undefined ? {} : { power: Math.max(0, Math.min(100, power)) / 100 }), ...(target === null ? {} : { targetPoint: { x: target.x, y: target.y } }) }));
+      return answer(api.command({ kind: 'fire', ...(power === undefined ? {} : { power: Math.max(0, Math.min(100, power)) / 100 }), ...(target === null ? {} : { targetPoint: { x: target.x, y: target.y }, targetWormId: target.id }) }));
     }
     case 'ai_attack': {
       const raw = str(args, 'weapon');

@@ -43,6 +43,39 @@ export interface TrajectoryEnv {
   /** Wind as a fraction of gravity, positive blows right. */
   readonly wind: number;
   readonly gravity?: number;
+  /**
+   * Worm hitboxes a contact shell goes off on, as the sim's does (projectile.ts wormInPath): the
+   * shooter's own is ignored for its first ticks, while the shell clears the muzzle. Absent, only the
+   * land stops the shell (the heuristic's coarse search, which scores blasts, not bodies).
+   */
+  readonly bodies?: readonly TrajectoryBody[];
+}
+
+export interface TrajectoryBody {
+  readonly x: number;
+  /** Feet. */
+  readonly y: number;
+  readonly halfWidth: number;
+  readonly height: number;
+  /** The shooter: ignored while the shell clears the muzzle. */
+  readonly shooter?: boolean;
+}
+
+/** Ticks the shooter's own body is ignored after launch (projectile.ts MUZZLE_GRACE_TICKS). */
+export const SHOOTER_GRACE_TICKS = 12;
+
+/** The first body the segment crosses, sampled finely enough for a shell's step, or null. */
+function bodyInPath(bodies: readonly TrajectoryBody[], x0: number, y0: number, x1: number, y1: number, radius: number, tick: number): { x: number; y: number } | null {
+  const samples = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 4));
+  for (let i = 1; i <= samples; i += 1) {
+    const px = x0 + ((x1 - x0) * i) / samples;
+    const py = y0 + ((y1 - y0) * i) / samples;
+    for (const body of bodies) {
+      if (body.shooter === true && tick <= SHOOTER_GRACE_TICKS) continue;
+      if (Math.abs(px - body.x) <= body.halfWidth + radius && py >= body.y - body.height - radius && py <= body.y + radius) return { x: px, y: py };
+    }
+  }
+  return null;
 }
 
 /** Marches the shot and returns where it would go off, or null if it leaves the world without detonating. */
@@ -62,6 +95,9 @@ export function simulateShot(shot: ShotSpec, env: TrajectoryEnv): Impact | null 
     if (shot.windAffected) vx += env.wind * gravity * TICK_S;
     const nx = x + vx * TICK_S;
     const ny = y + vy * TICK_S;
+    // A contact shell goes off on the first worm in its way, before the land behind it.
+    const body = env.bodies === undefined || shot.fuseMs !== null ? null : bodyInPath(env.bodies, x, y, nx, ny, shot.radiusPx, t);
+    if (body !== null) return { x: body.x, y: body.y, ticks: t, reason: 'contact' };
     const hit = sweep(env.mask, x, y, nx, ny, shot.radiusPx);
     if (hit.hit !== null) {
       if (shot.bounce > 0 && fuseTicks > 0 && t < fuseTicks) {

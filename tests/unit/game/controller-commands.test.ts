@@ -151,6 +151,17 @@ describe('controller commands (voice, WebMCP)', () => {
     expect(controller.world().sheep.some((s) => s.alive)).toBe(false);
   });
 
+  it('aims a shot fired at a named worm instead of firing along the aim it had', () => {
+    const controller = makeController();
+    toHumanTurn(controller);
+    const enemy = controller.state().teams.find((t) => t.id !== activeTeamOf(controller.state())?.id)?.worms[0];
+    if (enemy === undefined) throw new Error('no enemy');
+    const result = controller.command({ kind: 'fire', targetWormId: enemy.id });
+    expect(result.ok).toBe(true);
+    expect(result.text).toContain('locks on');
+    expect(controller.drainEvents().some((e) => e.type === 'aiScan' && e.targetId === enemy.id)).toBe(true);
+  });
+
   it('refuses a super the worm cannot use yet, saying why', () => {
     const controller = makeController();
     toHumanTurn(controller);
