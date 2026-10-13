@@ -11,7 +11,24 @@ function reply(status: number, body: Record<string, string>): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 }
 
-export async function GET(): Promise<Response> {
+/**
+ * Only the game's own page may ask: a browser on another site sends Sec-Fetch-Site cross-site (or
+ * an Origin that is not ours), and gets nothing to open the paid agent with.
+ */
+function fromOurPage(request: Request): boolean {
+  const site = request.headers.get('sec-fetch-site');
+  if (site !== null) return site === 'same-origin';
+  const origin = request.headers.get('origin');
+  if (origin === null) return true;
+  try {
+    return new URL(origin).host === new URL(request.url).host;
+  } catch {
+    return false;
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  if (!fromOurPage(request)) return reply(403, { error: 'forbidden' });
   const agentId = (process.env['ELEVENLABS_AGENT_ID'] ?? '').trim();
   const apiKey = (process.env['ELEVENLABS_API_KEY'] ?? '').trim();
   if (agentId === '') return reply(503, { error: 'no voice agent configured (ELEVENLABS_AGENT_ID)' });

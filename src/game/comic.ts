@@ -20,6 +20,7 @@
  */
 
 import { TWO_PI, clamp } from '../core/math.ts';
+import { TICK_MS } from '../config/units.ts';
 import { shakeOffset, type Camera } from '../engine/camera.ts';
 import type { Ctx2D, Size } from '../engine/canvas-types.ts';
 import type { SimWorld } from '../sim/world.ts';
@@ -259,7 +260,7 @@ export function applyComicEvents(c: ComicState, events: readonly GameEvent[], lo
         c.steps.push({ wormId: e.wormId, n: e.n, total: e.total, x: e.x, y: e.y, bornAt: c.now });
         break;
       case 'aiScan': {
-        const ms = (e.ticks * 1000) / 60;
+        const ms = e.ticks * TICK_MS;
         const weaponName = isWeaponId(e.weapon) ? getWeapon(e.weapon).name : e.weapon;
         c.scans.push({
           wormId: e.wormId,

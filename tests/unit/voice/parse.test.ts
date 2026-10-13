@@ -98,4 +98,17 @@ describe('parseUtterance', () => {
     expect(parseUtterance('clic en Ana', NAMES)).toEqual([{ tool: 'click_map', args: { worm: 'Ana' } }]);
     expect(parseUtterance('acerca la cámara', NAMES)).toEqual([{ tool: 'camera', args: { zoom: 'in' } }]);
   });
+
+  it('keeps orders that share words with other orders apart', () => {
+    expect(parseUtterance('camina un paso a la izquierda', NAMES)).toEqual([{ tool: 'walk', args: { direction: 'left', steps: 1 } }]);
+    expect(parseUtterance('paso', NAMES)).toEqual([{ tool: 'skip_turn', args: {} }]);
+    expect(parseUtterance('apunta más alto', NAMES)).toEqual([{ tool: 'aim', args: { change: 10 } }]);
+    expect(parseUtterance('apunta a treinta y cinco grados', NAMES)).toEqual([{ tool: 'aim', args: { angle: 35 } }]);
+    expect(parseUtterance('dispara otra vez', NAMES)).toEqual([{ tool: 'fire', args: {} }]);
+    expect(parseUtterance('vuelve a disparar', NAMES)).toEqual([{ tool: 'fire', args: {} }]);
+  });
+  it('takes a name at the end of the order as the enemy, not the worm to pick', () => {
+    expect(parseUtterance('dispara a Ana', NAMES)).toEqual([{ tool: 'fire', args: { target: 'Ana' } }]);
+    expect(parseUtterance('usa la granada contra Ana', NAMES)).toEqual([{ tool: 'ai_attack', args: { weapon: 'grenade', target: 'Ana' } }]);
+  });
 });

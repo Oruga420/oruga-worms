@@ -901,6 +901,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
     return selectedWeapon();
   };
 
+  /** The aim the worm will hold once the orders queued so far are done ("apunta a 30 y sube 10" is 40). */
+  const queuedAim = (): number => {
+    for (let i = script.length - 1; i >= 0; i -= 1) {
+      const step = script[i];
+      if (step?.kind === 'aim') return step.angleDeg;
+    }
+    return aim.angleDeg;
+  };
+
   /** Why the worm cannot use this weapon now, or null when it can. */
   const whyUnusable = (id: WeaponId): string | null => {
     const worm = activeWormOf(state);
@@ -968,7 +977,9 @@ export function createController(game: Game, options: ControllerOptions): Contro
       }
       case 'walk': {
         const steps = Math.max(1, Math.min(MAX_COMMAND_STEPS, Math.round(cmd.steps)));
-        const left = stepsRemaining();
+        // The steps a walk still queued will spend are not this one's to promise.
+        const queuedSteps = script.reduce((sum, s) => sum + (s.kind === 'walk' ? s.steps - s.counted : 0), 0);
+        const left = Math.max(0, stepsRemaining() - queuedSteps);
         if (left <= 0) return refuse(`${worm.name} has no steps left this turn.`);
         const taken = Math.min(steps, left);
         script.push({ kind: 'walk', dir: cmd.dir, steps: taken, startPx: null, counted: 0, lastPx: 0, stall: 0 });
@@ -988,7 +999,7 @@ export function createController(game: Game, options: ControllerOptions): Contro
         return ok(`Aiming at ${Math.round(angle)} degrees.`);
       }
       case 'aimBy': {
-        const angle = Math.max(-90, Math.min(90, aim.angleDeg + cmd.deltaDeg));
+        const angle = Math.max(-90, Math.min(90, queuedAim() + cmd.deltaDeg));
         script.push({ kind: 'aim', angleDeg: angle });
         return ok(`Aiming at ${Math.round(angle)} degrees.`);
       }

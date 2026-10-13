@@ -960,6 +960,8 @@ function boot(): void {
   const gameApi: GameApi = {
     view: () => (appPhase === 'playing' ? battleView(controller, panelOpen) : null),
     command: (cmd) => {
+      // Paused, the turn holds: an order must not skip it, swap the worm or queue a shot behind the overlay.
+      if (paused && cmd.kind !== 'stop') return { ok: false, text: 'The game is paused: resume it first.' };
       const result = controller.command(cmd);
       if (result.ok && cmd.kind === 'weapon' && panelOpen) panelCloseAtMs = performance.now() + VOICE_PICK_SHOW_MS;
       // Anything that sets the worm moving or shooting takes the panel down, as a key would.

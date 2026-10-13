@@ -140,13 +140,30 @@ export interface VoiceAgent {
 /** Opens the conversation with the microphone; resolves once it is connecting, or rejects. */
 export async function startVoiceAgent(url: string, api: GameApi, callbacks: AgentCallbacks): Promise<VoiceAgent> {
   callbacks.status('connecting');
-  const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+  // Made before the permission prompt, while the click that opened the voice still counts as a user
+  // gesture: created after it, the context can start suspended and neither hear nor play anything.
   const audio = new AudioContext();
-  await audio.audioWorklet.addModule('/voice/pcm-capture.js');
-  const source = audio.createMediaStreamSource(mic);
-  const capture = new AudioWorkletNode(audio, 'pcm-capture');
-  source.connect(capture);
-  const ws = new WebSocket(url);
+  let mic: MediaStream | null = null;
+  let source: MediaStreamAudioSourceNode;
+  let capture: AudioWorkletNode;
+  let ws: WebSocket;
+  try {
+    mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+    // The session URL was fetched first, so the gesture may be spent: wake the context anyway (the
+    // page has been clicked, which is what the browsers' autoplay rules ask).
+    if (audio.state === 'suspended') await audio.resume().catch(() => undefined);
+    await audio.audioWorklet.addModule('/voice/pcm-capture.js');
+    source = audio.createMediaStreamSource(mic);
+    capture = new AudioWorkletNode(audio, 'pcm-capture');
+    source.connect(capture);
+    ws = new WebSocket(url);
+  } catch (error) {
+    // A half-made start must not leave the microphone on.
+    for (const track of mic?.getTracks() ?? []) track.stop();
+    void audio.close().catch(() => undefined);
+    throw error;
+  }
+  const micStream = mic;
   let ready = false;
   let closed = false;
   let pending: Float32Array[] = [];
@@ -207,7 +224,7 @@ export async function startVoiceAgent(url: string, api: GameApi, callbacks: Agen
     closed = true;
     ready = false;
     hush();
-    for (const track of mic.getTracks()) track.stop();
+    for (const track of micStream.getTracks()) track.stop();
     capture.port.onmessage = null;
     source.disconnect();
     void audio.close().catch(() => undefined);

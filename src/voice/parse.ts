@@ -23,7 +23,8 @@ export interface ToolCall {
 /** Splits an utterance into clauses at commas, "y", "luego", "después", "then", "and". */
 function clauses(text: string): string[] {
   return text
-    .split(/[,.;!?]+|\s+(?:y luego|y despues|y después|luego|despues|después|entonces|then|and then|y|and)\s+/i)
+    // Not after a tens word: "treinta y cinco" is one number (findNumber), not two clauses.
+    .split(/[,.;!?]+|(?<!\b(?:veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa))\s+(?:y luego|y despues|y después|luego|despues|después|entonces|then|and then|y|and)\s+/i)
     .map((part) => part.trim())
     .filter((part) => part !== '');
 }
@@ -36,8 +37,10 @@ const WALK = /\b(camina|caminar|camine|avanza|avanzar|muevete|mueve|moverte|anda
 const TURN = /\b(voltea|voltearte|gira|girate|mira hacia|mira a la|date la vuelta|turn|face)\b/;
 const BACKFLIP = /\b(voltereta|mortal|marometa|maroma|backflip|back flip|pirueta)\b/;
 const JUMP = /\b(salta|saltar|brinca|brincar|brinco|salto|jump|hop)\b/;
-const SKIP = /\b(pasa el turno|pasa turno|salta el turno|saltar turno|paso|skip|pass|termina el turno)\b/;
-const STOP = /\b(alto|detente|para ya|stop|quieto|espera|cancela)\b/;
+// "paso" alone passes; "camina un paso" is a step, not a skip.
+const SKIP = /\b(pasa el turno|pasa turno|salta el turno|saltar turno|skip|pass|termina el turno)\b|^paso$/;
+// "más alto" is aim higher, not a stop.
+const STOP = /\b((?<!\bmas )alto|detente|para ya|stop|quieto|espera|cancela)\b/;
 const CHOOSE = /\b(yo te elijo|te elijo|elijo a|escojo a|te escojo|i choose you|choose)\b/;
 const AUTO = /\b(utiliza|utilizar|usa|usar|lanza|lanzale|ataca|atacar|ataque|attack|use|haz|hazle|tirale|dale|acaba con|mata|destruye|con ia|con la ia|automatico|mejor tiro|best shot|ai)\b/;
 const SELECT = /\b(saca|sacar|cambia|cambiar|cambiate|equipa|equipar|agarra|toma|selecciona|elige el|elige la|ponte|switch|select|equip|take|pick)\b/;
@@ -126,7 +129,8 @@ export function parseUtterance(text: string, names: readonly string[], context: 
       calls.push({ tool: 'click_map', args: { worm: named[0] } });
       continue;
     }
-    const screenOrder = weaponId === null && named.length === 0 ? SCREEN_ORDERS.find((order) => has(folded, order.pattern)) : undefined;
+    // "dispara otra vez", "vuelve a disparar": a shot, not the restart or back button.
+    const screenOrder = weaponId === null && named.length === 0 && !has(folded, FIRE) ? SCREEN_ORDERS.find((order) => has(folded, order.pattern)) : undefined;
     if (screenOrder !== undefined) {
       calls.push({ tool: 'press_button', args: { button: screenOrder.button } });
       continue;
@@ -174,7 +178,8 @@ export function parseUtterance(text: string, names: readonly string[], context: 
 
     // An order that names the worm first ("Raúl camina..."): that worm.
     const first = named[0];
-    const addressed = first !== undefined && ` ${folded}`.indexOf(` ${fold(first)} `) <= 1 ? first : undefined;
+    // Only a name at the very start addresses the worm; "dispara a Ana" names the enemy.
+    const addressed = first !== undefined && ` ${folded} `.indexOf(` ${fold(first)} `) === 0 ? first : undefined;
     if (addressed !== undefined) choose(addressed);
     const enemy = named.find((n) => n !== addressed && n !== chosen) ?? (addressed === undefined ? named[0] : undefined);
 
