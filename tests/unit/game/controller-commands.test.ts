@@ -45,7 +45,7 @@ function run(controller: Controller, ticks: number, events: GameEvent[]): void {
   }
 }
 
-const api = (controller: Controller): GameApi => ({ view: () => battleView(controller), command: (cmd) => controller.command(cmd), say: () => undefined });
+const api = (controller: Controller): GameApi => ({ view: () => battleView(controller), command: (cmd) => controller.command(cmd), say: () => undefined, menu: () => false, screen: () => ({ screen: 'playing', buttons: [] }), press: () => ({ ok: false, text: '' }), clickMap: () => ({ ok: false, text: '' }), camera: () => ({ ok: false, text: '' }) });
 
 describe('controller commands (voice, WebMCP)', () => {
   it('walks the steps it is told, counting each one', () => {
@@ -132,6 +132,23 @@ describe('controller commands (voice, WebMCP)', () => {
     controller.command({ kind: 'walk', dir: 1, steps: 5 });
     controller.tick({ ...IDLE, moveX: -1 });
     expect(controller.commandBusy()).toBe(false);
+  });
+
+  it('sets off the sheep it fired when told to, and refuses with no sheep running', () => {
+    const controller = makeController();
+    toHumanTurn(controller);
+    expect(controller.command({ kind: 'detonate' }).ok).toBe(false);
+    expect(controller.command({ kind: 'weapon', id: 'sheep' }).ok).toBe(true);
+    expect(controller.command({ kind: 'fire' }).ok).toBe(true);
+    const events: GameEvent[] = [];
+    for (let i = 0; i < 300 && !controller.world().sheep.some((s) => s.alive); i += 1) run(controller, 1, events);
+    expect(controller.world().sheep.some((s) => s.alive)).toBe(true);
+    run(controller, 20, events);
+    const result = controller.command({ kind: 'detonate' });
+    expect(result.ok).toBe(true);
+    expect(controller.drainEvents().some((e) => e.type === 'detonateOrder')).toBe(true);
+    run(controller, 5, events);
+    expect(controller.world().sheep.some((s) => s.alive)).toBe(false);
   });
 
   it('refuses a super the worm cannot use yet, saying why', () => {

@@ -69,4 +69,33 @@ describe('parseUtterance', () => {
   it('fires with a power', () => {
     expect(parseUtterance('dispara al 60 por ciento', NAMES)).toEqual([{ tool: 'fire', args: { power: 60 } }]);
   });
+  it('opens and closes the weapon menu, and picks a weapon said on its own while it is open', () => {
+    expect(parseUtterance('abre el menú de armas', NAMES)).toEqual([{ tool: 'weapon_menu', args: { action: 'open' } }]);
+    expect(parseUtterance('cierra el menú', NAMES)).toEqual([{ tool: 'weapon_menu', args: { action: 'close' } }]);
+    expect(parseUtterance('la escopeta', NAMES, { menuOpen: true })).toEqual([{ tool: 'select_weapon', args: { weapon: 'shotgun' } }]);
+    expect(parseUtterance('abre las armas y la oveja', NAMES)).toEqual([
+      { tool: 'weapon_menu', args: { action: 'open' } },
+      { tool: 'select_weapon', args: { weapon: 'sheep' } },
+    ]);
+  });
+  it('sets the sheep off instead of picking it', () => {
+    expect(parseUtterance('¡detona la oveja!', NAMES)).toEqual([{ tool: 'detonate', args: {} }]);
+    expect(parseUtterance('explota', NAMES)).toEqual([{ tool: 'detonate', args: {} }]);
+    expect(parseUtterance('saca la oveja y dispara', NAMES)).toEqual([
+      { tool: 'select_weapon', args: { weapon: 'sheep' } },
+      { tool: 'fire', args: {} },
+    ]);
+  });
+  it('turns the screens\' buttons into presses, and a click on a worm into a map click', () => {
+    expect(parseUtterance('empieza', [])).toEqual([{ tool: 'press_button', args: { button: 'start' } }]);
+    expect(parseUtterance('pausa', NAMES)).toEqual([{ tool: 'press_button', args: { button: 'pause' } }]);
+    expect(parseUtterance('continua', NAMES)).toEqual([{ tool: 'press_button', args: { button: 'resume' } }]);
+    expect(parseUtterance('otra partida', NAMES)).toEqual([{ tool: 'press_button', args: { button: 'restart' } }]);
+    expect(parseUtterance('cambia el mapa y más equipos', [])).toEqual([
+      { tool: 'press_button', args: { button: 'map' } },
+      { tool: 'press_button', args: { button: 'add' } },
+    ]);
+    expect(parseUtterance('clic en Ana', NAMES)).toEqual([{ tool: 'click_map', args: { worm: 'Ana' } }]);
+    expect(parseUtterance('acerca la cámara', NAMES)).toEqual([{ tool: 'camera', args: { zoom: 'in' } }]);
+  });
 });

@@ -57,7 +57,17 @@ teams and start the match. `?map=castle` (or `spaceship`, `kame_house`) in the U
   - With an **ElevenLabs agent** set up, the agent hears you, calls the game's tools and talks back
     (in Spanish by default) narrating each shot; it writes the battle cries. Without one, the
     browser's own speech recognition does it (Chrome, Edge, Safari; `?voicelang=en-US` for English).
-  - **WebMCP**: the same twelve tools (`orugas_get_battle_state`, `orugas_choose_worm`,
+  - "**abre el menú de armas**" opens the weapon panel on screen and "**la escopeta**" then picks
+    from it (the pick shows for a moment before the panel closes); "**cierra el menú**" closes it.
+    "**¡detona la oveja!**" (or "explota", "revienta") sets off the sheep while it runs.
+  - **Every click is an order**: `get_screen` says which screen is up and lists its buttons, and
+    `press_button` clicks any of them through the same path as the mouse (the title, every cell of
+    the team setup, pause, options, the weapon panel, play again); `click_map` clicks the map at a
+    worm or a point (where the air strike, the teleport, the girder or the Meteorito goes); `camera`
+    zooms and looks around. By voice: "empieza", "cambia el mapa", "más equipos", "pausa",
+    "continúa", "opciones", "otra partida", "clic en Ana", "acerca la cámara". A whole match can be
+    played without touching the mouse.
+  - **WebMCP**: the same tools (`orugas_get_battle_state`, `orugas_choose_worm`,
     `orugas_walk`, `orugas_aim`, `orugas_select_weapon`, `orugas_fire`, `orugas_ai_attack`, ...) are
     registered on `navigator.modelContext`, so a browser agent can play your turn too.
   Every tool goes through the controller's command door (`src/game/commands.ts`): a voice order can

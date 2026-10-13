@@ -249,6 +249,9 @@ export function applyComicEvents(c: ComicState, events: readonly GameEvent[], lo
       case 'crateOpened':
         if (e.crate === 'power' && e.weapon !== null) addSplat(c, `¡+1 ${upper(getWeapon(e.weapon).name)}!`, '#ffb000', 0.9, { fx: 0.5, fy: 0.3 });
         break;
+      case 'detonateOrder':
+        addSplat(c, '¡BEEE-BOOM!', '#ff4d1a', 1.3, { fx: 0.5, fy: 0.45 });
+        break;
       case 'wormPicked':
         addPanel(c, 'pick', '¡YO TE ELIJO!', `¡${upper(e.name)}, A LA BATALLA!`, '#ff7a00', 1400);
         break;

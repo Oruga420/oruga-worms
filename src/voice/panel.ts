@@ -12,6 +12,7 @@ import type { GameApi } from './tools.ts';
 const LINES = 5;
 /** A line leaves the transcript after this long. */
 const LINE_MS = 9000;
+const LINE_CHARS = 110;
 
 const LABEL: Readonly<Record<AgentStatus, string>> = Object.freeze({
   idle: '🎤 Voz',
@@ -47,7 +48,9 @@ export function createVoicePanel(root: HTMLElement, api: GameApi): VoicePanel {
   const line = (kind: 'heard' | 'said' | 'acted' | 'error', text: string): void => {
     const item = document.createElement('li');
     item.className = `voice-${kind}`;
-    item.textContent = text;
+    // A long tool answer (the weapon list) would cover the screen: the transcript keeps its start.
+    item.textContent = text.length > LINE_CHARS ? `${text.slice(0, LINE_CHARS - 1)}…` : text;
+    item.title = text;
     log.append(item);
     window.setTimeout(() => item.remove(), LINE_MS);
     while (log.children.length > LINES) log.firstElementChild?.remove();

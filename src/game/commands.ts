@@ -33,7 +33,9 @@ export type WormCommand =
   | { readonly kind: 'auto'; readonly weapon?: WeaponId; readonly targetWormId?: string; readonly message?: string }
   | { readonly kind: 'skip' }
   /** Drops whatever the worm was still doing on command. */
-  | { readonly kind: 'stop' };
+  | { readonly kind: 'stop' }
+  /** Sets off the team's running sheep now, as a second press of fire does. */
+  | { readonly kind: 'detonate' };
 
 export type CommandResult =
   | { readonly ok: true; readonly text: string; readonly data?: Readonly<Record<string, unknown>> }

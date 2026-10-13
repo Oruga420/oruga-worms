@@ -128,6 +128,8 @@ export type GameEvent =
   | { readonly type: 'crateOpened'; readonly wormId: string; readonly crate: CrateType; readonly weapon: WeaponId | null; readonly healed: number; readonly x: number; readonly y: number }
   /** A worm on command took one more whole step of the n it was told to walk (the count over its head). */
   | { readonly type: 'step'; readonly wormId: string; readonly n: number; readonly total: number; readonly x: number; readonly y: number }
+  /** The player set off the team's sheep by order ("¡detona la oveja!"), at (x, y). */
+  | { readonly type: 'detonateOrder'; readonly wormId: string; readonly x: number; readonly y: number }
   /** A worm was picked to play the turn by name ("¡YO TE ELIJO!"). */
   | { readonly type: 'wormPicked'; readonly wormId: string; readonly name: string; readonly x: number; readonly y: number }
   /**
@@ -689,13 +691,18 @@ export function createController(game: Game, options: ControllerOptions): Contro
     }
   };
 
-  /** A second fire press while the sim runs detonates the active team's sheep, as its spec promises. */
-  const detonateOwnSheep = (): void => {
+  /** A second fire press while the sim runs detonates the active team's sheep, as its spec promises; how many it set off. */
+  const detonateOwnSheep = (): number => {
     const team = activeTeamOf(state);
-    if (team === undefined) return;
+    if (team === undefined) return 0;
+    let count = 0;
     for (const sheep of world.sheep) {
-      if (sheep.alive && sheep.ownerTeamId === team.id && sheep.spec.detonateOnSecondFire) sheep.detonateRequested = true;
+      if (sheep.alive && !sheep.detonateRequested && sheep.ownerTeamId === team.id && sheep.spec.detonateOnSecondFire) {
+        sheep.detonateRequested = true;
+        count += 1;
+      }
     }
+    return count;
   };
 
   /** The reducer announced a crate at TurnEnd; the sim gets exactly one body for it. */
@@ -925,6 +932,15 @@ export function createController(game: Game, options: ControllerOptions): Contro
   const nameOf = (wormId: string | null): string | null => (wormId === null ? null : (findWormState(state, wormId)?.worm.name ?? null));
 
   const command = (cmd: WormCommand): CommandResult => {
+    if (cmd.kind === 'detonate') {
+      // In flight, not on the worm: the sheep runs while the shot is out, so this is the one order taken outside Active.
+      if (!isHumanTurn() || state.phase === 'MatchEnd') return refuse('It is not a human turn.');
+      const set = detonateOwnSheep();
+      if (set === 0) return refuse('There is no sheep of yours running to set off.');
+      const sheep = world.sheep.find((s) => s.alive && s.detonateRequested);
+      events.push({ type: 'detonateOrder', wormId: activeWormOf(state)?.id ?? '', x: sheep?.x ?? 0, y: sheep?.y ?? 0 });
+      return ok(set === 1 ? 'The sheep goes off!' : `${set} sheep go off!`);
+    }
     if (cmd.kind === 'stop') {
       script = [];
       return ok('Stopped.');

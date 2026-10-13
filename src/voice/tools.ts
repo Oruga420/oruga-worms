@@ -52,6 +52,24 @@ export interface BattleView {
   readonly worms: readonly BattleWorm[];
   readonly weapons: readonly BattleWeapon[];
   readonly busy: boolean;
+  /** The weapon panel is open on screen. */
+  readonly menuOpen: boolean;
+}
+
+export type ScreenName = 'title' | 'setup' | 'playing' | 'weapons' | 'paused' | 'options' | 'end';
+
+export interface ScreenButton {
+  readonly id: string;
+  readonly label: string;
+  readonly enabled: boolean;
+  /** Screen px of its centre; absent for the buttons that are keys on a desktop (pause, weapons, play again). */
+  readonly at?: { readonly x: number; readonly y: number };
+}
+
+/** What is on screen and every button on it (built by screen.ts from the layouts the HUD draws). */
+export interface ScreenView {
+  readonly screen: ScreenName;
+  readonly buttons: readonly ScreenButton[];
 }
 
 /** What the tools need from the game: a look at it, the command door, and a speech bubble. */
@@ -61,6 +79,16 @@ export interface GameApi {
   command(cmd: WormCommand): CommandResult;
   /** A line the active worm shouts, drawn as a comic bubble over it. */
   say(text: string): void;
+  /** Opens or closes the weapon panel on screen; false when it cannot be open now (not the human's turn to aim). */
+  menu(open: boolean): boolean;
+  /** What is on screen and every button on it (screen.ts). */
+  screen(): ScreenView;
+  /** Clicks a button of the screen by id or label, through the same path as the mouse. */
+  press(button: string): ToolAnswer;
+  /** Clicks the map at a world point (a targeted weapon's destination). */
+  clickMap(point: { readonly x: number; readonly y: number }): ToolAnswer;
+  /** Zooms or pans the camera, as the wheel and a drag do. */
+  camera(zoom: 'in' | 'out' | null, look: 'left' | 'right' | 'up' | 'down' | 'worm' | null): ToolAnswer;
 }
 
 export interface ToolParam {
@@ -86,6 +114,31 @@ const DIRECTION = { type: 'string', description: 'left or right (izquierda o der
 const WEAPON = { type: 'string', description: 'Weapon id or name, in Spanish or English: bazooka, granada, escopeta, kamehameha, gear 5, freezer, ryuko ranbu, ataque aereo, oveja, saibaman, antares, hiken, meteorito, santoryu, zoltraak, explosion final, ... get_battle_state lists what the worm can use.' } as const;
 
 export const TOOLS: readonly ToolDef[] = Object.freeze([
+  {
+    name: 'get_screen',
+    description: 'What is on screen (title, team setup, the match, the weapon panel, pause, options, the end screen) and every button that can be clicked there, by id. Call it before press_button when unsure.',
+    params: {},
+    required: [],
+  },
+  {
+    name: 'press_button',
+    description:
+      'Click any button of the screen, exactly as the mouse would: on the title "desktop", "touch" or "start"; on the team setup "map", "team:0:name", "team:1:controller", "team:1:difficulty", "add", "remove", "start"; in the match "pause" and "weapons" (the panel) or a weapon cell by id; paused "resume", "options", "surrender"; in options "vol:music:plus", "key:fire", "reset", "back"; at the end "restart". A label works too.',
+    params: { button: { type: 'string', description: 'Button id from get_screen, or its label.' } },
+    required: ['button'],
+  },
+  {
+    name: 'click_map',
+    description: 'Click a point of the map, as the mouse does: where an air strike, a teleport, a girder or the Meteorito goes once picked. Give a worm name to click on it, or world x/y.',
+    params: { worm: { type: 'string', description: 'Click on this worm.' }, x: { type: 'number', description: 'World x in px.' }, y: { type: 'number', description: 'World y in px.' } },
+    required: [],
+  },
+  {
+    name: 'camera',
+    description: 'Zoom the camera in or out (the mouse wheel) or look around (a drag): look left, right, up, down, or back at the worm.',
+    params: { zoom: { type: 'string', description: 'in or out.', enum: ['in', 'out'] }, look: { type: 'string', description: 'left, right, up, down or worm.', enum: ['left', 'right', 'up', 'down', 'worm'] } },
+    required: [],
+  },
   {
     name: 'get_battle_state',
     description: 'Look at the battle: whose turn it is, every worm (name, team, hp, position), the weapons the worm up can use right now, steps left, wind. Call it first when unsure of names or weapons.',
@@ -123,6 +176,12 @@ export const TOOLS: readonly ToolDef[] = Object.freeze([
     required: [],
   },
   {
+    name: 'weapon_menu',
+    description: 'Open or close the weapon panel on screen ("abre el menú de armas", "cierra el menú"), so the player sees every weapon, its ammo and which ones are locked. Then select_weapon picks one; the panel closes on its own after the pick.',
+    params: { action: { type: 'string', description: 'open or close (abrir o cerrar).', enum: ['open', 'close'] } },
+    required: [],
+  },
+  {
     name: 'select_weapon',
     description: 'Put a weapon in the worm\'s hands (the weapon panel, by voice).',
     params: { weapon: WEAPON, worm: WORM },
@@ -139,6 +198,12 @@ export const TOOLS: readonly ToolDef[] = Object.freeze([
     description:
       'The worm lets the AI work out the best shot: it scans the enemies (a calculating animation plays), picks the target, walks if that helps, aims, charges and fires. Use it whenever the player says "use X", "attack", "dispara con todo", "utiliza Kamehameha". battle_cry is the line the worm shouts in a comic bubble before firing: make it short and fun, in the player\'s language.',
     params: { weapon: WEAPON, target: { type: 'string', description: 'Enemy worm to go for (optional; the AI picks otherwise).' }, battle_cry: { type: 'string', description: 'Short line the worm shouts (max 80 characters).' }, worm: WORM },
+    required: [],
+  },
+  {
+    name: 'detonate',
+    description: 'Set off the team\'s sheep while it runs ("¡detona la oveja!", "¡explota!"), like a second press of fire. Only while a sheep of the team is running after it was fired.',
+    params: {},
     required: [],
   },
   {
@@ -234,10 +299,48 @@ function bringUp(api: GameApi, view: BattleView, name: string | undefined): Tool
 
 /** Runs one tool by name with the agent's arguments; never throws. */
 export function runTool(api: GameApi, name: string, args: Readonly<Record<string, unknown>> = {}): ToolAnswer {
+  // The clicks work on every screen, the title and the team setup included.
+  if (name === 'get_screen') {
+    const screen = api.screen();
+    return { ok: true, text: `Screen: ${screen.screen}. Buttons: ${screen.buttons.map((b) => `${b.id} = ${b.label}${b.enabled ? '' : ' [disabled]'}`).join('; ')}.` };
+  }
+  if (name === 'press_button') {
+    const button = str(args, 'button');
+    return button === undefined ? { ok: false, text: 'Which button?' } : api.press(button);
+  }
+  if (name === 'camera') {
+    const zoom = fold(str(args, 'zoom') ?? '');
+    const look = fold(str(args, 'look') ?? '');
+    const z = /^(in|acerca|mas|zoom in|cerca)/.test(zoom) ? 'in' : /^(out|aleja|menos|lejos)/.test(zoom) ? 'out' : null;
+    const l = (['left', 'right', 'up', 'down', 'worm'] as const).find((d) => d === look) ?? (look === 'izquierda' ? 'left' : look === 'derecha' ? 'right' : look === 'arriba' ? 'up' : look === 'abajo' ? 'down' : look === 'gusano' ? 'worm' : null);
+    if (z === null && l === null) return { ok: false, text: 'Zoom in or out, or look left, right, up, down or at the worm?' };
+    return api.camera(z, l);
+  }
   const view = api.view();
+  if (name === 'click_map') {
+    if (view === null) return { ok: false, text: 'There is no map on screen: start a match first.' };
+    const wormName = str(args, 'worm');
+    if (wormName !== undefined) {
+      const worm = findWormByName(view.worms, wormName);
+      if (worm === null) return { ok: false, text: `There is no worm called ${wormName}.` };
+      return api.clickMap({ x: worm.x, y: worm.y - 10 });
+    }
+    const x = num(args, 'x');
+    const y = num(args, 'y');
+    if (x === undefined || y === undefined) return { ok: false, text: 'Click where? Give a worm or x and y.' };
+    return api.clickMap({ x, y });
+  }
   if (view === null) return { ok: false, text: 'No match is being played yet: start one from the title screen.' };
   if (name === 'get_battle_state') return { ok: true, text: describe(view) };
   if (name === 'stop') return answer(api.command({ kind: 'stop' }));
+  if (name === 'detonate') return answer(api.command({ kind: 'detonate' }));
+  if (name === 'weapon_menu') {
+    const open = !/^(close|cerrar|cierra|closed)/.test(fold(str(args, 'action') ?? 'open'));
+    if (!api.menu(open)) return { ok: false, text: open ? 'The weapon panel opens only on your turn, before the shot.' : 'The weapon panel is already closed.' };
+    if (!open) return { ok: true, text: 'Weapon panel closed.' };
+    const ready = view.weapons.filter((w) => w.ready).map((w) => w.name);
+    return { ok: true, text: `Weapon panel open. ${view.activeWorm ?? 'The worm'} can use: ${ready.join(', ')}.` };
+  }
   if (name === 'shout') {
     const text = str(args, 'text');
     if (text === undefined) return { ok: false, text: 'Nothing to shout.' };

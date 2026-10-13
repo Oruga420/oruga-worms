@@ -10,7 +10,7 @@ import { superResting } from '../match/super-rest.ts';
 import { WEAPON_IDS, getWeapon, isSuper } from '../weapons/registry.ts';
 import type { BattleView, BattleWeapon, BattleWorm } from './tools.ts';
 
-export function battleView(controller: Controller): BattleView {
+export function battleView(controller: Controller, menuOpen = false): BattleView {
   const state = controller.state();
   const world = controller.world();
   const team = activeTeamOf(state);
@@ -47,5 +47,6 @@ export function battleView(controller: Controller): BattleView {
     worms,
     weapons,
     busy: controller.commandBusy(),
+    menuOpen,
   };
 }

@@ -33,7 +33,8 @@ import { cinematicFor } from './game/cinematic.ts';
 import { advanceComic, applyComicEvents, comicSay, scanFocus, createComic, drainComicCues, drawComicScreen, drawComicWorld, resetComic } from './game/comic.ts';
 import { battleView } from './voice/battle.ts';
 import { createVoicePanel } from './voice/panel.ts';
-import { runTool, type GameApi } from './voice/tools.ts';
+import { runTool, type GameApi, type ToolAnswer } from './voice/tools.ts';
+import { findButton, optionsButtons, panelButtons, pauseButtons, setupButtons, titleButtons, type ScreenView } from './voice/screen.ts';
 import { registerWebMcp } from './voice/webmcp.ts';
 import { GAME_CONFIG } from './config/game-config.ts';
 import { loadAtlas } from './engine/atlas.ts';
@@ -393,6 +394,11 @@ function boot(): void {
   // Weapon panel: Shift+Q or Tab toggles it, a click on a cell selects and closes. The layout is
   // rebuilt every tick it is open so its ammo badges and greyed cells track the ledger.
   let panelOpen = false;
+  // A weapon picked by voice with the panel open: the panel stays up a moment so the pick shows, then closes.
+  let panelCloseAtMs: number | null = null;
+  // A click an agent asked for (WebMCP or voice, src/voice/screen.ts), in screen px: played on the
+  // next tick as a real click, so it goes down the same path as the mouse.
+  let pendingClick: { x: number; y: number } | null = null;
   let panelLayout: PanelLayout | null = null;
 
   const soundDirector = createSoundDirector({
@@ -618,7 +624,10 @@ function boot(): void {
     {
       tick: () => {
         const viewport = renderer.viewport();
-        const intent = input.sample((screen) => screenToWorld(camera, viewport, screen));
+        const sampled = input.sample((screen) => screenToWorld(camera, viewport, screen));
+        const click = pendingClick;
+        pendingClick = null;
+        const intent = click === null ? sampled : { ...sampled, pointerScreen: click, pointer: screenToWorld(camera, viewport, click), pointerDown: false, pointerClicked: true };
         pointerWorld = intent.pointer;
         // Drag to look around: the screen delta becomes a world delta through the zoom, and the
         // camera stops chasing the worm while the player is looking.
@@ -727,6 +736,10 @@ function boot(): void {
           // never read the CPU team's ammo or land on a match that has ended (review, run #36).
           const panelState = controller.state();
           const panelAllowed = panelState.phase === 'Active' && activeTeamOf(panelState)?.controller === 'human';
+          if (panelCloseAtMs !== null && performance.now() >= panelCloseAtMs) {
+            panelOpen = false;
+            panelCloseAtMs = null;
+          }
           if (!panelAllowed) panelOpen = false;
           else if (intent.panelToggle) panelOpen = !panelOpen;
           // A click that lands while the panel is up belongs to the panel, never to the weapon.
@@ -942,18 +955,107 @@ function boot(): void {
 
   // Voice and WebMCP (src/voice): the same tools for the ElevenLabs agent, the browser's own speech
   // recognition and any WebMCP agent, all through the controller's command door (game/commands.ts).
+  /** How long the panel stays up after a voice pick, so the highlight can be seen moving. */
+  const VOICE_PICK_SHOW_MS = 900;
   const gameApi: GameApi = {
-    view: () => (appPhase === 'playing' ? battleView(controller) : null),
-    command: (cmd) => controller.command(cmd),
+    view: () => (appPhase === 'playing' ? battleView(controller, panelOpen) : null),
+    command: (cmd) => {
+      const result = controller.command(cmd);
+      if (result.ok && cmd.kind === 'weapon' && panelOpen) panelCloseAtMs = performance.now() + VOICE_PICK_SHOW_MS;
+      // Anything that sets the worm moving or shooting takes the panel down, as a key would.
+      if (result.ok && cmd.kind !== 'weapon' && cmd.kind !== 'stop') panelOpen = false;
+      renderer.markHudDirty();
+      return result;
+    },
+    menu: (open) => {
+      const state = controller.state();
+      const allowed = appPhase === 'playing' && !paused && state.phase === 'Active' && activeTeamOf(state)?.controller === 'human';
+      if (open && !allowed) return false;
+      if (!open && !panelOpen) return false;
+      panelOpen = open;
+      panelCloseAtMs = null;
+      renderer.markHudDirty();
+      return true;
+    },
     say: (text) => {
       const active = activeWormOf(controller.state());
       if (active !== undefined) comicSay(comic, active.id, text);
     },
+    screen: () => currentScreen(),
+    press: (id) => pressButton(id),
+    clickMap: (point) => {
+      if (appPhase !== 'playing' || paused) return { ok: false, text: 'There is no map to click right now.' };
+      pendingClick = worldToScreen(camera, renderer.viewport(), point);
+      const weapon = controller.selectedWeapon();
+      const targeted = WEAPONS[weapon].requiresTargetSelect && controller.state().phase === 'Active' && activeTeamOf(controller.state())?.controller === 'human';
+      return { ok: true, text: targeted ? `Clicked the map at (${Math.round(point.x)}, ${Math.round(point.y)}): the ${WEAPONS[weapon].name} goes there.` : `Clicked the map at (${Math.round(point.x)}, ${Math.round(point.y)}).` };
+    },
+    camera: (zoom, look) => {
+      if (appPhase !== 'playing') return { ok: false, text: 'The camera moves only in a match.' };
+      if (zoom !== null) camera = zoomBy(camera, zoom === 'in' ? 1 : -1);
+      if (look === 'worm') freeLookUntilMs = 0;
+      else if (look !== null) {
+        const viewport = renderer.viewport();
+        const dx = look === 'left' ? -1 : look === 'right' ? 1 : 0;
+        const dy = look === 'up' ? -1 : look === 'down' ? 1 : 0;
+        camera = follow(moveTo(camera, camera.x + (dx * viewport.w * 0.4) / camera.zoom, camera.y + (dy * viewport.h * 0.4) / camera.zoom), null);
+        freeLookUntilMs = performance.now() + FREE_LOOK_HOLD_MS * 2;
+      }
+      return { ok: true, text: [zoom === null ? '' : `Zoomed ${zoom}.`, look === null ? '' : look === 'worm' ? 'Back on the worm.' : `Looking ${look}.`].join(' ').trim() };
+    },
   };
+
+  /** What is on screen now and its buttons, from the same layouts the HUD draws (voice/screen.ts). */
+  function currentScreen(): ScreenView {
+    const viewport = renderer.viewport();
+    if (appPhase === 'menu') return { screen: 'title', buttons: titleButtons(layoutTitleScreen(viewport, deviceMode)) };
+    if (appPhase === 'setup') return { screen: 'setup', buttons: setupButtons(layoutTeamSetup(viewport, teamSetup), teamSetup) };
+    const state = controller.state();
+    if (state.phase === 'MatchEnd') return { screen: 'end', buttons: [{ id: 'restart', label: 'Play again (the same teams on a fresh map)', enabled: true }] };
+    if (paused && optionsOpen) return { screen: 'options', buttons: optionsButtons(layoutOptionsScreen(viewport)) };
+    if (paused) return { screen: 'paused', buttons: pauseButtons(layoutPauseScreen(viewport)) };
+    const aimTurn = state.phase === 'Active' && activeTeamOf(state)?.controller === 'human';
+    if (panelOpen && panelLayout !== null) return { screen: 'weapons', buttons: [...panelButtons(panelLayout), { id: 'weapons', label: 'Close the weapon panel', enabled: true }] };
+    return {
+      screen: 'playing',
+      buttons: [
+        { id: 'pause', label: 'Pause', enabled: true },
+        { id: 'weapons', label: 'Open the weapon panel', enabled: aimTurn },
+      ],
+    };
+  }
+
+  /** Clicks a button of the screen: a click at its centre on the next tick, or the key a desktop uses for it. */
+  function pressButton(id: string): ToolAnswer {
+    const view = currentScreen();
+    const button = findButton(view, id);
+    if (button === null) return { ok: false, text: `No button "${id}" on the ${view.screen} screen. Buttons: ${view.buttons.map((b) => b.id).join(', ')}.` };
+    if (!button.enabled) return { ok: false, text: `${button.label} cannot be pressed now.` };
+    if (button.at !== undefined) {
+      pendingClick = { ...button.at };
+      return { ok: true, text: `Pressed ${button.label}.` };
+    }
+    switch (button.id) {
+      case 'pause':
+        paused = true;
+        break;
+      case 'weapons':
+        panelOpen = !panelOpen;
+        panelCloseAtMs = null;
+        break;
+      case 'restart':
+        restart();
+        break;
+      default:
+        return { ok: false, text: `${button.label} cannot be pressed.` };
+    }
+    renderer.markHudDirty();
+    return { ok: true, text: `Pressed ${button.label}.` };
+  }
   registerWebMcp(gameApi);
   const voicePanel = createVoicePanel(stage, gameApi);
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyV' || event.repeat || listeningFor !== null || appPhase !== 'playing') return;
+    if (event.code !== 'KeyV' || event.repeat || listeningFor !== null) return;
     voicePanel.toggle();
   });
   // The agent hears whose turn it is as each one starts, so "dispara" means the right worm.

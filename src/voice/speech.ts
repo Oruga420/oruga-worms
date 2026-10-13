@@ -64,6 +64,11 @@ const SAY_OK: Readonly<Record<string, string>> = Object.freeze({
   fire: '¡Fuego!',
   ai_attack: 'Calculando...',
   skip_turn: 'Paso.',
+  weapon_menu: 'Ahí están tus armas.',
+  detonate: '¡Bum!',
+  press_button: 'Listo.',
+  click_map: '¡Ahí va!',
+  camera: 'Cámara lista.',
   stop: 'Alto.',
 });
 
@@ -96,7 +101,7 @@ export function startLocalEar(api: GameApi, callbacks: AgentCallbacks, lang: str
       if (text === '') continue;
       callbacks.heard(text);
       const view = api.view();
-      const calls = parseUtterance(text, view?.worms.map((w) => w.name) ?? []);
+      const calls = parseUtterance(text, view?.worms.map((w) => w.name) ?? [], { menuOpen: view?.menuOpen === true });
       if (calls.length === 0) {
         callbacks.said('No entendí la orden.');
         continue;
